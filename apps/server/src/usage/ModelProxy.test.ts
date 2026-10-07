@@ -472,6 +472,165 @@ describe("native T3 Proxy", () => {
       ]);
     }).pipe(Effect.scoped),
   );
+  it.effect("releases a sticky account after an upstream response stream fails", () =>
+    Effect.gen(function* () {
+      const test = fixture((req) =>
+        req.headers.authorization === "Bearer first"
+          ? new Response(
+              new ReadableStream<Uint8Array>({
+                start(controller) {
+                  controller.error(new Error("Upstream body failed"));
+                },
+              }),
+              { headers: { "Content-Type": "text/event-stream" } },
+            )
+          : Response.json({ id: "r", output: [] }),
+      );
+      const proxy = yield* test.api;
+      for (const apiKey of ["first", "second"])
+        yield* proxy.manage({
+          action: "importAccount",
+          name: `${apiKey}.json`,
+          credential: { type: "codex", api_key: apiKey },
+        });
+      yield* proxy.manage({ action: "start" });
+      const apiKey = (yield* proxy.manage({ action: "revealKey" })).apiKey!;
+      const sessionRequest = {
+        ...request,
+        headers: { "session-id": "failed-stream" },
+        apiKey,
+        payload: { ...request.payload, stream: true },
+      };
+      const response = yield* proxy.forward(sessionRequest);
+      expect(response.status).toBe(200);
+      if (response.body._tag !== "Stream") throw new Error("Expected a streamed response");
+      expect(
+        (yield* response.body.stream.pipe(
+          Stream.mapError((cause) => new Error("Response stream failed", { cause })),
+          Stream.runDrain,
+          Effect.result,
+        ))._tag,
+      ).toBe("Failure");
+      expect(
+        (yield* proxy.manage({ action: "status" })).accounts.map((a) => a.activeSessions),
+      ).toEqual([0, 0]);
+      yield* proxy.forward(sessionRequest).pipe(Effect.flatMap(drainResponse));
+      yield* proxy.forward(sessionRequest).pipe(Effect.flatMap(drainResponse));
+      expect(test.requests.map((req) => req.headers.authorization)).toEqual([
+        "Bearer first",
+        "Bearer second",
+        "Bearer second",
+      ]);
+    }).pipe(Effect.scoped),
+  );
+  it.effect("releases a sticky account when streamed protocol translation fails", () =>
+    Effect.gen(function* () {
+      const test = fixture((req) =>
+        req.url.endsWith("/responses")
+          ? new Response(
+              req.headers.authorization === "Bearer first"
+                ? "data: {invalid-json}\n\n"
+                : 'data: {"type":"response.completed","response":{"id":"r","output":[]}}\n\n',
+              { headers: { "Content-Type": "text/event-stream" } },
+            )
+          : Response.json({}),
+      );
+      const proxy = yield* test.api;
+      for (const accessToken of ["first", "second"])
+        yield* proxy.manage({
+          action: "importAccount",
+          name: `${accessToken}.json`,
+          credential: { type: "codex", access_token: accessToken },
+        });
+      yield* proxy.manage({ action: "start" });
+      const apiKey = (yield* proxy.manage({ action: "revealKey" })).apiKey!;
+      const sessionRequest = {
+        ...request,
+        path: "/v1/chat/completions",
+        headers: { "session-id": "failed-translation" },
+        apiKey,
+        payload: { model: "gpt-5.4", messages: [{ role: "user", content: "Hello" }], stream: true },
+      };
+      const response = yield* proxy.forward(sessionRequest);
+      expect(response.status).toBe(200);
+      if (response.body._tag !== "Stream") throw new Error("Expected a streamed response");
+      expect(
+        (yield* response.body.stream.pipe(
+          Stream.mapError((cause) => new Error("Response stream failed", { cause })),
+          Stream.runDrain,
+          Effect.result,
+        ))._tag,
+      ).toBe("Failure");
+      expect(
+        (yield* proxy.manage({ action: "status" })).accounts.map((a) => a.activeSessions),
+      ).toEqual([0, 0]);
+      yield* proxy.forward(sessionRequest).pipe(Effect.flatMap(drainResponse));
+      yield* proxy.forward(sessionRequest).pipe(Effect.flatMap(drainResponse));
+      expect(
+        test.requests
+          .filter((req) => req.url.endsWith("/responses"))
+          .map((req) => req.headers.authorization),
+      ).toEqual(["Bearer first", "Bearer second", "Bearer second"]);
+    }).pipe(Effect.scoped),
+  );
+  it.effect("keeps a sticky account on client cancellation and starts its idle deadline then", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(0);
+      const consumed = yield* Deferred.make<void>();
+      let firstResponse = true;
+      const test = fixture(() => {
+        if (!firstResponse) return Response.json({ id: "r", output: [] });
+        firstResponse = false;
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("data: {}\n\n"));
+            },
+            pull: () => new Promise<void>(() => {}),
+          }),
+          { headers: { "Content-Type": "text/event-stream" } },
+        );
+      });
+      const proxy = yield* test.api;
+      for (const apiKey of ["first", "second"])
+        yield* proxy.manage({
+          action: "importAccount",
+          name: `${apiKey}.json`,
+          credential: { type: "codex", api_key: apiKey },
+        });
+      yield* proxy.manage({ action: "start" });
+      yield* proxy.manage({ action: "setStickyIdleMinutes", minutes: 1 });
+      const apiKey = (yield* proxy.manage({ action: "revealKey" })).apiKey!;
+      const sessionRequest = {
+        ...request,
+        headers: { "session-id": "cancelled-stream" },
+        apiKey,
+        payload: { ...request.payload, stream: true },
+      };
+      const response = yield* proxy.forward(sessionRequest);
+      if (response.body._tag !== "Stream") throw new Error("Expected a streamed response");
+      const pending = yield* response.body.stream.pipe(
+        Stream.tap(() => Deferred.succeed(consumed, undefined)),
+        Stream.runDrain,
+        Effect.forkChild,
+      );
+      yield* Deferred.await(consumed);
+      yield* TestClock.setTime(60_000);
+      yield* Fiber.interrupt(pending);
+      expect(
+        (yield* proxy.manage({ action: "status" })).accounts.map((a) => a.activeSessions),
+      ).toEqual([1, 0]);
+      yield* TestClock.setTime(119_000);
+      yield* proxy.forward(sessionRequest).pipe(Effect.flatMap(drainResponse));
+      yield* TestClock.setTime(179_000);
+      yield* proxy.forward(sessionRequest).pipe(Effect.flatMap(drainResponse));
+      expect(test.requests.map((req) => req.headers.authorization)).toEqual([
+        "Bearer first",
+        "Bearer first",
+        "Bearer second",
+      ]);
+    }).pipe(Effect.scoped),
+  );
   it.effect(
     "uses nearest available reset quotas for new sessions without moving sticky sessions",
     () =>

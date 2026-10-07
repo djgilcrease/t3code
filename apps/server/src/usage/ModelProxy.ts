@@ -1349,7 +1349,15 @@ export const make = Effect.gen(function* () {
         );
       const responseStream = <E, R>(stream: Stream.Stream<Uint8Array, E, R>) => {
         streamingResponse = true;
-        return stream.pipe(Stream.ensuring(finish(succeeded)));
+        return stream.pipe(
+          Stream.tapError(() =>
+            Effect.sync(() => {
+              succeeded = false;
+            }),
+          ),
+          // Cancellation keeps the binding; upstream and translation errors release it.
+          Stream.ensuring(Effect.suspend(() => finish(succeeded))),
+        );
       };
       const attemptResponse = yield* Effect.gen(function* () {
         const accountResult = yield* getAccountToken(entry.id).pipe(Effect.result);
