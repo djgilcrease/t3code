@@ -51,6 +51,10 @@ accounts; sign in once for each account you want to add. **Client** uses another
 running in Server mode. T3 discovers its LAN or tailnet address when available. If it has only a
 relay connection, enter a directly reachable T3 Proxy address and key.
 
+Use HTTPS for remote connections, or HTTP over an encrypted connection such as Tailscale.
+HTTP alone does not protect the proxy key or request contents from network observers. The proxy
+key grants access to all enabled accounts on that server; keep it private and rotate it if exposed.
+
 Gemini and Antigravity sign-ins require an OAuth app configured on the server. Set
 `T3CODE_PROXY_GEMINI_OAUTH_CLIENT_ID` or `T3CODE_PROXY_ANTIGRAVITY_OAUTH_CLIENT_ID`,
 and the matching `_CLIENT_SECRET` variable if your app requires one, before starting T3.
@@ -64,6 +68,7 @@ Restart existing sessions to apply a change. CLIs launched from your own termina
 Configured proxies add account quota details to **Usage → Limits**. Quota availability depends on
 the provider. Disabling an account stops new requests from using it; removing it deletes its saved
 credentials. Rotating the API key requires reconnecting clients that used the previous key.
+Signing in again keeps a disabled account disabled; enable it explicitly when you want to use it.
 
 Choose **Closest to Reset** to spend available allowance on accounts whose quota resets soonest,
 **Round-Robin** to distribute new sessions in turn, or **Least Active Sessions** to prefer the account

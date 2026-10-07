@@ -9,6 +9,7 @@ import * as TestClock from "effect/testing/TestClock";
 import * as Deferred from "effect/Deferred";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Logger from "effect/Logger";
+import * as Fiber from "effect/Fiber";
 import * as References from "effect/References";
 import * as Stream from "effect/Stream";
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpServerResponse } from "effect/http";
@@ -22,6 +23,7 @@ function fixture(
     Response.json({ data: [] }),
   initial?: string,
   host?: string,
+  keyLoaded?: (bytes: Uint8Array) => Effect.Effect<Uint8Array>,
 ) {
   const saved = new Map<string, Uint8Array>();
   if (initial) saved.set("model-proxy-state", new TextEncoder().encode(initial));
@@ -51,7 +53,7 @@ function fixture(
         const value = saved.get(name) ?? new Uint8Array(bytes).fill(17);
         saved.set(name, value);
         return value;
-      }),
+      }).pipe(Effect.flatMap((value) => (keyLoaded ? keyLoaded(value) : Effect.succeed(value)))),
   });
   return {
     saved,
@@ -88,6 +90,72 @@ const drainResponse = (response: HttpServerResponse.HttpServerResponse) =>
     : Effect.void;
 
 describe("native T3 Proxy", () => {
+  it.effect("keeps a rotated key authoritative when an older key load completes later", () =>
+    Effect.gen(function* () {
+      const loading = yield* Deferred.make<void>();
+      const release = yield* Deferred.make<void>();
+      const test = fixture(undefined, undefined, undefined, (bytes) =>
+        Deferred.succeed(loading, undefined).pipe(
+          Effect.andThen(Deferred.await(release)),
+          Effect.as(bytes),
+        ),
+      );
+      const proxy = yield* test.api;
+      yield* proxy.manage({ action: "start" });
+      const oldKey = "11".repeat(32);
+      const pending = yield* proxy
+        .forward({ ...request, apiKey: oldKey })
+        .pipe(Effect.result, Effect.forkChild);
+      yield* Deferred.await(loading);
+      const rotated = (yield* proxy.manage({ action: "rotateKey" })).apiKey!;
+      yield* Deferred.succeed(release, undefined);
+      const delayed = yield* Fiber.join(pending);
+      expect(delayed._tag === "Failure" && delayed.failure.operation).toBe("unauthorized");
+      expect((yield* proxy.manage({ action: "revealKey" })).apiKey).toBe(rotated);
+      expect(yield* proxy.forward({ ...request, apiKey: oldKey }).pipe(Effect.flip)).toMatchObject({
+        operation: "unauthorized",
+      });
+      expect(
+        (yield* proxy.forward({ ...request, path: "/v1/t3/quota", method: "GET", apiKey: rotated }))
+          .status,
+      ).toBe(200);
+      // A restart must load the same generation that the running service accepts.
+      expect(Buffer.from(test.saved.get("model-proxy-api")!).toString("hex")).toBe(rotated);
+      const restarted = yield* test.api;
+      expect((yield* restarted.manage({ action: "revealKey" })).apiKey).toBe(rotated);
+    }).pipe(Effect.scoped),
+  );
+  it.effect("preserves account disablement when an earlier OAuth flow replaces its tokens", () =>
+    Effect.gen(function* () {
+      const test = fixture((req) =>
+        req.url.endsWith("/oauth/token")
+          ? Response.json({ access_token: "oauth", account: { uuid: "subject" } })
+          : Response.json({}),
+      );
+      const proxy = yield* test.api;
+      const signIn = (state: string) =>
+        proxy.manage({
+          action: "authComplete",
+          provider: "codex",
+          state,
+          redirectUrl: `http://localhost:1455/auth/callback?code=c&state=${state}`,
+        });
+      const first = (yield* proxy.manage({ action: "authStart", provider: "codex" })).oauth!;
+      const account = (yield* signIn(first.state)).accounts[0]!;
+      const pending = (yield* proxy.manage({ action: "authStart", provider: "codex" })).oauth!;
+      yield* proxy.manage({ action: "setAccountEnabled", name: account.name, enabled: false });
+      const completed = yield* signIn(pending.state);
+      expect(completed.accounts).toHaveLength(1);
+      expect(completed.accounts[0]).toMatchObject({ id: account.id, disabled: true });
+      yield* proxy.manage({ action: "start" });
+      const apiKey = (yield* proxy.manage({ action: "revealKey" })).apiKey!;
+      expect(yield* proxy.forward({ ...request, apiKey }).pipe(Effect.flip)).toMatchObject({
+        operation: "noAccounts",
+      });
+      yield* proxy.manage({ action: "setAccountEnabled", name: account.name, enabled: true });
+      expect((yield* proxy.forward({ ...request, apiKey })).status).toBe(200);
+    }).pipe(Effect.scoped),
+  );
   it.effect("logs storage and HTTP failures without exposing credentials or response bodies", () =>
     Effect.gen(function* () {
       const logs: Array<{ message: unknown; annotations: Record<string, unknown> }> = [];

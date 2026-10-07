@@ -266,7 +266,8 @@ export const make = Effect.gen(function* () {
       ? Effect.succeed(key)
       : secrets.getOrCreateRandom("model-proxy-api", 32).pipe(
           Effect.map((bytes) => {
-            key = Hex.encode(bytes);
+            // A rotation may have populated the cache while this older read was in flight.
+            key ??= Hex.encode(bytes);
             return key;
           }),
           Effect.catch(storageFailure),
@@ -717,7 +718,7 @@ export const make = Effect.gen(function* () {
       id: existing?.id ?? id,
       name: existing?.name ?? `${provider}-${id}.json`,
       provider,
-      disabled: false,
+      disabled: existing?.disabled ?? false,
       accessToken: tokens.access_token,
       apiKey: false,
       expiresAt: now + (tokens.expires_in ?? 3600) * 1000,
