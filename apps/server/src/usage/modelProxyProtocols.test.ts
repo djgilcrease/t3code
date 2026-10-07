@@ -7,6 +7,49 @@ import {
 } from "./modelProxyProtocols.ts";
 
 describe("native model proxy protocols", () => {
+  it("matches paths independently of query strings and preserves only native query options", () => {
+    for (const provider of ["claude", "kimi"] as const) {
+      for (const path of ["/v1/messages?beta=true", "/v1/messages/count_tokens?beta=true"]) {
+        const request = prepareProxyRequest(provider, true, path, {
+          model: "claude-sonnet-4-6",
+          messages: [],
+        });
+        expect(request.translation).toBe("native");
+        expect(request.url).toBe(
+          `${provider === "claude" ? "https://api.anthropic.com" : "https://api.kimi.com/coding"}${path}`,
+        );
+      }
+    }
+    expect(
+      prepareProxyRequest("codex", true, "/v1/responses?test=true", {
+        model: "gpt-5.4",
+        input: "Hello",
+      }).url,
+    ).toBe("https://api.openai.com/v1/responses?test=true");
+    expect(
+      prepareProxyRequest("claude", true, "/v1/chat/completions?test=true", {
+        model: "claude-sonnet-4-6",
+        messages: [],
+      }).url,
+    ).toBe("https://api.anthropic.com/v1/messages");
+    expect(
+      prepareProxyRequest("codex", true, "/v1/messages?beta=true", {
+        model: "gpt-5.4",
+        messages: [],
+      }).url,
+    ).toBe("https://api.openai.com/v1/responses");
+    expect(
+      prepareProxyRequest("xai", true, "/v1/responses?test=true", { model: "grok-4" }).url,
+    ).toBe("https://api.x.ai/v1/responses?test=true");
+    const googlePath =
+      "/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse&prettyPrint=false";
+    expect(prepareProxyRequest("gemini", true, googlePath, {}).url).toBe(
+      `https://generativelanguage.googleapis.com${googlePath}`,
+    );
+    expect(prepareProxyRequest("gemini", false, googlePath, {}).url).toBe(
+      "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse",
+    );
+  });
   it("preserves Gemini output limits and sampling options across client protocols", () => {
     for (const input of [
       {

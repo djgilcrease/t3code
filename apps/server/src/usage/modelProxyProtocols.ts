@@ -408,9 +408,12 @@ function chatToGoogle(body: ProxyPayload): ProxyPayload {
 export function prepareProxyRequest(
   provider: ModelProxyProvider,
   apiKey: boolean,
-  route: string,
+  path: string,
   payload: ProxyPayload,
 ) {
+  const queryIndex = path.indexOf("?");
+  const route = queryIndex === -1 ? path : path.slice(0, queryIndex);
+  const query = queryIndex === -1 ? "" : path.slice(queryIndex);
   const chat = route === "/v1/chat/completions";
   const body: ProxyPayload = {
     ...payload,
@@ -430,7 +433,7 @@ export function prepareProxyRequest(
         : ("native" as const);
     if (apiKey)
       return {
-        url: `https://api.openai.com${chat || messages ? "/v1/responses" : route}`,
+        url: `https://api.openai.com${chat || messages ? "/v1/responses" : route + query}`,
         body: { ...converted, stream: body.stream ?? false },
         translation,
       };
@@ -443,7 +446,7 @@ export function prepareProxyRequest(
     } = converted;
     const compact = route.endsWith("/compact");
     return {
-      url: `https://chatgpt.com/backend-api/codex/responses${compact ? "/compact" : ""}`,
+      url: `https://chatgpt.com/backend-api/codex/responses${compact ? "/compact" : ""}${translation === "native" ? query : ""}`,
       body: {
         ...supported,
         ...(typeof supported.input === "string"
@@ -460,7 +463,7 @@ export function prepareProxyRequest(
     if (!messages && route !== "/v1/messages/count_tokens" && !chat && !responses)
       throw new ModelProxyError({ operation: "unsupported" });
     return {
-      url: `${provider === "claude" ? "https://api.anthropic.com" : "https://api.kimi.com/coding"}${chat || responses ? "/v1/messages" : route}`,
+      url: `${provider === "claude" ? "https://api.anthropic.com" : "https://api.kimi.com/coding"}${chat || responses ? "/v1/messages" : route + query}`,
       body: chat || responses ? chatToClaude(normalized) : body,
       translation: chat
         ? ("claude-chat" as const)
@@ -472,7 +475,7 @@ export function prepareProxyRequest(
   if (provider === "xai") {
     if (!chat && !responses && !messages) throw new ModelProxyError({ operation: "unsupported" });
     return {
-      url: `${apiKey ? "https://api.x.ai" : "https://cli-chat-proxy.grok.com"}${messages ? "/v1/chat/completions" : route}`,
+      url: `${apiKey ? "https://api.x.ai" : "https://cli-chat-proxy.grok.com"}${messages ? "/v1/chat/completions" : route + query}`,
       body: messages ? normalized : body,
       translation: messages ? ("chat-claude" as const) : ("native" as const),
     };
@@ -501,14 +504,14 @@ export function prepareProxyRequest(
     throw new ModelProxyError({ operation: "unsupported" });
   if (apiKey && provider === "gemini")
     return {
-      url: `https://generativelanguage.googleapis.com${route}`,
+      url: `https://generativelanguage.googleapis.com${route}${query}`,
       body,
       translation: "native" as const,
     };
   const match = /\/models\/([^:]+):([^?]+)/u.exec(route);
   if (!match) throw new ModelProxyError({ operation: "unsupported" });
   return {
-    url: `https://cloudcode-pa.googleapis.com/v1internal:${match[2]}${route.includes("alt=sse") ? "?alt=sse" : ""}`,
+    url: `https://cloudcode-pa.googleapis.com/v1internal:${match[2]}${new URLSearchParams(query).get("alt") === "sse" ? "?alt=sse" : ""}`,
     body: { model: unprefixProxyModel(decodeURIComponent(match[1]!)), request: body },
     translation: "google-native" as const,
   };

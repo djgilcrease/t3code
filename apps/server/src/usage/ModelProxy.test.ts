@@ -19,6 +19,7 @@ function fixture(
   respond: (request: HttpClientRequest.HttpClientRequest) => Response = () =>
     Response.json({ data: [] }),
   initial?: string,
+  host?: string,
 ) {
   const saved = new Map<string, Uint8Array>();
   if (initial) saved.set("model-proxy-state", new TextEncoder().encode(initial));
@@ -53,7 +54,12 @@ function fixture(
   return {
     saved,
     requests,
-    api: make.pipe(
+    api: Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      return yield* make.pipe(
+        Effect.provideService(ServerConfig.ServerConfig, { ...config, host }),
+      );
+    }).pipe(
       Effect.provideService(ServerSecretStore, secrets),
       Effect.provideService(HttpClient.HttpClient, http),
       Effect.provide(
@@ -80,6 +86,66 @@ const drainResponse = (response: HttpServerResponse.HttpServerResponse) =>
     : Effect.void;
 
 describe("native T3 Proxy", () => {
+  it.effect("rejects local routing while stopped and preserves normal CLI launches", () =>
+    Effect.gen(function* () {
+      const proxy = yield* fixture().api;
+      const result = yield* proxy.manage({ action: "useLocal" }).pipe(Effect.result);
+      expect(result._tag === "Failure" && result.failure.operation).toBe("disabled");
+      expect((yield* proxy.manage({ action: "status" })).client.configured).toBe(false);
+      const base = { PATH: "original" };
+      expect(yield* proxy.environment(ProviderDriverKind.make("codex"), base)).toBe(base);
+      yield* proxy.manage({ action: "start" });
+      expect((yield* proxy.manage({ action: "useLocal" })).client.local).toBe(true);
+    }).pipe(Effect.scoped),
+  );
+  it.effect("routes local CLIs to the server's specific bound host and formats IPv6", () =>
+    Effect.gen(function* () {
+      for (const [host, expected] of [
+        [undefined, "127.0.0.1"],
+        ["0.0.0.0", "127.0.0.1"],
+        ["::", "127.0.0.1"],
+        ["100.100.1.2", "100.100.1.2"],
+        ["192.168.1.10", "192.168.1.10"],
+        ["::1", "[::1]"],
+      ] as const) {
+        const proxy = yield* fixture(undefined, undefined, host).api;
+        yield* proxy.manage({ action: "start" });
+        const url = `http://${expected}:0/api/model-proxy`;
+        expect(
+          (yield* proxy.environment(ProviderDriverKind.make("claudeAgent"), {})).ANTHROPIC_BASE_URL,
+        ).toBe(url);
+        const codex = yield* proxy.environment(ProviderDriverKind.make("codex"), {});
+        expect(codex.T3CODE_CODEX_LAUNCH_ARGS).toContain(`${url}/v1`);
+        const opencode = yield* proxy.environment(ProviderDriverKind.make("opencode"), {});
+        expect(JSON.parse(opencode.OPENCODE_CONFIG_CONTENT!).provider.google.options.baseURL).toBe(
+          `${url}/v1beta`,
+        );
+      }
+    }).pipe(Effect.scoped),
+  );
+  it.effect("forwards Claude beta message and token-count routes with their query strings", () =>
+    Effect.gen(function* () {
+      const test = fixture(() => Response.json({ content: [], input_tokens: 10 }));
+      const proxy = yield* test.api;
+      yield* proxy.manage({
+        action: "importAccount",
+        name: "claude.json",
+        credential: { type: "claude", api_key: "key" },
+      });
+      yield* proxy.manage({ action: "start" });
+      const key = (yield* proxy.manage({ action: "revealKey" })).apiKey!;
+      for (const path of ["/v1/messages?beta=true", "/v1/messages/count_tokens?beta=true"]) {
+        const response = yield* proxy.forward({
+          ...request,
+          path,
+          apiKey: key,
+          payload: { model: "claude-sonnet-4-6", messages: [], max_tokens: 8 },
+        });
+        expect(response.status).toBe(200);
+        expect(test.requests.at(-1)?.url).toBe(`https://api.anthropic.com${path}`);
+      }
+    }).pipe(Effect.scoped),
+  );
   it.effect("uses the configured Google OAuth client for authorization and token exchange", () =>
     Effect.gen(function* () {
       const test = fixture((request) =>

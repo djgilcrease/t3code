@@ -70,21 +70,21 @@ function ProxySettings({
   const state = latest && latest.at >= query.dataUpdatedAt ? latest.value : query.data;
   const checkLogin = useEffectEvent(() => {
     if (flow?.status === "wait")
-      void run({ action: "authStatus", provider: flow.provider, state: flow.state });
+      void run({ action: "authStatus", provider: flow.provider, state: flow.state }, true);
   });
   useEffect(() => {
     if (flow?.status !== "wait") return;
     const timer = setInterval(checkLogin, 5_000);
     return () => clearInterval(timer);
   }, [flow?.state, flow?.status]);
-  async function run(input: ModelProxyManageInput) {
+  async function run(input: ModelProxyManageInput, silent = false) {
     if (busyRef.current) return null;
     busyRef.current = true;
     setBusy(true);
     try {
       const result = await command({ environmentId, input });
       if (result._tag !== "Success") {
-        Alert.alert("T3 Proxy", String(squashAtomCommandFailure(result)));
+        if (!silent) Alert.alert("T3 Proxy", String(squashAtomCommandFailure(result)));
         return null;
       }
       const { apiKey: _key, oauth: _oauth, ...snapshot } = result.value;

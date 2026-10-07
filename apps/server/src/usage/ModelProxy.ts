@@ -27,6 +27,7 @@ import * as Fiber from "effect/Fiber";
 import * as Stream from "effect/Stream";
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpServerResponse } from "effect/http";
 import * as ServerConfig from "../config.ts";
+import { formatHostForUrl, isWildcardHost } from "../startupAccess.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import { codexRateLimitsToLimits } from "../provider/codexUsageLimits.ts";
 import { claudeUsageResponseToLimits } from "../provider/claudeUsageLimits.ts";
@@ -910,6 +911,7 @@ export const make = Effect.gen(function* () {
         return { ...(yield* snapshot), apiKey: key };
       }
       case "useLocal":
+        if (!state.enabled) return yield* new ModelProxyError({ operation: "disabled" });
         yield* update((current) => ({ ...current, client: { type: "local" } }));
         break;
       case "configureClient": {
@@ -1103,7 +1105,7 @@ export const make = Effect.gen(function* () {
     const url =
       state.client.type === "remote"
         ? state.client.url
-        : `http://127.0.0.1:${config.port}${MODEL_PROXY_PATH}`;
+        : `http://${formatHostForUrl(config.host && !isWildcardHost(config.host) ? config.host : "127.0.0.1")}:${config.port}${MODEL_PROXY_PATH}`;
     if (driver === "claudeAgent")
       return {
         ...base,
