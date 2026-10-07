@@ -1,8 +1,11 @@
-import { MODEL_PROXY_PATH } from "@t3tools/contracts";
+import { MODEL_PROXY_PATH, type ServerDirectEndpoint } from "@t3tools/contracts";
 import { connectionCatalogDisplayUrl, type EnvironmentPresentation } from "./presentation.ts";
 
 /** Addresses reachable by another machine, rather than the browser's localhost. */
-export function modelProxyServerUrl(presentation: EnvironmentPresentation): string | null {
+export function modelProxyServerUrl(presentation: {
+  readonly entry: EnvironmentPresentation["entry"];
+  readonly serverConfig: { readonly directEndpoints?: ReadonlyArray<ServerDirectEndpoint> } | null;
+}): string | null {
   const endpoints = presentation.serverConfig?.directEndpoints ?? [];
   const candidates = [
     ...endpoints
@@ -13,6 +16,7 @@ export function modelProxyServerUrl(presentation: EnvironmentPresentation): stri
       .map((endpoint) => endpoint.httpBaseUrl),
     connectionCatalogDisplayUrl(presentation.entry),
   ];
+  const urls: URL[] = [];
   for (const candidate of candidates) {
     if (!candidate) continue;
     try {
@@ -24,10 +28,12 @@ export function modelProxyServerUrl(presentation: EnvironmentPresentation): stri
         url.password
       )
         continue;
-      return `${url.origin}${MODEL_PROXY_PATH}`;
+      urls.push(url);
     } catch {
       /* SSH and relay-only connections need an advertised or manual address. */
     }
   }
-  return null;
+  // Discovery must not downgrade an available HTTPS connection to advertised HTTP.
+  const selected = urls.find((url) => url.protocol === "https:") ?? urls[0];
+  return selected ? `${selected.origin}${MODEL_PROXY_PATH}` : null;
 }

@@ -30,6 +30,50 @@ const presentation = (url: string): EnvironmentPresentation => ({
 });
 
 describe("T3 Proxy server discovery", () => {
+  it("keeps a connected HTTPS address ahead of advertised HTTP addresses", () => {
+    expect(
+      modelProxyServerUrl({
+        ...presentation("https://peer.example.test:3773"),
+        serverConfig: {
+          directEndpoints: [
+            { kind: "tailnet", httpBaseUrl: "http://100.100.1.2:3773" },
+            { kind: "lan", httpBaseUrl: "http://192.168.1.2:3773" },
+          ],
+        },
+      }),
+    ).toBe("https://peer.example.test:3773/api/model-proxy");
+  });
+  it("prefers an advertised HTTPS address over HTTP while retaining tailnet HTTP fallback", () => {
+    const peer = {
+      ...presentation("http://peer.example.test:3773"),
+      serverConfig: {
+        directEndpoints: [
+          { kind: "tailnet" as const, httpBaseUrl: "http://100.100.1.2:3773" },
+          { kind: "lan" as const, httpBaseUrl: "https://peer.example.test:3773" },
+        ],
+      },
+    };
+    expect(modelProxyServerUrl(peer)).toBe("https://peer.example.test:3773/api/model-proxy");
+    expect(
+      modelProxyServerUrl({
+        ...peer,
+        serverConfig: { directEndpoints: peer.serverConfig.directEndpoints.slice(0, 1) },
+      }),
+    ).toBe("http://100.100.1.2:3773/api/model-proxy");
+  });
+  it("filters unusable HTTPS addresses before falling back to a reachable address", () => {
+    expect(
+      modelProxyServerUrl({
+        ...presentation("https://user:password@peer.example.test"),
+        serverConfig: {
+          directEndpoints: [
+            { kind: "lan", httpBaseUrl: "https://localhost:3773" },
+            { kind: "tailnet", httpBaseUrl: "http://100.100.1.2:3773" },
+          ],
+        },
+      }),
+    ).toBe("http://100.100.1.2:3773/api/model-proxy");
+  });
   it("uses a connected remote machine's address", () => {
     expect(modelProxyServerUrl(presentation("https://peer.example.test:3773"))).toBe(
       "https://peer.example.test:3773/api/model-proxy",
