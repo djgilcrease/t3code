@@ -32,8 +32,8 @@ describe("native model proxy protocols", () => {
     }
   });
 
-  it("forwards each supported Google model operation with its native request body", () => {
-    for (const operation of ["generateContent", "streamGenerateContent", "countTokens"]) {
+  it("forwards Google generation operations with their native request body", () => {
+    for (const operation of ["generateContent", "streamGenerateContent"]) {
       const model = "gemini-2.5-pro_preview";
       const path = `/v1beta/models/${model}:${operation}?alt=sse&prettyPrint=false`;
       const body = { contents: [{ role: "user", parts: [{ text: "Hello" }] }] };
@@ -47,6 +47,25 @@ describe("native model proxy protocols", () => {
         );
         expect(oauthRequest.body).toEqual({ model, request: body });
       }
+    }
+  });
+
+  it("uses the Code Assist token-count envelope and preserves the top-level count", () => {
+    const model = "gemini-2.5-pro";
+    const path = `/v1beta/models/${model}:countTokens`;
+    const body = { contents: [{ role: "user", parts: [{ text: "Hello" }] }] };
+    const result = { totalTokens: 42 };
+    const apiRequest = prepareProxyRequest("gemini", true, path, body);
+    expect(apiRequest.body).toEqual(body);
+    expect(proxyChatResponse(apiRequest.translation, result, model)).toEqual(result);
+    for (const provider of ["gemini", "antigravity"] as const) {
+      const oauthRequest = prepareProxyRequest(provider, false, path, body);
+      expect(oauthRequest.url).toBe("https://cloudcode-pa.googleapis.com/v1internal:countTokens");
+      expect(oauthRequest.body).toEqual({ request: { ...body, model: `models/${model}` } });
+      expect(proxyChatResponse(oauthRequest.translation, result, model)).toEqual(result);
+      expect(proxyChatResponse(oauthRequest.translation, { totalTokens: 0 }, model)).toEqual({
+        totalTokens: 0,
+      });
     }
   });
 

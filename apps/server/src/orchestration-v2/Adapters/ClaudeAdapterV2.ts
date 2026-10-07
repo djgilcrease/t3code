@@ -113,7 +113,7 @@ import {
 } from "../../provider/claudeUsageLimits.ts";
 import type { ServerProviderShape } from "../../provider/ServerProvider.ts";
 import { mergeProviderInstanceEnvironment } from "../../provider/ProviderInstanceEnvironment.ts";
-import { proxyProviderEnvironment } from "../../usage/ModelProxy.ts";
+import * as ModelProxy from "../../usage/ModelProxy.ts";
 import { T3_CODE_ORCHESTRATION_INSTRUCTIONS } from "../../provider/T3OrchestrationInstructions.ts";
 import { buildRuntimeInstructions } from "../../provider/RuntimeInstructions.ts";
 import { mcpToolPresentation, normalizeMcpText } from "../../provider/McpToolPresentation.ts";
@@ -7285,7 +7285,7 @@ export function makeClaudeAdapterV2(
           }
 
           // A configuration failure must leave the existing process available for reuse.
-          const environment = yield* proxyProviderEnvironment(
+          const environment = yield* ModelProxy.proxyProviderEnvironment(
             CLAUDE_PROVIDER,
             adapterOptions.environment,
           ).pipe(

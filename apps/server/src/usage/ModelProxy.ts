@@ -1367,8 +1367,11 @@ export const make = Effect.gen(function* () {
           try: () => prepareProxyRequest(provider, account.apiKey, input.path, payload),
           catch: (cause) => (isProxyError(cause) ? cause : upstreamError()),
         });
+        // OAuth token counting uses a plain request, without generation metadata.
         const body: typeof ProxyPayload.Type =
-          (provider === "gemini" || provider === "antigravity") && !account.apiKey
+          (provider === "gemini" || provider === "antigravity") &&
+          !account.apiKey &&
+          prepared.translation !== "native"
             ? {
                 ...prepared.body,
                 project: account.projectId,

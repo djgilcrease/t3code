@@ -280,6 +280,57 @@ describe("native T3 Proxy", () => {
       }
     }).pipe(Effect.scoped),
   );
+  it.effect(
+    "forwards Google OAuth token counts without generation metadata or response unwrapping",
+    () =>
+      Effect.gen(function* () {
+        for (const provider of ["gemini", "antigravity"] as const) {
+          const test = fixture((request) =>
+            request.url.endsWith(":countTokens")
+              ? Response.json({ totalTokens: 42 })
+              : Response.json({ buckets: [] }),
+          );
+          const proxy = yield* test.api;
+          yield* proxy.manage({
+            action: "importAccount",
+            name: `${provider}.json`,
+            credential: { type: provider, access_token: "test-token", project_id: "test-project" },
+          });
+          yield* proxy.manage({ action: "start" });
+          const key = (yield* proxy.manage({ action: "revealKey" })).apiKey!;
+          const contents = [{ role: "user", parts: [{ text: "Hello" }] }];
+          const response = yield* proxy.forward({
+            ...request,
+            path: "/v1beta/models/gemini-2.5-pro:countTokens",
+            apiKey: key,
+            payload: {
+              model: provider === "antigravity" ? "antigravity/gemini-2.5-pro" : "gemini-2.5-pro",
+              contents,
+            },
+          });
+          const sent = test.requests.find((request) => request.url.endsWith(":countTokens"))!;
+          expect(sent.body._tag).toBe("Uint8Array");
+          if (sent.body._tag === "Uint8Array") {
+            expect(JSON.parse(new TextDecoder().decode(sent.body.body))).toEqual({
+              request: { model: "models/gemini-2.5-pro", contents },
+            });
+          }
+          expect(response.status).toBe(200);
+          expect(response.body._tag).toBe("Stream");
+          if (response.body._tag === "Stream") {
+            const json = yield* response.body.stream.pipe(
+              Stream.orDie,
+              Stream.decodeText(),
+              Stream.runFold(
+                () => "",
+                (previous, chunk) => previous + chunk,
+              ),
+            );
+            expect(JSON.parse(json)).toEqual({ totalTokens: 42 });
+          }
+        }
+      }).pipe(Effect.scoped),
+  );
   it.effect("uses the configured Google OAuth client for authorization and token exchange", () =>
     Effect.gen(function* () {
       const test = fixture((request) =>

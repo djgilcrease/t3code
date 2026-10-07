@@ -511,6 +511,12 @@ export function prepareProxyRequest(
       body,
       translation: "native" as const,
     };
+  if (operation === "countTokens")
+    return {
+      url: "https://cloudcode-pa.googleapis.com/v1internal:countTokens",
+      body: { request: { ...body, model: `models/${model}` } },
+      translation: "native" as const,
+    };
   return {
     url: `https://cloudcode-pa.googleapis.com/v1internal:${operation}${new URLSearchParams(query).get("alt") === "sse" ? "?alt=sse" : ""}`,
     body: { model, request: body },

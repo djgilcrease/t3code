@@ -63,7 +63,7 @@ import { ThreadToolkit } from "../../mcp/toolkits/thread/tools.ts";
 import { OrchestratorToolkit } from "../../mcp/toolkits/orchestrator/tools.ts";
 import { ClaudeExecutableFileCheck } from "../../provider/Drivers/ClaudeExecutable.ts";
 import type { EventNdjsonLogger } from "../../provider/EventNdjsonLogger.ts";
-import { ModelProxy } from "../../usage/ModelProxy.ts";
+import * as ModelProxy from "../../usage/ModelProxy.ts";
 import {
   ProviderAdapterV2RuntimePolicy,
   type ProviderAdapterV2Event,
@@ -2247,7 +2247,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     let environmentFails = true;
     let environmentCalls = 0;
     let closeCount = 0;
-    const proxy = ModelProxy.of({
+    const proxy = ModelProxy.ModelProxy.of({
       manage: () => Effect.die("unused proxy management"),
       forward: () => Effect.die("unused proxy forwarding"),
       environment: (_driver, base) =>
@@ -2319,7 +2319,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       assert.equal(closeCount, 0);
       assert.lengthOf(harness.processQueues, 1);
     }).pipe(
-      Effect.provideService(ModelProxy, proxy),
+      Effect.provideService(ModelProxy.ModelProxy, proxy),
       Effect.provide(Layer.merge(IdAllocator.layer, NodeServices.layer)),
     );
   });
