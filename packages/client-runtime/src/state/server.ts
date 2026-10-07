@@ -1097,6 +1097,15 @@ export function createServerEnvironmentAtoms<R, E>(
       staleTimeMs: 60_000,
       refreshTrigger: ({ environmentId }) => usageScanSettingsAtom(environmentId),
     }),
+    modelProxyStatus: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:server:model-proxy-status",
+      tag: WS_METHODS.serverGetModelProxy,
+      staleTimeMs: 5_000,
+    }),
+    manageModelProxy: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:manage-model-proxy",
+      tag: WS_METHODS.serverManageModelProxy,
+    }),
     resourceTelemetry: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
       label: "environment-data:server:resource-telemetry",
       tag: WS_METHODS.subscribeResourceTelemetry,

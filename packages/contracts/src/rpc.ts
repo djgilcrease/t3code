@@ -17,6 +17,7 @@ import {
   ChatGptHandoffState,
 } from "./providerSetup.ts";
 import * as Schema from "effect/Schema";
+import { ModelProxyManageInput, ModelProxySnapshot, ModelProxyError } from "./modelProxy.ts";
 import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
@@ -486,6 +487,8 @@ export const WS_METHODS = {
   serverReportHostPowerState: "server.reportHostPowerState",
   serverGetBackgroundPolicy: "server.getBackgroundPolicy",
   serverGetUsageSummary: "server.getUsageSummary",
+  serverGetModelProxy: "server.getModelProxy",
+  serverManageModelProxy: "server.manageModelProxy",
   serverRefreshUsageRates: "server.refreshUsageRates",
 
   // Scheduled tasks
@@ -859,6 +862,17 @@ const WsServerGetUsageSummaryRpc = Rpc.make(WS_METHODS.serverGetUsageSummary, {
   payload: UsageSummaryInput,
   success: UsageSummary,
   error: Schema.Union([EnvironmentAuthorizationError, UsageReadError]),
+});
+
+const WsServerGetModelProxyRpc = Rpc.make(WS_METHODS.serverGetModelProxy, {
+  payload: Schema.Struct({}),
+  success: ModelProxySnapshot,
+  error: Schema.Union([ModelProxyError, EnvironmentAuthorizationError]),
+});
+const WsServerManageModelProxyRpc = Rpc.make(WS_METHODS.serverManageModelProxy, {
+  payload: ModelProxyManageInput,
+  success: ModelProxySnapshot,
+  error: Schema.Union([ModelProxyError, EnvironmentAuthorizationError]),
 });
 
 /**
@@ -1826,6 +1840,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerGetResourceTelemetryHistoryRpc,
   WsServerRetryResourceTelemetryRpc,
   WsServerGetUsageSummaryRpc,
+  WsServerGetModelProxyRpc,
+  WsServerManageModelProxyRpc,
   WsServerRefreshUsageRatesRpc,
   WsServerSignalProcessRpc,
   WsScheduledTasksListRpc,

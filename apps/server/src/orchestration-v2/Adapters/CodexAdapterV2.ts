@@ -108,6 +108,7 @@ import {
 import { ProviderEventLoggers } from "../../provider/ProviderEventLoggers.ts";
 import { codexAppServerArgs, resolveCodexLaunchArgs } from "../../provider/codexLaunchArgs.ts";
 import { mergeProviderInstanceEnvironment } from "../../provider/ProviderInstanceEnvironment.ts";
+import { proxyProviderEnvironment } from "../../usage/ModelProxy.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import {
   MCP_APP_EXTENSION_ID,
@@ -1519,14 +1520,25 @@ export const layerAppServerClientFactory: Layer.Layer<
       open: (input) =>
         Effect.gen(function* () {
           const scope = yield* Scope.Scope;
-          const environment = {
+          const environment = yield* proxyProviderEnvironment(CODEX_PROVIDER, {
             ...input.environment,
+            T3CODE_CODEX_LAUNCH_ARGS:
+              input.environment.T3CODE_CODEX_LAUNCH_ARGS?.trim() || input.settings.launchArgs,
             ...(input.settings.homePath ? { CODEX_HOME: input.settings.homePath } : {}),
-          };
+          }).pipe(
+            Effect.mapError(
+              (cause) =>
+                new ProviderAdapterOpenSessionError({
+                  driver: CODEX_PROVIDER,
+                  providerSessionId: input.providerSessionId,
+                  cause,
+                }),
+            ),
+          );
           const command = yield* makeCodexAppServerSpawnCommand({
             command: input.settings.binaryPath || "codex",
             args: codexAppServerArgs(
-              resolveCodexLaunchArgs(input.settings.launchArgs, input.environment),
+              resolveCodexLaunchArgs(input.settings.launchArgs, environment),
             ),
             env: environment,
           });

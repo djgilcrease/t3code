@@ -7,6 +7,7 @@ import {
   AuthAccessReadScope,
   ServerSettingsPatch,
   ProviderInstanceMutation,
+  ModelProxyManageInput,
   requiredScopesForServerSettingsPatch,
   AuthSettingsWriteScope,
   AuthProvidersManageScope,
@@ -57,6 +58,8 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.projectsMutate]: AuthOrchestrationOperateScope,
   [WS_METHODS.serverProbe]: AuthOrchestrationReadScope,
   [WS_METHODS.serverGetConfig]: AuthOrchestrationReadScope,
+  [WS_METHODS.serverGetModelProxy]: AuthDiagnosticsReadScope,
+  [WS_METHODS.serverManageModelProxy]: AuthProvidersManageScope,
   [WS_METHODS.serverRefreshProviders]: AuthOrchestrationReadScope,
   [WS_METHODS.serverUpdateProvider]: AuthProvidersManageScope,
   [WS_METHODS.providerAuthStart]: AuthProvidersManageScope,
@@ -226,6 +229,7 @@ const SettingsUpdate = Schema.Struct({
   patch: ServerSettingsPatch,
   providerInstanceMutation: Schema.optionalKey(ProviderInstanceMutation),
 });
+const decodeModelProxyManageInput = Schema.decodeUnknownSync(ModelProxyManageInput);
 
 const requiredScopesForSettingsUpdate = (payload: unknown) => {
   const input = Schema.decodeUnknownSync(SettingsUpdate)(payload);
@@ -241,6 +245,14 @@ const requiredScopesForRpcCall = (
   method: string,
   payload: unknown,
 ): ReadonlyArray<AuthEnvironmentScope> => {
+  if (method === WS_METHODS.serverManageModelProxy) {
+    const { action } = decodeModelProxyManageInput(payload);
+    return [
+      action === "status" || action === "refresh"
+        ? AuthDiagnosticsReadScope
+        : AuthProvidersManageScope,
+    ];
+  }
   if (method === WS_METHODS.serverRetryResourceTelemetry) {
     return [AuthEnvironmentMaintainScope, AuthDiagnosticsReadScope];
   }

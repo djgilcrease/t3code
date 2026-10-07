@@ -26,6 +26,8 @@ import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
 import { PreviewControlsToolkit } from "./toolkits/previewControls/tools.ts";
 import * as PreviewControlsHandlers from "./toolkits/previewControls/handlers.ts";
 import { EnvironmentToolkit } from "./toolkits/environment/tools.ts";
+import { ModelProxyToolkit } from "./toolkits/modelProxy/tools.ts";
+import * as ModelProxyHandlers from "./toolkits/modelProxy/handlers.ts";
 import * as EnvironmentHandlers from "./toolkits/environment/handlers.ts";
 import { ProjectToolkit } from "./toolkits/project/tools.ts";
 import * as ProjectHandlers from "./toolkits/project/handlers.ts";
@@ -854,6 +856,7 @@ export const layer = Layer.mergeAll(
   layerAttachmentRegistration,
   layerProjectRegistration,
   layerEnvironmentRegistration,
+  toolkitRegistration(ModelProxyToolkit, ModelProxyHandlers.layer),
   layerPreviewControlsRegistration,
   layerWorktreeToolkitRegistration,
   layerPullRequestsToolkit,

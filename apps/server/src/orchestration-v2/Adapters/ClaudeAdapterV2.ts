@@ -113,6 +113,7 @@ import {
 } from "../../provider/claudeUsageLimits.ts";
 import type { ServerProviderShape } from "../../provider/ServerProvider.ts";
 import { mergeProviderInstanceEnvironment } from "../../provider/ProviderInstanceEnvironment.ts";
+import { proxyProviderEnvironment } from "../../usage/ModelProxy.ts";
 import { T3_CODE_ORCHESTRATION_INSTRUCTIONS } from "../../provider/T3OrchestrationInstructions.ts";
 import { buildRuntimeInstructions } from "../../provider/RuntimeInstructions.ts";
 import { mcpToolPresentation, normalizeMcpText } from "../../provider/McpToolPresentation.ts";
@@ -7317,7 +7318,19 @@ export function makeClaudeAdapterV2(
             cwd: turnInput.runtimePolicy.cwd,
             attachmentsDir,
             settings: adapterOptions.settings,
-            environment: adapterOptions.environment,
+            environment: yield* proxyProviderEnvironment(
+              CLAUDE_PROVIDER,
+              adapterOptions.environment,
+            ).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ProviderAdapter.ProviderAdapterProtocolError({
+                    driver: CLAUDE_PROVIDER,
+                    detail: "Could not configure T3 Proxy",
+                    cause,
+                  }),
+              ),
+            ),
             tools: queryPolicy.tools ?? CLAUDE_CODE_PRESET_TOOLS,
             ...mcpOverrides,
             permissionMode: queryPolicy.permissionMode,

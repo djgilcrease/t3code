@@ -1,6 +1,12 @@
 import * as NodeURL from "node:url";
+import { proxyProviderEnvironment } from "../usage/ModelProxy.ts";
 
-import type { ChatAttachment, ProviderApprovalDecision, RuntimeMode } from "@t3tools/contracts";
+import {
+  ProviderDriverKind,
+  type ChatAttachment,
+  type ProviderApprovalDecision,
+  type RuntimeMode,
+} from "@t3tools/contracts";
 import {
   createOpencodeClient,
   type Agent,
@@ -686,8 +692,24 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
           ),
         ));
       const timeoutMs = input.timeoutMs ?? DEFAULT_OPENCODE_SERVER_TIMEOUT_MS;
+      const proxyEnvironment = yield* proxyProviderEnvironment(
+        ProviderDriverKind.make("opencode"),
+        {
+          ...input.environment,
+          OPENCODE_CONFIG_CONTENT: resolveOpenCodeConfigContent(input.environment),
+        },
+      ).pipe(
+        Effect.mapError(
+          (cause) =>
+            new OpenCodeRuntimeError({
+              operation: "startOpenCodeServerProcess",
+              detail: "Could not configure T3 Proxy",
+              cause,
+            }),
+        ),
+      );
       const args = ["serve", `--hostname=${hostname}`, `--port=${port}`];
-      const spawnCommand = yield* resolveCommand(input.binaryPath, args, input.environment);
+      const spawnCommand = yield* resolveCommand(input.binaryPath, args, proxyEnvironment);
       const serverPassword = resolveOpenCodeServerPassword({
         external: false,
         ...(input.serverPassword !== undefined ? { serverPassword: input.serverPassword } : {}),
@@ -703,7 +725,7 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
             detached: hostPlatform !== "win32",
             shell: spawnCommand.shell,
             env: {
-              ...input.environment,
+              ...proxyEnvironment,
               ...(serverPassword !== undefined ? { OPENCODE_SERVER_PASSWORD: serverPassword } : {}),
               // Respect an OPENCODE_CONFIG_CONTENT provided by the caller or
               // the inherited process environment, only falling back to the
@@ -712,7 +734,7 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
               // providers/models. The value is set explicitly (rather than
               // relying on inheritance) because `extendEnv` is false whenever
               // `input.environment` is provided.
-              OPENCODE_CONFIG_CONTENT: resolveOpenCodeConfigContent(input.environment),
+              OPENCODE_CONFIG_CONTENT: proxyEnvironment.OPENCODE_CONFIG_CONTENT,
             },
             extendEnv: input.environment === undefined,
           }),

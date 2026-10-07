@@ -8,6 +8,8 @@
  * @module ClaudeTextGeneration
  */
 import * as Effect from "effect/Effect";
+import { ProviderDriverKind } from "@t3tools/contracts";
+import { proxyProviderEnvironment } from "../usage/ModelProxy.ts";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -161,6 +163,14 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
     );
 
     const runClaudeCommand = Effect.fn("runClaudeJson.runClaudeCommand")(function* () {
+      const effectiveEnvironment = yield* proxyProviderEnvironment(
+        ProviderDriverKind.make("claudeAgent"),
+        claudeEnvironment,
+      ).pipe(
+        Effect.mapError((cause) =>
+          normalizeCliError("claude", operation, cause, "Could not configure T3 Proxy"),
+        ),
+      );
       // Titles need only the supplied prompt, not configuration from the checkout.
       const workingDirectory =
         operation === "generateThreadTitle"
@@ -193,10 +203,10 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
           "--permission-mode",
           "dontAsk",
         ],
-        { env: claudeEnvironment },
+        { env: effectiveEnvironment },
       );
       const command = ChildProcess.make(spawnCommand.command, spawnCommand.args, {
-        env: claudeEnvironment,
+        env: effectiveEnvironment,
         cwd: workingDirectory,
         shell: spawnCommand.shell,
         stdin: {

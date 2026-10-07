@@ -12,11 +12,13 @@ import {
   DEFAULT_TEXT_GENERATION_REASONING_EFFORT,
   type ServerProviderModel,
   TextGenerationError,
+  ProviderDriverKind,
 } from "@t3tools/contracts";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 
 import { resolveAttachmentPath } from "../attachmentStore.ts";
 import * as ServerConfig from "../config.ts";
+import { proxyProviderEnvironment } from "../usage/ModelProxy.ts";
 import { expandHomePath } from "../pathExpansion.ts";
 import { codexExecLaunchArgs, resolveCodexLaunchArgs } from "../provider/codexLaunchArgs.ts";
 import * as TextGenerationOperations from "./TextGenerationOperations.ts";
@@ -170,7 +172,19 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
           )
         : undefined;
       const effectiveConfig = resolved?.config ?? codexConfig;
-      const effectiveEnvironment = resolved?.environment ?? resolvedEnvironment;
+      const baseEnvironment = resolved?.environment ?? resolvedEnvironment;
+      const effectiveEnvironment = yield* proxyProviderEnvironment(
+        ProviderDriverKind.make("codex"),
+        {
+          ...baseEnvironment,
+          T3CODE_CODEX_LAUNCH_ARGS:
+            baseEnvironment.T3CODE_CODEX_LAUNCH_ARGS?.trim() || effectiveConfig.launchArgs,
+        },
+      ).pipe(
+        Effect.mapError((cause) =>
+          normalizeCliError("codex", operation, cause, "Could not configure T3 Proxy"),
+        ),
+      );
       const models = yield* getModels;
       const requestedModel = modelSelection.model;
       const model =

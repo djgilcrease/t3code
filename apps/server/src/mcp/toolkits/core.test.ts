@@ -42,6 +42,7 @@ import { OrchestratorToolkit } from "./orchestrator/tools.ts";
 import { PreviewToolkit } from "./preview/tools.ts";
 import { PreviewControlsToolkit } from "./previewControls/tools.ts";
 import { EnvironmentToolkit } from "./environment/tools.ts";
+import { ModelProxyToolkit } from "./modelProxy/tools.ts";
 import * as EnvironmentHandlers from "./environment/handlers.ts";
 import { ProjectToolkit } from "./project/tools.ts";
 import { AttachmentToolkit } from "./attachment/tools.ts";
@@ -77,6 +78,7 @@ it("publishes unique tool names with reference-free object-root inputs", () => {
     AttachmentToolkit,
     ProjectToolkit,
     EnvironmentToolkit,
+    ModelProxyToolkit,
     PreviewControlsToolkit,
     DeviceToolkit,
     PullRequestsToolkit,

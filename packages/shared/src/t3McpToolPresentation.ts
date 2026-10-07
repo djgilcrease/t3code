@@ -293,6 +293,14 @@ const T3_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
     ["Read", "Reading", "Read", "environment preferences"],
     "environment-read",
   ),
+  t3_proxy_status: tool(
+    ["Read", "Reading", "Read", "T3 Proxy accounts and quotas"],
+    "environment-read",
+  ),
+  t3_proxy_manage: tool(
+    ["Configure", "Configuring", "Configured", "T3 Proxy"],
+    "environment-update",
+  ),
   t3_environment_preferences_update: tool(
     ["Update", "Updating", "Updated", "environment preferences"],
     "environment-update",

@@ -5,6 +5,7 @@ import {
   AuthProvidersManageScope,
   AuthSettingsWriteScope,
   DEFAULT_SERVER_SETTINGS,
+  ModelProxyError,
   ProviderInstanceId,
   ThreadId,
   AuthOrchestrationOperateScope,
@@ -251,6 +252,70 @@ describe("RPC scope middleware", () => {
       });
       expect(handled).toEqual([]);
     }).pipe(Effect.scoped),
+  );
+});
+
+describe("proxy authorization", () => {
+  const tested = [WS_METHODS.serverGetModelProxy, WS_METHODS.serverManageModelProxy] as const;
+  const group = WsRpcGroup.omit(
+    ...[...WsRpcGroup.requests.keys()].filter(
+      (tag): tag is Exclude<keyof typeof RPC_REQUIRED_SCOPES, (typeof tested)[number]> =>
+        !(tested as ReadonlyArray<string>).includes(tag),
+    ),
+  );
+  it.effect.each([
+    {
+      scopes: [AuthOrchestrationReadScope, AuthOrchestrationOperateScope],
+      read: false,
+      manage: false,
+    },
+    { scopes: [AuthDiagnosticsReadScope], read: true, manage: false },
+    { scopes: [AuthProvidersManageScope], read: false, manage: true },
+  ])(
+    "separates proxy quota access and account management for $scopes",
+    ({ scopes, read, manage }) =>
+      Effect.gen(function* () {
+        const handled: string[] = [];
+        const client = yield* RpcTest.makeClient(group).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              group.toLayerHandler(WS_METHODS.serverGetModelProxy, () =>
+                Effect.sync(() => handled.push("read")).pipe(
+                  Effect.andThen(Effect.fail(new ModelProxyError({ operation: "disabled" }))),
+                ),
+              ),
+              group.toLayerHandler(WS_METHODS.serverManageModelProxy, ({ action }) =>
+                Effect.sync(() => handled.push(action)).pipe(
+                  Effect.andThen(Effect.fail(new ModelProxyError({ operation: "disabled" }))),
+                ),
+              ),
+              RpcAuthorization.layer(scopes),
+            ),
+          ),
+        );
+        expect(yield* client[WS_METHODS.serverGetModelProxy]({}).pipe(Effect.flip)).toMatchObject(
+          read ? { _tag: "ModelProxyError" } : { requiredPermission: AuthDiagnosticsReadScope },
+        );
+        for (const action of ["status", "refresh", "start", "revealKey"] as const) {
+          const allowed = action === "status" || action === "refresh" ? read : manage;
+          expect(
+            yield* client[WS_METHODS.serverManageModelProxy]({ action }).pipe(Effect.flip),
+          ).toMatchObject(
+            allowed
+              ? { _tag: "ModelProxyError" }
+              : {
+                  requiredPermission:
+                    action === "status" || action === "refresh"
+                      ? AuthDiagnosticsReadScope
+                      : AuthProvidersManageScope,
+                },
+          );
+        }
+        expect(handled).toEqual([
+          ...(read ? ["read", "status", "refresh"] : []),
+          ...(manage ? ["start", "revealKey"] : []),
+        ]);
+      }).pipe(Effect.scoped),
   );
 });
 

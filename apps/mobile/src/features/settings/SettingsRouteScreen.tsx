@@ -174,6 +174,12 @@ function SettingsIndexSections() {
 
       <SettingsSection title="Server settings">
         <SettingsRow
+          icon="link"
+          label="T3 Proxy"
+          target="SettingsModelProxy"
+          disabled={noServerTargets}
+        />
+        <SettingsRow
           icon="person.crop.circle"
           label="Provider accounts"
           target="SettingsProviderAccounts"

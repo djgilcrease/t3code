@@ -26,6 +26,7 @@ import { SettingsScreen } from "../settings/components/SettingsScreen";
 import { environmentPresentations } from "../../state/presentation";
 import { ResetCredits } from "./UsageLimitsSection";
 import { useProviderColors } from "./usageProviders";
+import { ModelProxyUsage } from "./ModelProxyUsage";
 
 const DRIVER_LABEL: Partial<Record<string, string>> = { codex: "Codex", claudeAgent: "Claude" };
 const PACE_LABEL = { ahead: "Ahead of pace", on: "On pace", under: "Under pace" } as const;
@@ -227,6 +228,16 @@ export function UsageLimitsSection({
     ) + 1;
   return (
     <View className="gap-6">
+      {[...selected]
+        .filter(([, presentation]) => presentation.connection.phase === "connected")
+        .map(([environmentId, presentation]) => (
+          <ModelProxyUsage
+            key={environmentId}
+            environmentId={environmentId}
+            label={presentation.entry.target.label}
+            now={now}
+          />
+        ))}
       {pools.length === 0 &&
       notices.length === 0 &&
       failedLabels.length === 0 &&

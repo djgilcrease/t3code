@@ -44,6 +44,34 @@ results appear as each one responds.
 If recent work is missing or a new model shows no cost, refresh to rescan session history and
 update model pricing.
 
+## Use T3 Proxy
+
+Open **Settings → T3 Proxy** and choose a mode for the selected machine. **Server** hosts your
+accounts; sign in once for each account you want to add. **Client** uses another connected machine
+running in Server mode. T3 discovers its LAN or tailnet address when available. If it has only a
+relay connection, enter a directly reachable T3 Proxy address and key.
+
+Gemini and Antigravity sign-ins require an OAuth app configured on the server. Set
+`T3CODE_PROXY_GEMINI_OAUTH_CLIENT_ID` or `T3CODE_PROXY_ANTIGRAVITY_OAUTH_CLIENT_ID`,
+and the matching `_CLIENT_SECRET` variable if your app requires one, before starting T3.
+Use the Google scopes and local callback URL for the selected provider. Imported access tokens
+work without this setup until they expire; refreshing them requires their original OAuth client.
+
+New Codex, Claude, and T3-managed OpenCode sessions started by T3 automatically use the proxy.
+Restart existing sessions to apply a change. CLIs launched from your own terminal keep their normal configuration. Choose
+**Disabled** to stop the proxy and restore normal routing for new T3 sessions.
+
+Configured proxies add account quota details to **Usage → Limits**. Quota availability depends on
+the provider. Disabling an account stops new requests from using it; removing it deletes its saved
+credentials. Rotating the API key requires reconnecting clients that used the previous key.
+
+Choose **Closest to Reset** to spend available allowance on accounts whose quota resets soonest,
+**Round-Robin** to distribute new sessions in turn, or **Least Active Sessions** to prefer the account
+with the fewest live sessions. Sessions keep their account for 12 idle minutes by default; change
+**Sticky session idle time** to any whole number from 1 to 1440 minutes. The timer starts after a
+request finishes and restarts on the next request. An unavailable account triggers failover.
+Requests without a session identifier are balanced individually.
+
 ## Set custom model prices
 
 On web or desktop, open the environment dropdown on **Usage**, then choose **Model prices** to add,
