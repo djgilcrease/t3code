@@ -1,4 +1,4 @@
-import { modelProxyServerUrl } from "@t3tools/client-runtime/connection";
+import { modelProxyServerUrls } from "@t3tools/client-runtime/connection";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import {
   ModelProxyProvider,
@@ -82,7 +82,9 @@ export function ModelProxySettings({ environmentId }: { environmentId: Environme
         <p role="status">{query.error ?? "Loading T3 Proxy…"}</p>
       </SettingsPageContainer>
     );
-  const mode = state.enabled ? "server" : state.client.configured ? "client" : "disabled";
+  // oxlint-disable-next-line t3code/no-rpc-permission-bypass -- Snapshot client is proxy configuration; commands use serverEnvironment.
+  const proxyClient = state.client;
+  const mode = state.enabled ? "server" : proxyClient.configured ? "client" : "disabled";
   return (
     <SettingsPageContainer>
       <SettingsSection title="T3 Proxy" id="t3-proxy">
@@ -116,10 +118,10 @@ export function ModelProxySettings({ environmentId }: { environmentId: Environme
           title="CLI routing"
           description="New Codex, Claude, and T3-managed OpenCode sessions launched by T3 use the configured proxy. Existing sessions keep their settings. Your terminal's CLI configuration stays untouched."
           status={
-            state.client.configured
-              ? state.client.local
+            proxyClient.configured
+              ? proxyClient.local
                 ? "Using this machine"
-                : `Using ${state.client.url}`
+                : `Using ${proxyClient.url}`
               : "Proxy routing is disabled"
           }
         />
@@ -246,8 +248,13 @@ export function ModelProxySettings({ environmentId }: { environmentId: Environme
                 key={peer.environmentId}
                 peer={peer}
                 busy={busy}
-                onConnect={async (url, key) => {
-                  const value = await run({ action: "configureClient", url, apiKey: key });
+                onConnect={async (url, key, fallbackUrls) => {
+                  const value = await run({
+                    action: "configureClient",
+                    url,
+                    apiKey: key,
+                    fallbackUrls,
+                  });
                   if (value) setChoosingClient(false);
                 }}
               />
@@ -498,14 +505,14 @@ function ConnectedProxyServer({
 }: {
   peer: EnvironmentPresentation;
   busy: boolean;
-  onConnect: (url: string, key: string) => Promise<void>;
+  onConnect: (url: string, key: string, fallbackUrls: string[]) => Promise<void>;
 }) {
   const query = useEnvironmentQuery(
     serverEnvironment.modelProxyStatus({ environmentId: peer.environmentId, input: {} }),
   );
   const command = useAtomCommand(serverEnvironment.manageModelProxy);
   const [connecting, setConnecting] = useState(false);
-  const url = modelProxyServerUrl(peer);
+  const [url, ...fallbackUrls] = modelProxyServerUrls(peer);
   return (
     <SettingsRow
       title={peer.label}
@@ -528,7 +535,7 @@ function ConnectedProxyServer({
             void command({ environmentId: peer.environmentId, input: { action: "revealKey" } })
               .then(async (result) => {
                 if (result._tag === "Success" && result.value.apiKey)
-                  await onConnect(url, result.value.apiKey);
+                  await onConnect(url, result.value.apiKey, fallbackUrls);
               })
               .finally(() => setConnecting(false));
           }}

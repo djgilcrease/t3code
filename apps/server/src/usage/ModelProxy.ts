@@ -944,33 +944,57 @@ export const make = Effect.gen(function* () {
         yield* update((current) => ({ ...current, client: { type: "local" } }));
         break;
       case "configureClient": {
-        const url = yield* Effect.try({
-          try: () => new URL(input.url),
-          catch: () => new ModelProxyError({ operation: "management" }),
-        });
-        if (
-          !["http:", "https:"].includes(url.protocol) ||
-          url.username ||
-          url.password ||
-          url.search ||
-          url.hash
-        )
-          return yield* new ModelProxyError({ operation: "management" });
-        url.pathname = url.pathname.replace(/\/$/u, "").replace(/\/v1$/u, "") || MODEL_PROXY_PATH;
-        yield* http
-          .get(`${url.toString().replace(/\/$/u, "")}/v1/models`, {
-            headers: { Authorization: `Bearer ${input.apiKey}` },
-          })
-          .pipe(
-            Effect.flatMap(HttpClientResponse.filterStatusOk),
-            Effect.flatMap((response) => Stream.runDrain(response.stream)),
-            Effect.timeout("10 seconds"),
-            Effect.catch(upstreamFailure),
-          );
+        const urls = yield* Effect.forEach(
+          [input.url, ...(input.fallbackUrls ?? [])],
+          (candidate) =>
+            Effect.gen(function* () {
+              const url = yield* Effect.try({
+                try: () => new URL(candidate),
+                catch: () => new ModelProxyError({ operation: "management" }),
+              });
+              if (
+                !["http:", "https:"].includes(url.protocol) ||
+                url.username ||
+                url.password ||
+                url.search ||
+                url.hash
+              )
+                return yield* new ModelProxyError({ operation: "management" });
+              url.pathname =
+                url.pathname.replace(/\/$/u, "").replace(/\/v1$/u, "") || MODEL_PROXY_PATH;
+              return url.toString().replace(/\/$/u, "");
+            }),
+        );
+        let selected: string | undefined;
+        for (const url of new Set(urls)) {
+          const reachable = yield* http
+            .get(`${url}/v1/models`, {
+              headers: { Authorization: `Bearer ${input.apiKey}` },
+            })
+            .pipe(
+              Effect.flatMap(HttpClientResponse.filterStatusOk),
+              Effect.flatMap((response) => Stream.runDrain(response.stream)),
+              Effect.timeout("10 seconds"),
+              Effect.as(true),
+              // An HTTP rejection must not trigger fallback or a protocol downgrade.
+              Effect.catchTags({
+                HttpClientError: (error) =>
+                  error.reason._tag === "TransportError"
+                    ? logFailure("upstream")(error).pipe(Effect.as(false))
+                    : upstreamFailure(error),
+                TimeoutError: (error) => logFailure("upstream")(error).pipe(Effect.as(false)),
+              }),
+            );
+          if (reachable) {
+            selected = url;
+            break;
+          }
+        }
+        if (!selected) return yield* new ModelProxyError({ operation: "upstream" });
         yield* update((current) => ({
           ...current,
           enabled: false,
-          client: { type: "remote", url: url.toString().replace(/\/$/u, ""), apiKey: input.apiKey },
+          client: { type: "remote", url: selected, apiKey: input.apiKey },
         }));
         break;
       }

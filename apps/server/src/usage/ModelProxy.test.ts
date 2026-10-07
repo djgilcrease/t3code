@@ -12,14 +12,22 @@ import * as Logger from "effect/Logger";
 import * as Fiber from "effect/Fiber";
 import * as References from "effect/References";
 import * as Stream from "effect/Stream";
-import { HttpClient, HttpClientRequest, HttpClientResponse, HttpServerResponse } from "effect/http";
+import {
+  HttpClient,
+  HttpClientError,
+  HttpClientRequest,
+  HttpClientResponse,
+  HttpServerResponse,
+} from "effect/http";
 import { codexAppServerArgs } from "../provider/codexLaunchArgs.ts";
 import * as ServerConfig from "../config.ts";
 import { ServerSecretStore } from "../auth/ServerSecretStore.ts";
 import { make } from "./ModelProxy.ts";
 
 function fixture(
-  respond: (request: HttpClientRequest.HttpClientRequest) => Response = () =>
+  respond: (
+    request: HttpClientRequest.HttpClientRequest,
+  ) => Response | Effect.Effect<Response, HttpClientError.HttpClientError> = () =>
     Response.json({ data: [] }),
   initial?: string,
   host?: string,
@@ -31,8 +39,13 @@ function fixture(
   const http = HttpClient.make((request) =>
     Effect.sync(() => {
       requests.push(request);
-      return HttpClientResponse.fromWeb(request, respond(request));
-    }),
+      return respond(request);
+    }).pipe(
+      Effect.flatMap((response) =>
+        Effect.isEffect(response) ? response : Effect.succeed(response),
+      ),
+      Effect.map((response) => HttpClientResponse.fromWeb(request, response)),
+    ),
   );
   const secrets = ServerSecretStore.of({
     get: (name) => Effect.succeed(Option.fromNullishOr(saved.get(name))),
@@ -700,6 +713,149 @@ describe("native T3 Proxy", () => {
         (yield* proxy.environment(ProviderDriverKind.make("claudeAgent"), {})).ANTHROPIC_AUTH_TOKEN,
       ).toBe("remote-key");
       yield* proxy.manage({ action: "disconnectClient" });
+      expect(yield* proxy.environment(ProviderDriverKind.make("claudeAgent"), {})).toEqual({});
+    }).pipe(Effect.scoped),
+  );
+  it.effect("keeps a reachable HTTPS proxy without trying HTTP fallbacks", () =>
+    Effect.gen(function* () {
+      const test = fixture();
+      const proxy = yield* test.api;
+      const client = yield* proxy.manage({
+        action: "configureClient",
+        url: "https://peer.test/api/model-proxy",
+        fallbackUrls: ["http://100.100.1.2/api/model-proxy"],
+        apiKey: "remote-key",
+      });
+      expect(client.client.url).toBe("https://peer.test/api/model-proxy");
+      expect(test.requests.map((req) => req.url)).toEqual([
+        "https://peer.test/api/model-proxy/v1/models",
+        "https://peer.test/api/model-proxy/v1/t3/quota",
+      ]);
+    }).pipe(Effect.scoped),
+  );
+  it.effect("uses and persists a reachable fallback after an HTTPS transport failure", () =>
+    Effect.gen(function* () {
+      const test = fixture((req) =>
+        req.url.startsWith("https:")
+          ? Effect.fail(
+              new HttpClientError.HttpClientError({
+                reason: new HttpClientError.TransportError({ request: req }),
+              }),
+            )
+          : Response.json({ accounts: [] }),
+      );
+      const proxy = yield* test.api;
+      const client = yield* proxy.manage({
+        action: "configureClient",
+        url: "https://peer.test/api/model-proxy",
+        fallbackUrls: ["http://100.100.1.2/api/model-proxy"],
+        apiKey: "remote-key",
+      });
+      expect(client.client.url).toBe("http://100.100.1.2/api/model-proxy");
+      expect(test.requests.slice(0, 2).map((req) => req.url)).toEqual([
+        "https://peer.test/api/model-proxy/v1/models",
+        "http://100.100.1.2/api/model-proxy/v1/models",
+      ]);
+      expect(test.requests[1]?.headers.authorization).toBe("Bearer remote-key");
+      const restarted = yield* test.api;
+      expect(
+        (yield* restarted.environment(ProviderDriverKind.make("claudeAgent"), {}))
+          .ANTHROPIC_BASE_URL,
+      ).toBe("http://100.100.1.2/api/model-proxy");
+    }).pipe(Effect.scoped),
+  );
+  it.effect("tries a fallback after the preferred proxy times out", () =>
+    Effect.gen(function* () {
+      const started = yield* Deferred.make<void>();
+      const test = fixture((req) =>
+        req.url.startsWith("https:")
+          ? Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never))
+          : Response.json({ accounts: [] }),
+      );
+      const proxy = yield* test.api;
+      const pending = yield* proxy
+        .manage({
+          action: "configureClient",
+          url: "https://peer.test/api/model-proxy",
+          fallbackUrls: ["http://100.100.1.2/api/model-proxy"],
+          apiKey: "remote-key",
+        })
+        .pipe(Effect.forkChild);
+      yield* Deferred.await(started);
+      yield* TestClock.adjust("10 seconds");
+      expect((yield* Fiber.join(pending)).client.url).toBe("http://100.100.1.2/api/model-proxy");
+    }).pipe(Effect.scoped),
+  );
+  it.effect("stops on HTTP rejections without probing fallbacks or changing local routing", () =>
+    Effect.gen(function* () {
+      for (const status of [401, 503]) {
+        const test = fixture(() => Response.json({}, { status }));
+        const proxy = yield* test.api;
+        yield* proxy.manage({ action: "start" });
+        yield* proxy.manage({ action: "useLocal" });
+        const before = test.saved.get("model-proxy-state");
+        const failure = yield* proxy
+          .manage({
+            action: "configureClient",
+            url: "https://peer.test/api/model-proxy",
+            fallbackUrls: ["http://100.100.1.2/api/model-proxy"],
+            apiKey: "remote-key",
+          })
+          .pipe(Effect.flip);
+        expect(failure.operation).toBe("upstream");
+        expect(test.requests).toHaveLength(1);
+        expect(test.saved.get("model-proxy-state")).toEqual(before);
+        expect(
+          (yield* proxy.environment(ProviderDriverKind.make("claudeAgent"), {})).ANTHROPIC_BASE_URL,
+        ).toMatch(/^http:\/\/127\.0\.0\.1:/u);
+      }
+    }).pipe(Effect.scoped),
+  );
+  it.effect("keeps existing routing when every discovered proxy is unreachable", () =>
+    Effect.gen(function* () {
+      const test = fixture((req) =>
+        Effect.fail(
+          new HttpClientError.HttpClientError({
+            reason: new HttpClientError.TransportError({ request: req }),
+          }),
+        ),
+      );
+      const proxy = yield* test.api;
+      yield* proxy.manage({ action: "start" });
+      yield* proxy.manage({ action: "useLocal" });
+      const before = test.saved.get("model-proxy-state");
+      const failure = yield* proxy
+        .manage({
+          action: "configureClient",
+          url: "https://peer.test/api/model-proxy",
+          fallbackUrls: [
+            "https://peer.test/api/model-proxy/v1/",
+            "http://100.100.1.2/api/model-proxy",
+            "http://100.100.1.2/api/model-proxy",
+          ],
+          apiKey: "remote-key",
+        })
+        .pipe(Effect.flip);
+      expect(failure.operation).toBe("upstream");
+      expect(test.requests).toHaveLength(2);
+      expect(test.saved.get("model-proxy-state")).toEqual(before);
+    }).pipe(Effect.scoped),
+  );
+  it.effect("validates every candidate before sending a key or changing routing", () =>
+    Effect.gen(function* () {
+      const test = fixture();
+      const proxy = yield* test.api;
+      const failure = yield* proxy
+        .manage({
+          action: "configureClient",
+          url: "https://peer.test/api/model-proxy",
+          fallbackUrls: ["https://user:password@peer.test/api/model-proxy"],
+          apiKey: "remote-key",
+        })
+        .pipe(Effect.flip);
+      expect(failure.operation).toBe("management");
+      expect(test.requests).toHaveLength(0);
+      expect(test.saved.has("model-proxy-state")).toBe(false);
       expect(yield* proxy.environment(ProviderDriverKind.make("claudeAgent"), {})).toEqual({});
     }).pipe(Effect.scoped),
   );

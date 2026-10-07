@@ -2,10 +2,10 @@ import { MODEL_PROXY_PATH, type ServerDirectEndpoint } from "@t3tools/contracts"
 import { connectionCatalogDisplayUrl, type EnvironmentPresentation } from "./presentation.ts";
 
 /** Addresses reachable by another machine, rather than the browser's localhost. */
-export function modelProxyServerUrl(presentation: {
+export function modelProxyServerUrls(presentation: {
   readonly entry: EnvironmentPresentation["entry"];
   readonly serverConfig: { readonly directEndpoints?: ReadonlyArray<ServerDirectEndpoint> } | null;
-}): string | null {
+}): string[] {
   const endpoints = presentation.serverConfig?.directEndpoints ?? [];
   const candidates = [
     ...endpoints
@@ -33,7 +33,13 @@ export function modelProxyServerUrl(presentation: {
       /* SSH and relay-only connections need an advertised or manual address. */
     }
   }
-  // Discovery must not downgrade an available HTTPS connection to advertised HTTP.
-  const selected = urls.find((url) => url.protocol === "https:") ?? urls[0];
-  return selected ? `${selected.origin}${MODEL_PROXY_PATH}` : null;
+  // Validate HTTPS first, retaining other addresses for machine-side reachability fallback.
+  return [
+    ...new Set(
+      [
+        ...urls.filter((url) => url.protocol === "https:"),
+        ...urls.filter((url) => url.protocol === "http:"),
+      ].map((url) => `${url.origin}${MODEL_PROXY_PATH}`),
+    ),
+  ];
 }

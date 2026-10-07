@@ -1,4 +1,4 @@
-import { modelProxyServerUrl } from "@t3tools/client-runtime/connection";
+import { modelProxyServerUrls } from "@t3tools/client-runtime/connection";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import {
   ModelProxyProvider,
@@ -98,10 +98,12 @@ function ProxySettings({
     }
   }
   if (!state) return <Text>{query.error ?? "Loading T3 Proxy…"}</Text>;
+  // oxlint-disable-next-line t3code/no-rpc-permission-bypass -- Snapshot client is proxy configuration; commands use serverEnvironment.
+  const proxyClient = state.client;
   return (
     <View className="gap-6">
       <SettingsSection
-        title={`${target.label} · ${state.enabled ? "Server" : state.client.configured ? "Client" : "Disabled"}`}
+        title={`${target.label} · ${state.enabled ? "Server" : proxyClient.configured ? "Client" : "Disabled"}`}
       >
         <Text className="p-4 text-foreground-muted">
           Only new Codex, Claude, and T3-managed OpenCode sessions launched by T3 use this proxy.
@@ -131,12 +133,12 @@ function ProxySettings({
           disabled={busy}
           onPress={() => setChoosingClient(true)}
         />
-        {state.client.url && (
-          <Text className="p-4 text-foreground-muted">Using {state.client.url}</Text>
+        {proxyClient.url && (
+          <Text className="p-4 text-foreground-muted">Using {proxyClient.url}</Text>
         )}
         {state.error && <Text className="p-4 text-danger-foreground">{state.error}</Text>}
       </SettingsSection>
-      {(choosingClient || (state.client.configured && !state.client.local)) && (
+      {(choosingClient || (proxyClient.configured && !proxyClient.local)) && (
         <SettingsSection title="Proxy server">
           {peers
             .filter((peer) => peer.environmentId !== environmentId)
@@ -145,8 +147,8 @@ function ProxySettings({
                 key={peer.environmentId}
                 peer={peer}
                 disabled={busy}
-                onConnect={async (url, apiKey) => {
-                  if (await run({ action: "configureClient", url, apiKey }))
+                onConnect={async (url, apiKey, fallbackUrls) => {
+                  if (await run({ action: "configureClient", url, apiKey, fallbackUrls }))
                     setChoosingClient(false);
                 }}
               />
@@ -465,14 +467,14 @@ function ProxyPeer({
 }: {
   peer: SettingsTarget;
   disabled: boolean;
-  onConnect: (url: string, key: string) => Promise<void>;
+  onConnect: (url: string, key: string, fallbackUrls: string[]) => Promise<void>;
 }) {
   const query = useEnvironmentQuery(
     serverEnvironment.modelProxyStatus({ environmentId: peer.environmentId, input: {} }),
   );
   const command = useAtomCommand(serverEnvironment.manageModelProxy);
   const [busy, setBusy] = useState(false);
-  const url = modelProxyServerUrl(peer);
+  const [url, ...fallbackUrls] = modelProxyServerUrls(peer);
   return (
     <>
       <Text className="px-4 pt-4 text-foreground-muted">
@@ -490,7 +492,7 @@ function ProxyPeer({
           void command({ environmentId: peer.environmentId, input: { action: "revealKey" } })
             .then(async (result) => {
               if (result._tag === "Success" && result.value.apiKey)
-                await onConnect(url, result.value.apiKey);
+                await onConnect(url, result.value.apiKey, fallbackUrls);
             })
             .finally(() => setBusy(false));
         }}

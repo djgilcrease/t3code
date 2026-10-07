@@ -48,8 +48,9 @@ update model pricing.
 
 Open **Settings → T3 Proxy** and choose a mode for the selected machine. **Server** hosts your
 accounts; sign in once for each account you want to add. **Client** uses another connected machine
-running in Server mode. T3 prefers an available HTTPS address, otherwise it discovers a LAN or
-tailnet address. If it has only a relay connection, enter a directly reachable T3 Proxy address and key.
+running in Server mode. T3 checks discovered HTTPS addresses first, then tries other advertised
+LAN or tailnet addresses if the connection fails or times out. A rejected request stops setup.
+If it has only a relay connection, enter a directly reachable T3 Proxy address and key.
 
 Use HTTPS for remote connections, or HTTP over an encrypted connection such as Tailscale.
 HTTP alone does not protect the proxy key or request contents from network observers. The proxy

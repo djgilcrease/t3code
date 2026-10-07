@@ -100,6 +100,7 @@ export const ModelProxyManageInput = Schema.Union([
   Schema.Struct({
     action: Schema.Literal("configureClient"),
     url: TrimmedNonEmptyString,
+    fallbackUrls: Schema.optional(Schema.Array(TrimmedNonEmptyString)),
     apiKey: TrimmedNonEmptyString,
   }),
   Schema.Struct({ action: Schema.Literal("disconnectClient") }),
