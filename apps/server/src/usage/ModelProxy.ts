@@ -25,7 +25,13 @@ import * as Semaphore from "effect/Semaphore";
 import * as Scope from "effect/Scope";
 import * as Fiber from "effect/Fiber";
 import * as Stream from "effect/Stream";
-import { HttpClient, HttpClientRequest, HttpClientResponse, HttpServerResponse } from "effect/http";
+import {
+  HttpClient,
+  HttpClientError,
+  HttpClientRequest,
+  HttpClientResponse,
+  HttpServerResponse,
+} from "effect/http";
 import * as ServerConfig from "../config.ts";
 import { formatHostForUrl, isWildcardHost } from "../startupAccess.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
@@ -240,6 +246,21 @@ export const make = Effect.gen(function* () {
   // HTTP failures include authenticated requests; never serialize them across T3's wire.
   const storageError = () => new ModelProxyError({ operation: "storage" });
   const upstreamError = () => new ModelProxyError({ operation: "upstream" });
+  // Extract only bounded diagnostics: HTTP errors can contain tokens in their request or body.
+  const logFailure = (operation: "storage" | "upstream") => (cause: unknown) => {
+    const httpError = HttpClientError.isHttpClientError(cause) ? cause : undefined;
+    return Effect.logWarning("T3 Proxy operation failed").pipe(
+      Effect.annotateLogs({
+        operation,
+        category: httpError ? httpError.reason._tag : "Failure",
+        ...(httpError?.response ? { status: httpError.response.status } : {}),
+      }),
+    );
+  };
+  const storageFailure = (cause: unknown) =>
+    logFailure("storage")(cause).pipe(Effect.andThen(Effect.fail(storageError())));
+  const upstreamFailure = (cause: unknown) =>
+    logFailure("upstream")(cause).pipe(Effect.andThen(Effect.fail(upstreamError())));
   const getKey = Effect.suspend(() =>
     key
       ? Effect.succeed(key)
@@ -248,17 +269,17 @@ export const make = Effect.gen(function* () {
             key = Hex.encode(bytes);
             return key;
           }),
-          Effect.mapError(storageError),
+          Effect.catch(storageFailure),
         ),
   );
   const update = (change: (current: typeof State.Type) => typeof State.Type) =>
     Effect.gen(function* () {
       if (storageFailed) return yield* new ModelProxyError({ operation: "storage" });
       const next = change(state);
-      const json = yield* encodeState(next).pipe(Effect.mapError(storageError));
+      const json = yield* encodeState(next).pipe(Effect.catch(storageFailure));
       yield* secrets
         .set("model-proxy-state", new TextEncoder().encode(json))
-        .pipe(Effect.mapError(storageError));
+        .pipe(Effect.catch(storageFailure));
       state = next;
     }).pipe(writes.withPermits(1));
   yield* secrets.get("model-proxy-state").pipe(
@@ -271,10 +292,14 @@ export const make = Effect.gen(function* () {
           )
         : Effect.void,
     ),
-    Effect.catch(() =>
-      Effect.sync(() => {
-        storageFailed = true;
-      }),
+    Effect.catch((cause) =>
+      logFailure("storage")(cause).pipe(
+        Effect.andThen(
+          Effect.sync(() => {
+            storageFailed = true;
+          }),
+        ),
+      ),
     ),
   );
   const tokenRequest = (
@@ -294,7 +319,8 @@ export const make = Effect.gen(function* () {
         Effect.flatMap((response) => response.json),
         Effect.flatMap(decodeTokens),
         Effect.timeout("30 seconds"),
-        Effect.mapError(upstreamError),
+        Effect.catch(upstreamFailure),
+        Effect.annotateLogs({ provider, stage: "token" }),
       );
   };
   const getAccountToken = Effect.fn("ModelProxy.getAccountToken")(function* (
@@ -493,6 +519,7 @@ export const make = Effect.gen(function* () {
     });
     yield* read.pipe(
       Effect.timeout("15 seconds"),
+      Effect.tapError(logFailure("upstream")),
       Effect.match({
         onSuccess: (quota) => {
           if (quota) limits.set(entry.id, quota);
@@ -509,6 +536,7 @@ export const make = Effect.gen(function* () {
           });
         },
       }),
+      Effect.annotateLogs({ provider: entry.provider, stage: "quota" }),
     );
   });
   const refreshAccounts = Effect.fn("ModelProxy.refreshAccounts")(function* (force: boolean) {
@@ -585,7 +613,7 @@ export const make = Effect.gen(function* () {
     tokenUrl?: string,
   ) {
     const now = yield* Clock.currentTimeMillis;
-    const id = yield* crypto.randomUUIDv4.pipe(Effect.mapError(storageError));
+    const id = yield* crypto.randomUUIDv4.pipe(Effect.catch(storageFailure));
     const claims = yield* Effect.try({
       try: () => (tokens.id_token ? decodeJwt(tokens.id_token) : {}),
       catch: upstreamError,
@@ -605,7 +633,7 @@ export const make = Effect.gen(function* () {
           Effect.flatMap(HttpClientResponse.filterStatusOk),
           Effect.flatMap((r) => r.json),
           Effect.flatMap(decodeProfile),
-          Effect.mapError(upstreamError),
+          Effect.catch(upstreamFailure),
         );
       email = profile.email;
       subject = profile.id;
@@ -628,7 +656,7 @@ export const make = Effect.gen(function* () {
           Effect.flatMap(HttpClientResponse.filterStatusOk),
           Effect.flatMap((r) => r.json),
           Effect.flatMap(Json),
-          Effect.mapError(upstreamError),
+          Effect.catch(upstreamFailure),
         );
       projectId =
         typeof assist.cloudaicompanionProject === "string"
@@ -665,7 +693,7 @@ export const make = Effect.gen(function* () {
               Effect.flatMap((response) => response.json),
               Effect.flatMap(Json),
               Effect.timeout("30 seconds"),
-              Effect.mapError(upstreamError),
+              Effect.catch(upstreamFailure),
             );
           const project =
             object(onboard.response).cloudaicompanionProject ?? onboard.cloudaicompanionProject;
@@ -763,8 +791,8 @@ export const make = Effect.gen(function* () {
       }
     if ([...pending.values()].filter((flow) => flow.status === "wait").length >= 10)
       return yield* new ModelProxyError({ operation: "management" });
-    const state = Hex.encode(yield* crypto.randomBytes(32).pipe(Effect.mapError(storageError)));
-    const verifier = Hex.encode(yield* crypto.randomBytes(32).pipe(Effect.mapError(storageError)));
+    const state = Hex.encode(yield* crypto.randomBytes(32).pipe(Effect.catch(storageFailure)));
+    const verifier = Hex.encode(yield* crypto.randomBytes(32).pipe(Effect.catch(storageFailure)));
     const definition = oauthClients[provider];
     if (!definition.clientId) return yield* new ModelProxyError({ operation: "oauthConfig" });
     const login: PendingLogin = {
@@ -778,7 +806,7 @@ export const make = Effect.gen(function* () {
     if (definition.authorizeUrl && definition.redirectUri) {
       const digest = yield* crypto
         .digest("SHA-256", new TextEncoder().encode(verifier))
-        .pipe(Effect.mapError(storageError));
+        .pipe(Effect.catch(storageFailure));
       const challenge = btoa(String.fromCharCode(...digest))
         .replaceAll("+", "-")
         .replaceAll("/", "_")
@@ -812,7 +840,7 @@ export const make = Effect.gen(function* () {
           Effect.flatMap(HttpClientResponse.filterStatusOk),
           Effect.flatMap((r) => r.json),
           Effect.flatMap(decodeDiscovery),
-          Effect.mapError(upstreamError),
+          Effect.catch(upstreamFailure),
         );
         if (
           ![discovery.device_authorization_endpoint, discovery.token_endpoint].every(
@@ -837,7 +865,7 @@ export const make = Effect.gen(function* () {
           Effect.flatMap(HttpClientResponse.filterStatusOk),
           Effect.flatMap((r) => r.json),
           Effect.flatMap(decodeDevice),
-          Effect.mapError(upstreamError),
+          Effect.catch(upstreamFailure),
         );
       login.deviceCode = response.device_code;
       login.tokenUrl = tokenUrl;
@@ -891,7 +919,7 @@ export const make = Effect.gen(function* () {
               Effect.flatMap(HttpClientResponse.filterStatusOk),
               Effect.flatMap((response) => Stream.runDrain(response.stream)),
               Effect.timeout("30 seconds"),
-              Effect.mapError(upstreamError),
+              Effect.catch(upstreamFailure),
             );
         else yield* refreshAccounts(true);
         break;
@@ -905,8 +933,8 @@ export const make = Effect.gen(function* () {
       case "revealKey":
         return { ...(yield* snapshot), apiKey: yield* getKey };
       case "rotateKey": {
-        const bytes = yield* crypto.randomBytes(32).pipe(Effect.mapError(storageError));
-        yield* secrets.set("model-proxy-api", bytes).pipe(Effect.mapError(storageError));
+        const bytes = yield* crypto.randomBytes(32).pipe(Effect.catch(storageFailure));
+        yield* secrets.set("model-proxy-api", bytes).pipe(Effect.catch(storageFailure));
         key = Hex.encode(bytes);
         return { ...(yield* snapshot), apiKey: key };
       }
@@ -936,7 +964,7 @@ export const make = Effect.gen(function* () {
             Effect.flatMap(HttpClientResponse.filterStatusOk),
             Effect.flatMap((response) => Stream.runDrain(response.stream)),
             Effect.timeout("10 seconds"),
-            Effect.mapError(upstreamError),
+            Effect.catch(upstreamFailure),
           );
         yield* update((current) => ({
           ...current,
@@ -983,14 +1011,14 @@ export const make = Effect.gen(function* () {
           ...object(input.credential.token),
           ...object(input.credential.tokens),
         };
-        const imported = yield* decodeImportedToken(raw).pipe(Effect.mapError(upstreamError));
+        const imported = yield* decodeImportedToken(raw).pipe(Effect.catch(upstreamFailure));
         const provider = yield* decodeProvider(imported.provider ?? imported.type).pipe(
           Effect.mapError(() => new ModelProxyError({ operation: "unsupported" })),
         );
         const accessToken = imported.api_key ?? imported.access_token;
         if (!accessToken && !imported.refresh_token)
           return yield* new ModelProxyError({ operation: "management" });
-        const id = yield* crypto.randomUUIDv4.pipe(Effect.mapError(storageError));
+        const id = yield* crypto.randomUUIDv4.pipe(Effect.catch(storageFailure));
         const expiresAt =
           imported.expiry_date ??
           (imported.expired
@@ -1073,13 +1101,13 @@ export const make = Effect.gen(function* () {
             .pipe(
               Effect.flatMap((r) => r.json),
               Effect.flatMap(Json),
-              Effect.mapError(upstreamError),
+              Effect.catch(upstreamFailure),
             );
           if (response.error === "slow_down") login.interval = (login.interval ?? 5000) + 5000;
           else if (response.error && response.error !== "authorization_pending")
             login.status = "error";
           else if (response.access_token) {
-            const tokens = yield* decodeTokens(response).pipe(Effect.mapError(upstreamError));
+            const tokens = yield* decodeTokens(response).pipe(Effect.catch(upstreamFailure));
             yield* saveTokens(login.provider, tokens, login.tokenUrl);
             login.status = "ok";
           }
@@ -1116,7 +1144,7 @@ export const make = Effect.gen(function* () {
       };
     if (driver === "opencode") {
       const content = yield* decodeJsonPayload(base.OPENCODE_CONFIG_CONTENT ?? "{}").pipe(
-        Effect.mapError(storageError),
+        Effect.catch(storageFailure),
       );
       const provider = { ...object(content.provider) };
       for (const name of ["openai", "anthropic", "google", "xai", "kimi-for-coding"]) {
@@ -1133,7 +1161,7 @@ export const make = Effect.gen(function* () {
       const json = yield* encodeJsonPayload({
         ...content,
         provider,
-      }).pipe(Effect.mapError(storageError));
+      }).pipe(Effect.catch(storageFailure));
       return { ...base, OPENCODE_CONFIG_CONTENT: json };
     }
     // Config overrides travel only in the app-server/exec argv. No config.toml is edited.
@@ -1143,7 +1171,7 @@ export const make = Effect.gen(function* () {
       "--config",
       'model_providers.t3_proxy.name="T3 Proxy"',
       "--config",
-      `model_providers.t3_proxy.base_url=${yield* encodeJsonString(`${url}/v1`).pipe(Effect.mapError(storageError))}`,
+      `model_providers.t3_proxy.base_url=${yield* encodeJsonString(`${url}/v1`).pipe(Effect.catch(storageFailure))}`,
       "--config",
       'model_providers.t3_proxy.wire_api="responses"',
       "--config",
@@ -1166,10 +1194,10 @@ export const make = Effect.gen(function* () {
     const expected = yield* getKey;
     const suppliedDigest = yield* crypto
       .digest("SHA-256", new TextEncoder().encode(input.apiKey))
-      .pipe(Effect.mapError(upstreamError));
+      .pipe(Effect.catch(upstreamFailure));
     const expectedDigest = yield* crypto
       .digest("SHA-256", new TextEncoder().encode(expected))
-      .pipe(Effect.mapError(upstreamError));
+      .pipe(Effect.catch(upstreamFailure));
     let difference = 0;
     for (let i = 0; i < expectedDigest.length; i++)
       difference |= expectedDigest[i]! ^ suppliedDigest[i]!;
@@ -1216,7 +1244,7 @@ export const make = Effect.gen(function* () {
               Effect.flatMap(HttpClientResponse.filterStatusOk),
               Effect.flatMap((r) => r.json),
               Effect.flatMap(Json),
-              Effect.mapError(upstreamError),
+              Effect.catch(upstreamFailure),
             );
             const rows = Array.isArray(raw.data)
               ? raw.data
@@ -1246,7 +1274,7 @@ export const make = Effect.gen(function* () {
       return HttpServerResponse.jsonUnsafe({ object: "list", data: [...unique.values()] });
     }
     if (input.method !== "POST") return yield* new ModelProxyError({ operation: "unsupported" });
-    const payload = yield* Json(input.payload).pipe(Effect.mapError(upstreamError));
+    const payload = yield* Json(input.payload).pipe(Effect.catch(upstreamFailure));
     const model =
       typeof payload.model === "string"
         ? payload.model
@@ -1259,7 +1287,7 @@ export const make = Effect.gen(function* () {
       ? Hex.encode(
           yield* crypto
             .digest("SHA-256", new TextEncoder().encode(rawSession))
-            .pipe(Effect.mapError(upstreamError)),
+            .pipe(Effect.catch(upstreamFailure)),
         )
       : null;
     const candidates = state.accounts.filter(
@@ -1315,7 +1343,7 @@ export const make = Effect.gen(function* () {
                   ? {
                       userAgent: "antigravity",
                       requestType: model.includes("image") ? "image_gen" : "agent",
-                      requestId: yield* crypto.randomUUIDv4.pipe(Effect.mapError(storageError)),
+                      requestId: yield* crypto.randomUUIDv4.pipe(Effect.catch(storageFailure)),
                     }
                   : {}),
               }
@@ -1328,7 +1356,7 @@ export const make = Effect.gen(function* () {
                 HttpClientRequest.bodyJsonUnsafe(body),
               ),
             )
-            .pipe(Effect.mapError(upstreamError));
+            .pipe(Effect.catch(upstreamFailure));
         const sent = yield* send().pipe(Effect.result);
         if (sent._tag === "Failure") return null;
         let response = sent.success;
@@ -1407,7 +1435,7 @@ export const make = Effect.gen(function* () {
                 return previous;
               },
             ),
-            Effect.mapError(upstreamError),
+            Effect.catch(upstreamFailure),
           );
           // Some Codex backends send output only in item events, leaving terminal output empty.
           raw = {
@@ -1420,8 +1448,7 @@ export const make = Effect.gen(function* () {
                     .map(([, item]) => item),
           };
           if (!raw.id) return yield* new ModelProxyError({ operation: "upstream" });
-        } else
-          raw = yield* response.json.pipe(Effect.flatMap(Json), Effect.mapError(upstreamError));
+        } else raw = yield* response.json.pipe(Effect.flatMap(Json), Effect.catch(upstreamFailure));
         return HttpServerResponse.jsonUnsafe(proxyChatResponse(prepared.translation, raw, model));
       }).pipe(
         Effect.onExit((exit) =>

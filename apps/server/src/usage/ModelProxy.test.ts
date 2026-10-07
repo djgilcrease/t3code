@@ -8,6 +8,8 @@ import * as Option from "effect/Option";
 import * as TestClock from "effect/testing/TestClock";
 import * as Deferred from "effect/Deferred";
 import * as ConfigProvider from "effect/ConfigProvider";
+import * as Logger from "effect/Logger";
+import * as References from "effect/References";
 import * as Stream from "effect/Stream";
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpServerResponse } from "effect/http";
 import { codexAppServerArgs } from "../provider/codexLaunchArgs.ts";
@@ -86,6 +88,57 @@ const drainResponse = (response: HttpServerResponse.HttpServerResponse) =>
     : Effect.void;
 
 describe("native T3 Proxy", () => {
+  it.effect("logs storage and HTTP failures without exposing credentials or response bodies", () =>
+    Effect.gen(function* () {
+      const logs: Array<{ message: unknown; annotations: Record<string, unknown> }> = [];
+      const logger = Logger.make(({ message, fiber }) => {
+        logs.push({ message, annotations: { ...fiber.getRef(References.CurrentLogAnnotations) } });
+      });
+      yield* Effect.gen(function* () {
+        const broken = yield* fixture(undefined, "secret-storage-token").api;
+        const storage = yield* broken.manage({ action: "start" }).pipe(Effect.result);
+        expect(storage._tag === "Failure" && storage.failure.operation).toBe("storage");
+        const proxy = yield* fixture(() => new Response("secret-response-token", { status: 503 }))
+          .api;
+        const flow = (yield* proxy.manage({ action: "authStart", provider: "codex" })).oauth!;
+        const result = yield* proxy
+          .manage({
+            action: "authComplete",
+            provider: "codex",
+            state: flow.state,
+            redirectUrl: `http://localhost:1455/auth/callback?code=secret-auth-code&state=${flow.state}`,
+          })
+          .pipe(Effect.result);
+        expect(result._tag === "Failure" && result.failure.operation).toBe("upstream");
+        expect(JSON.stringify(result)).not.toContain("secret-");
+        yield* proxy.manage({
+          action: "importAccount",
+          name: "codex.json",
+          credential: { type: "codex", access_token: "secret-access-token" },
+        });
+        yield* proxy.manage({ action: "start" });
+      }).pipe(Effect.provide(Logger.layer([logger], { mergeWithExisting: false })));
+      expect(logs.some((log) => log.annotations.operation === "storage")).toBe(true);
+      expect(
+        logs.some(
+          (log) =>
+            log.annotations.operation === "upstream" &&
+            log.annotations.status === 503 &&
+            log.annotations.category === "StatusCodeError",
+        ),
+      ).toBe(true);
+      expect(JSON.stringify(logs)).not.toContain("secret-");
+      expect(
+        logs.some(
+          (log) =>
+            log.annotations.provider === "codex" &&
+            log.annotations.stage === "quota" &&
+            log.annotations.status === 503,
+        ),
+      ).toBe(true);
+      expect(JSON.stringify(logs)).not.toContain("oauth/token");
+    }).pipe(Effect.scoped),
+  );
   it.effect("rejects local routing while stopped and preserves normal CLI launches", () =>
     Effect.gen(function* () {
       const proxy = yield* fixture().api;
