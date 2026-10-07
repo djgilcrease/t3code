@@ -15,6 +15,7 @@ import {
   ClaudeSettings,
   EnvironmentId,
   MessageId,
+  ModelProxyError,
   type ModelSelection,
   NodeId,
   type OrchestrationV2AppThread,
@@ -62,6 +63,7 @@ import { ThreadToolkit } from "../../mcp/toolkits/thread/tools.ts";
 import { OrchestratorToolkit } from "../../mcp/toolkits/orchestrator/tools.ts";
 import { ClaudeExecutableFileCheck } from "../../provider/Drivers/ClaudeExecutable.ts";
 import type { EventNdjsonLogger } from "../../provider/EventNdjsonLogger.ts";
+import { ModelProxy } from "../../usage/ModelProxy.ts";
 import {
   ProviderAdapterV2RuntimePolicy,
   type ProviderAdapterV2Event,
@@ -2240,6 +2242,87 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       };
     });
   const makeWakeHarness = makeWakeHarnessWithOptions();
+
+  it.effect("preserves the live query when replacement proxy environment resolution fails", () => {
+    let environmentFails = true;
+    let environmentCalls = 0;
+    let closeCount = 0;
+    const proxy = ModelProxy.of({
+      manage: () => Effect.die("unused proxy management"),
+      forward: () => Effect.die("unused proxy forwarding"),
+      environment: (_driver, base) =>
+        Effect.suspend(() => {
+          environmentCalls += 1;
+          return environmentFails
+            ? Effect.fail(new ModelProxyError({ operation: "storage" }))
+            : Effect.succeed({ ...base, ANTHROPIC_BASE_URL: "http://localhost/t3-proxy" });
+        }),
+    });
+    return Effect.gen(function* () {
+      const harness = yield* makeWakeHarnessWithOptions({
+        close: (messages) =>
+          Effect.sync(() => {
+            closeCount += 1;
+          }).pipe(Effect.andThen(Queue.shutdown(messages))),
+        freshQueueOnReopen: true,
+      });
+      const now = yield* DateTime.now;
+      const start = (attempt: string, modelSelection = CLAUDE_TEST_MODEL_SELECTION) =>
+        harness.runtime.startTurn(
+          makeClaudeTestTurnInput({
+            threadId: harness.threadId,
+            providerThread: harness.providerThread,
+            now,
+            attemptId: RunAttemptId.make(attempt),
+            text: "Continue.",
+            attachments: [],
+            modelSelection,
+          }),
+        );
+
+      const initialFailure = yield* start("proxy-initial-failure").pipe(Effect.exit);
+      assert.isTrue(Exit.isFailure(initialFailure));
+      assert.lengthOf(harness.processQueues, 0);
+      assert.equal(closeCount, 0);
+
+      environmentFails = false;
+      yield* start("proxy-initial-success");
+      assert.equal(
+        harness.getOpenedOptions()?.env?.ANTHROPIC_BASE_URL,
+        "http://localhost/t3-proxy",
+      );
+      yield* Queue.offer(harness.sdkMessages, turnOneResult);
+      assert.equal((yield* Queue.take(harness.terminalReceipts)).status, "completed");
+
+      environmentFails = true;
+      const replacementFailure = yield* start("proxy-replacement-failure", {
+        ...CLAUDE_TEST_MODEL_SELECTION,
+        model: "claude-haiku-4-5-20251001",
+      }).pipe(Effect.exit);
+      assert.isTrue(Exit.isFailure(replacementFailure));
+      assert.equal(closeCount, 0);
+      assert.lengthOf(harness.processQueues, 1);
+      assert.lengthOf(harness.offeredMessages, 1);
+
+      // Reusing the original process needs no new proxy lookup, even while storage is unavailable.
+      yield* start("proxy-reuse-after-failure");
+      assert.equal(environmentCalls, 3);
+      assert.lengthOf(harness.offeredMessages, 2);
+      yield* Queue.offer(
+        harness.sdkMessages,
+        makeResultFrame({
+          uuid: "00000000-0000-4000-8000-000000000902",
+          result: "Original process still works.",
+        }),
+      );
+      assert.equal((yield* Queue.take(harness.terminalReceipts)).status, "completed");
+      assert.equal(closeCount, 0);
+      assert.lengthOf(harness.processQueues, 1);
+    }).pipe(
+      Effect.provideService(ModelProxy, proxy),
+      Effect.provide(Layer.merge(IdAllocator.layer, NodeServices.layer)),
+    );
+  });
 
   it.effect.each([
     { isError: false, title: "Check weather" },

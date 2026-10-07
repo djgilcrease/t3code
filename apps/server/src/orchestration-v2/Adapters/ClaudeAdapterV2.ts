@@ -7284,6 +7284,21 @@ export function makeClaudeAdapterV2(
             return yield* new ClaudeBackgroundWorkBlocksQueryReplacementError();
           }
 
+          // A configuration failure must leave the existing process available for reuse.
+          const environment = yield* proxyProviderEnvironment(
+            CLAUDE_PROVIDER,
+            adapterOptions.environment,
+          ).pipe(
+            Effect.mapError(
+              (cause) =>
+                new ProviderAdapter.ProviderAdapterProtocolError({
+                  driver: CLAUDE_PROVIDER,
+                  detail: "Could not configure T3 Proxy",
+                  cause,
+                }),
+            ),
+          );
+
           // openQuery owns one live process. Closing it for another native
           // thread kills that sibling's CLI; it can never emit a roster clear,
           // so drop its process-scoped Waiting/wake state immediately. Closing
@@ -7318,19 +7333,7 @@ export function makeClaudeAdapterV2(
             cwd: turnInput.runtimePolicy.cwd,
             attachmentsDir,
             settings: adapterOptions.settings,
-            environment: yield* proxyProviderEnvironment(
-              CLAUDE_PROVIDER,
-              adapterOptions.environment,
-            ).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new ProviderAdapter.ProviderAdapterProtocolError({
-                    driver: CLAUDE_PROVIDER,
-                    detail: "Could not configure T3 Proxy",
-                    cause,
-                  }),
-              ),
-            ),
+            environment,
             tools: queryPolicy.tools ?? CLAUDE_CODE_PRESET_TOOLS,
             ...mcpOverrides,
             permissionMode: queryPolicy.permissionMode,
