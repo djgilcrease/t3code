@@ -7,6 +7,49 @@ import {
 } from "./modelProxyProtocols.ts";
 
 describe("native model proxy protocols", () => {
+  it("rejects Google native routes outside an exact model operation", () => {
+    for (const path of [
+      "/v1beta/models/gemini-x:generateContent/../../cachedContents",
+      "/v1beta/models/gemini-x:generateContent/%2e%2e/%2e%2e/cachedContents",
+      "/v1beta/models/gemini-x:generateContent%2f..%2f..%2fcachedContents",
+      "/v1beta/models/gemini-x:generateContent\\..\\..\\cachedContents",
+      "/v1beta/models/gemini-x:generateContent/extra?alt=sse",
+      "/v1beta/models/gemini-x:generateContentSuffix",
+      "/v1beta/models/gemini-x:delete",
+      "/v1beta/models/nested/gemini-x:generateContent",
+      "/v1beta/models/nested%2fgemini-x:generateContent",
+      "/v1beta/models/nested%252fgemini-x:generateContent",
+      "/v1beta/models/:generateContent",
+      "/v1beta/models/gemini-x:generateContent#fragment",
+    ]) {
+      for (const [provider, apiKey] of [
+        ["gemini", true],
+        ["gemini", false],
+        ["antigravity", false],
+      ] as const) {
+        expect(() => prepareProxyRequest(provider, apiKey, path, {})).toThrow("not supported");
+      }
+    }
+  });
+
+  it("forwards each supported Google model operation with its native request body", () => {
+    for (const operation of ["generateContent", "streamGenerateContent", "countTokens"]) {
+      const model = "gemini-2.5-pro_preview";
+      const path = `/v1beta/models/${model}:${operation}?alt=sse&prettyPrint=false`;
+      const body = { contents: [{ role: "user", parts: [{ text: "Hello" }] }] };
+      const apiRequest = prepareProxyRequest("gemini", true, path, body);
+      expect(apiRequest.url).toBe(`https://generativelanguage.googleapis.com${path}`);
+      expect(apiRequest.body).toEqual(body);
+      for (const provider of ["gemini", "antigravity"] as const) {
+        const oauthRequest = prepareProxyRequest(provider, false, path, body);
+        expect(oauthRequest.url).toBe(
+          `https://cloudcode-pa.googleapis.com/v1internal:${operation}?alt=sse`,
+        );
+        expect(oauthRequest.body).toEqual({ model, request: body });
+      }
+    }
+  });
+
   it("matches paths independently of query strings and preserves only native query options", () => {
     for (const provider of ["claude", "kimi"] as const) {
       for (const path of ["/v1/messages?beta=true", "/v1/messages/count_tokens?beta=true"]) {

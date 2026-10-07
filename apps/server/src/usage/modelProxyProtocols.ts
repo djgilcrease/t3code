@@ -497,22 +497,23 @@ export function prepareProxyRequest(
       translation,
     };
   }
-  if (
-    !route.startsWith("/v1beta/models/") ||
-    !/:(?:generateContent|streamGenerateContent|countTokens)/u.test(route)
-  )
-    throw new ModelProxyError({ operation: "unsupported" });
+  // Construct authenticated upstream routes from exact operations, never caller path components.
+  const match =
+    /^\/v1beta\/models\/([A-Za-z0-9][A-Za-z0-9._-]*):(generateContent|streamGenerateContent|countTokens)$/u.exec(
+      route,
+    );
+  if (!match) throw new ModelProxyError({ operation: "unsupported" });
+  const model = match[1]!;
+  const operation = match[2]!;
   if (apiKey && provider === "gemini")
     return {
-      url: `https://generativelanguage.googleapis.com${route}${query}`,
+      url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:${operation}${query}`,
       body,
       translation: "native" as const,
     };
-  const match = /\/models\/([^:]+):([^?]+)/u.exec(route);
-  if (!match) throw new ModelProxyError({ operation: "unsupported" });
   return {
-    url: `https://cloudcode-pa.googleapis.com/v1internal:${match[2]}${new URLSearchParams(query).get("alt") === "sse" ? "?alt=sse" : ""}`,
-    body: { model: unprefixProxyModel(decodeURIComponent(match[1]!)), request: body },
+    url: `https://cloudcode-pa.googleapis.com/v1internal:${operation}${new URLSearchParams(query).get("alt") === "sse" ? "?alt=sse" : ""}`,
+    body: { model, request: body },
     translation: "google-native" as const,
   };
 }
