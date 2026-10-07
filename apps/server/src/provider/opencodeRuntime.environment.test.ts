@@ -161,6 +161,52 @@ describe("verifyOpenCodeServerVersion", () => {
 });
 
 describe("OpenCode server output", () => {
+  effectIt.live("launches a bare Windows PATH shim using the inherited environment", () =>
+    Effect.gen(function* () {
+      const platform = yield* HostProcessPlatform;
+      if (platform !== "win32") return;
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const environment = yield* HostProcessEnvironment;
+      const executablePath = yield* HostProcessExecutablePath;
+      const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-opencode-path-" });
+      const scriptPath = path.join(tempDir, "server.mjs");
+      yield* fs.writeFileString(
+        scriptPath,
+        `import { createServer } from "node:http";
+const server = createServer((request, response) => {
+  response.setHeader("Content-Type", "application/json");
+  response.end(JSON.stringify({ healthy: true, version: "1.14.19", source: "path-shim" }));
+});
+server.listen(0, "127.0.0.1", () => {
+  process.stdout.write("opencode server listening on http://127.0.0.1:" + server.address().port + "\\n");
+});
+`,
+      );
+      yield* fs.writeFileString(
+        path.join(tempDir, "t3-test-opencode.cmd"),
+        `@echo off\n"${executablePath}" "${scriptPath}" %*\n`,
+      );
+      const result = yield* Effect.gen(function* () {
+        const runtime = yield* OpenCodeRuntime.OpenCodeRuntime;
+        const server = yield* runtime.startOpenCodeServerProcess({
+          binaryPath: "t3-test-opencode",
+          directory: tempDir,
+          port: 0,
+        });
+        const response = yield* HttpClient.get(`${server.url}/global/health`);
+        return yield* response.json;
+      }).pipe(
+        Effect.provide(OpenCodeRuntime.layer.pipe(Layer.provide(OpenCodeServerLedger.layerTest))),
+        Effect.provideService(HostProcessEnvironment, {
+          ...environment,
+          PATH: tempDir,
+          PATHEXT: ".CMD;.EXE",
+        }),
+      );
+      expect(result).toMatchObject({ healthy: true, source: "path-shim" });
+    }).pipe(Effect.scoped, Effect.provide([NodeServices.layer, FetchHttpClient.layer])),
+  );
   effectIt.live(
     "drains stdout and stderr after startup so server requests can finish",
     () =>

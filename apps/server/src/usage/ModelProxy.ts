@@ -692,7 +692,9 @@ export const make = Effect.gen(function* () {
       accessToken: tokens.access_token,
       apiKey: false,
       expiresAt: now + (tokens.expires_in ?? 3600) * 1000,
-      ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+      ...((tokens.refresh_token ?? existing?.refreshToken)
+        ? { refreshToken: tokens.refresh_token ?? existing?.refreshToken }
+        : {}),
       ...(email ? { email } : {}),
       ...(subject ? { subject } : {}),
       ...(claims["https://api.openai.com/auth"]?.chatgpt_account_id
@@ -1091,10 +1093,10 @@ export const make = Effect.gen(function* () {
     base: NodeJS.ProcessEnv,
   ) {
     const supported = driver === "codex" || driver === "claudeAgent" || driver === "opencode";
-    if (storageFailed && supported) return yield* new ModelProxyError({ operation: "storage" });
     // Cursor, Grok's proprietary ACP CLI, Antigravity, and arbitrary ACP agents do not
     // expose a shared launch-only API override. Keep their own runtimes unchanged.
     if (!state.client || !supported) return base;
+    if (storageFailed) return yield* new ModelProxyError({ operation: "storage" });
     if (state.client.type === "local" && !state.enabled)
       return yield* new ModelProxyError({ operation: "disabled" });
     const apiKey = state.client.type === "remote" ? state.client.apiKey : yield* getKey;

@@ -709,7 +709,7 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
         ),
       );
       const args = ["serve", `--hostname=${hostname}`, `--port=${port}`];
-      const spawnCommand = yield* resolveCommand(input.binaryPath, args, proxyEnvironment);
+      const spawnCommand = yield* resolveCommand(input.binaryPath, args, input.environment);
       const serverPassword = resolveOpenCodeServerPassword({
         external: false,
         ...(input.serverPassword !== undefined ? { serverPassword: input.serverPassword } : {}),

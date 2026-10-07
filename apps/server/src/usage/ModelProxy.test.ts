@@ -485,6 +485,9 @@ describe("native T3 Proxy", () => {
       const proxy = yield* test.api;
       expect((yield* proxy.manage({ action: "status" })).status).toBe("failed");
       expect((yield* proxy.manage({ action: "start" }).pipe(Effect.result))._tag).toBe("Failure");
+      const base = { PATH: "original-path", T3CODE_CODEX_LAUNCH_ARGS: "--original" };
+      for (const driver of ["codex", "claudeAgent", "opencode"] as const)
+        expect(yield* proxy.environment(ProviderDriverKind.make(driver), base)).toBe(base);
       expect(new TextDecoder().decode(test.saved.get("model-proxy-state"))).toBe("invalid");
     }).pipe(Effect.scoped),
   );
@@ -589,11 +592,13 @@ describe("native T3 Proxy", () => {
     "exchanges OAuth only after verifying callback state and deduplicates the same login",
     () =>
       Effect.gen(function* () {
+        yield* TestClock.setTime(0);
+        let exchanges = 0;
         const test = fixture((req) =>
           req.url.endsWith("/oauth/token")
             ? Response.json({
+                ...(++exchanges === 1 ? { refresh_token: "refresh" } : {}),
                 access_token: "oauth",
-                refresh_token: "refresh",
                 expires_in: 3600,
                 account: { uuid: "subject", email_address: "account@example.test" },
               })
@@ -630,6 +635,17 @@ describe("native T3 Proxy", () => {
             redirectUrl: `http://localhost:1455/auth/callback?code=c&state=${second.state}`,
           })).accounts,
         ).toHaveLength(1);
+        yield* proxy.manage({ action: "start" });
+        yield* TestClock.setTime(4_000_000);
+        const key = (yield* proxy.manage({ action: "revealKey" })).apiKey!;
+        expect((yield* proxy.forward({ ...request, apiKey: key })).status).toBe(200);
+        expect(exchanges).toBe(3);
+        const refresh = test.requests.findLast((req) => req.url.endsWith("/oauth/token"))!;
+        expect(refresh.body._tag).toBe("Uint8Array");
+        if (refresh.body._tag === "Uint8Array")
+          expect(
+            new URLSearchParams(new TextDecoder().decode(refresh.body.body)).get("refresh_token"),
+          ).toBe("refresh");
       }).pipe(Effect.scoped),
   );
   it.effect("collects Codex's forced SSE into a non-streaming Chat response", () =>

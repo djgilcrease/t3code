@@ -58,6 +58,7 @@ function ProxySettings({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [choosingClient, setChoosingClient] = useState(false);
+  const [choosingStrategy, setChoosingStrategy] = useState(false);
   const [url, setUrl] = useState("");
   const [key, setKey] = useState("");
   const [callback, setCallback] = useState("");
@@ -275,27 +276,42 @@ function ProxySettings({
             icon="arrow.triangle.branch"
             label={`Account selection: ${state.strategy === "closest-reset" ? "Closest to Reset" : state.strategy === "round-robin" ? "Round-Robin" : "Least Active Sessions"}`}
             disabled={busy}
-            onPress={() =>
-              Alert.alert(
-                "Account selection",
-                "Choose how new sessions are assigned. Active sessions keep their account.",
-                [
-                  ...(["closest-reset", "round-robin", "least-active-sessions"] as const).map(
-                    (strategy) => ({
-                      text:
-                        strategy === "closest-reset"
-                          ? "Closest to Reset"
-                          : strategy === "round-robin"
-                            ? "Round-Robin"
-                            : "Least Active Sessions",
-                      onPress: () => void run({ action: "setStrategy", strategy }),
-                    }),
-                  ),
-                  { text: "Cancel", style: "cancel" },
-                ],
-              )
-            }
+            onPress={() => setChoosingStrategy((value) => !value)}
           />
+          {choosingStrategy && (
+            <View>
+              <Text className="p-4 text-foreground-muted">
+                Choose how new sessions are assigned. Active sessions keep their account.
+              </Text>
+              {(["closest-reset", "round-robin", "least-active-sessions"] as const).map(
+                (strategy) => (
+                  <SettingsActionRow
+                    key={strategy}
+                    icon={state.strategy === strategy ? "checkmark.circle" : "circle"}
+                    label={
+                      strategy === "closest-reset"
+                        ? "Closest to Reset"
+                        : strategy === "round-robin"
+                          ? "Round-Robin"
+                          : "Least Active Sessions"
+                    }
+                    disabled={busy}
+                    onPress={() =>
+                      void run({ action: "setStrategy", strategy }).then((value) => {
+                        if (value) setChoosingStrategy(false);
+                      })
+                    }
+                  />
+                ),
+              )}
+              <SettingsActionRow
+                icon="xmark"
+                label="Cancel"
+                disabled={busy}
+                onPress={() => setChoosingStrategy(false)}
+              />
+            </View>
+          )}
           <View className="gap-3 p-4">
             <Text>Sticky session idle time (minutes)</Text>
             <Text className="text-foreground-muted">
@@ -334,7 +350,10 @@ function ProxySettings({
               icon="person.crop.circle"
               label={`Sign in to ${provider}`}
               disabled={busy || flow?.status === "wait"}
-              onPress={() => void run({ action: "authStart", provider })}
+              onPress={() => {
+                setCallback("");
+                void run({ action: "authStart", provider });
+              }}
             />
           ))}
           {flow?.status === "wait" && (

@@ -294,6 +294,7 @@ function claudeToChat(body: ProxyPayload): ProxyPayload {
     stream: body.stream,
     max_tokens: body.max_tokens,
     temperature: body.temperature,
+    top_p: body.top_p,
     tools: array(body.tools).map((raw) => {
       const tool = object(raw);
       return {
@@ -316,6 +317,17 @@ function claudeToChat(body: ProxyPayload): ProxyPayload {
 
 function chatToGoogle(body: ProxyPayload): ProxyPayload {
   const system: unknown[] = [];
+  const choice = object(body.tool_choice);
+  const functionName = object(choice.function).name;
+  const toolMode =
+    body.tool_choice === "none"
+      ? "NONE"
+      : body.tool_choice === "auto"
+        ? "AUTO"
+        : body.tool_choice === "required" || choice.type === "function"
+          ? "ANY"
+          : undefined;
+  const maxOutputTokens = body.max_tokens ?? body.max_completion_tokens;
   const toolNames = new Map<string, string>();
   const contents = array(body.messages).flatMap((raw): ProxyPayload[] => {
     const message = object(raw);
@@ -366,14 +378,27 @@ function chatToGoogle(body: ProxyPayload): ProxyPayload {
     contents,
     ...(system.length ? { systemInstruction: { parts: system } } : {}),
     generationConfig: {
-      ...(body.max_tokens ? { maxOutputTokens: body.max_tokens } : {}),
+      ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
       ...(body.temperature !== undefined ? { temperature: body.temperature } : {}),
+      ...(body.top_p !== undefined ? { topP: body.top_p } : {}),
     },
     ...(array(body.tools).length
       ? {
           tools: [
             { functionDeclarations: array(body.tools).map((raw) => object(object(raw).function)) },
           ],
+        }
+      : {}),
+    ...(toolMode
+      ? {
+          toolConfig: {
+            functionCallingConfig: {
+              mode: toolMode,
+              ...(choice.type === "function" && typeof functionName === "string"
+                ? { allowedFunctionNames: [functionName] }
+                : {}),
+            },
+          },
         }
       : {}),
   };

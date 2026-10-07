@@ -7,6 +7,90 @@ import {
 } from "./modelProxyProtocols.ts";
 
 describe("native model proxy protocols", () => {
+  it("preserves Gemini output limits and sampling options across client protocols", () => {
+    for (const input of [
+      {
+        route: "/v1/chat/completions",
+        body: { messages: [{ role: "user", content: "Hello" }], max_completion_tokens: 128 },
+      },
+      { route: "/v1/responses", body: { input: "Hello", max_output_tokens: 128 } },
+      {
+        route: "/v1/messages",
+        body: { messages: [{ role: "user", content: "Hello" }], max_tokens: 128 },
+      },
+    ]) {
+      const prepared = prepareProxyRequest("gemini", true, input.route, {
+        model: "gemini-2.5-pro",
+        ...input.body,
+        temperature: 0,
+        top_p: 0.7,
+      });
+      expect(prepared.body).toHaveProperty("generationConfig", {
+        maxOutputTokens: 128,
+        temperature: 0,
+        topP: 0.7,
+      });
+    }
+    expect(
+      prepareProxyRequest("gemini", true, "/v1/chat/completions", {
+        model: "gemini-2.5-pro",
+        messages: [],
+        max_tokens: 64,
+        max_completion_tokens: 128,
+        top_p: 0,
+      }).body,
+    ).toHaveProperty("generationConfig", { maxOutputTokens: 64, topP: 0 });
+  });
+  it("honors required, named, automatic, and disabled Gemini tool choices", () => {
+    for (const choice of [
+      { value: "required", expected: { mode: "ANY" } },
+      { value: "auto", expected: { mode: "AUTO" } },
+      { value: "none", expected: { mode: "NONE" } },
+      {
+        value: { type: "function", function: { name: "read" } },
+        expected: { mode: "ANY", allowedFunctionNames: ["read"] },
+      },
+    ]) {
+      const prepared = prepareProxyRequest("gemini", true, "/v1/chat/completions", {
+        model: "gemini-2.5-pro",
+        messages: [{ role: "user", content: "Read" }],
+        tools: ["read", "write"].map((name) => ({
+          type: "function",
+          function: { name, parameters: { type: "object" } },
+        })),
+        tool_choice: choice.value,
+      });
+      expect(prepared.body).toHaveProperty("toolConfig", {
+        functionCallingConfig: choice.expected,
+      });
+    }
+    expect(
+      prepareProxyRequest("gemini", true, "/v1/responses", {
+        model: "gemini-2.5-pro",
+        input: "Read",
+        tool_choice: { type: "function", name: "read" },
+      }).body,
+    ).toHaveProperty("toolConfig", {
+      functionCallingConfig: { mode: "ANY", allowedFunctionNames: ["read"] },
+    });
+    expect(
+      prepareProxyRequest("gemini", false, "/v1/messages", {
+        model: "gemini-2.5-pro",
+        messages: [],
+        tool_choice: { type: "tool", name: "read" },
+      }).body,
+    ).toMatchObject({
+      request: {
+        toolConfig: { functionCallingConfig: { mode: "ANY", allowedFunctionNames: ["read"] } },
+      },
+    });
+    expect(
+      prepareProxyRequest("gemini", true, "/v1/chat/completions", {
+        model: "gemini-2.5-pro",
+        messages: [],
+      }).body,
+    ).not.toHaveProperty("toolConfig");
+  });
   it("normalizes Responses string input only for Codex's subscription backend", () => {
     const payload = { model: "gpt-5.4", input: "Hello" };
     expect(prepareProxyRequest("codex", false, "/v1/responses", payload).body).toMatchObject({
