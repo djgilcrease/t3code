@@ -525,6 +525,7 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
         if (workspaceRoot === undefined) {
           // Only updates record model defaults; reject defaults that creation would silently drop.
           if (
+            input.groupingIdentity !== undefined ||
             input.scripts !== undefined ||
             input.trackedFolders !== undefined ||
             input.createWorkspaceRootIfMissing !== undefined ||

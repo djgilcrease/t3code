@@ -4,6 +4,7 @@ import { msg, useMessages } from "gt-react-native";
 import { resolveNewThreadModelSelection } from "@t3tools/shared/usageLimits";
 import { useNowMinuteMs } from "../../lib/clock";
 import { m, type MessageResolver } from "../../i18n/messages";
+import { deriveLogicalProjectKeyFromSettings } from "@t3tools/client-runtime/state/project-grouping";
 import * as Dialog from "../../components/ui/Dialog";
 import React, { useRef, useState } from "react";
 
@@ -18,7 +19,6 @@ import {
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   MessageId,
-  repositoryGroupingKeyOf,
   ThreadId,
 } from "@t3tools/contracts";
 import { threadContextsOutsideEnvironment } from "@t3tools/shared/composerContextReferences";
@@ -609,6 +609,7 @@ export function NewTaskFlowProvider(
     const match = resolveEnvironmentProjectMatch(
       projects.filter((project) => project.environmentId === environmentId),
       selectedProject,
+      groupingSettings,
     );
     updateFlow({
       // A name or title match may be another repository, which must not receive the PR checkout.

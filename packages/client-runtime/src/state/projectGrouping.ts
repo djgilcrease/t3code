@@ -145,7 +145,12 @@ function deriveRepositoryScopedKey(
 function deriveLogicalProjectKey(
   project: Pick<
     EnvironmentProject,
-    "environmentId" | "id" | "workspaceRoot" | "repositoryIdentity" | "isScratch"
+    | "environmentId"
+    | "id"
+    | "workspaceRoot"
+    | "repositoryIdentity"
+    | "isScratch"
+    | "groupingIdentity"
   >,
   options?: {
     readonly groupingMode?: SidebarProjectGroupingMode;
@@ -160,6 +165,7 @@ function deriveLogicalProjectKey(
 
   return (
     deriveRepositoryScopedKey(project, groupingMode) ??
+    (project.groupingIdentity ? `explicit:${project.groupingIdentity}` : null) ??
     derivePhysicalProjectKey(project) ??
     scopedProjectKey(scopeProjectRef(project.environmentId, project.id))
   );
@@ -168,7 +174,12 @@ function deriveLogicalProjectKey(
 export function deriveLogicalProjectKeyFromSettings(
   project: Pick<
     EnvironmentProject,
-    "environmentId" | "id" | "workspaceRoot" | "repositoryIdentity" | "isScratch"
+    | "environmentId"
+    | "id"
+    | "workspaceRoot"
+    | "repositoryIdentity"
+    | "isScratch"
+    | "groupingIdentity"
   >,
   settings: ProjectGroupingSettings,
   options?: { readonly groupScratchProjects?: boolean },
@@ -201,7 +212,12 @@ export function resolveScratchProjectScopeKey(
   projects: ReadonlyArray<
     Pick<
       EnvironmentProject,
-      "environmentId" | "id" | "workspaceRoot" | "repositoryIdentity" | "isScratch"
+      | "environmentId"
+      | "id"
+      | "workspaceRoot"
+      | "repositoryIdentity"
+      | "isScratch"
+      | "groupingIdentity"
     >
   >,
   settings: ProjectGroupingSettings = {
@@ -329,13 +345,13 @@ function selectProjectIdentitySource<TProject extends EnvironmentProject>(
   projects: ReadonlyArray<TProject>,
   winner: TProject,
 ): TProject {
-  if (winner.repositoryIdentity !== null) {
+  if (winner.repositoryIdentity != null) {
     return winner;
   }
 
   let freshestIdentifiedProject: TProject | null = null;
   for (const project of projects) {
-    if (project.repositoryIdentity === null) {
+    if (project.repositoryIdentity == null) {
       continue;
     }
     if (
@@ -375,10 +391,14 @@ export function buildProjectGroups<TProject extends EnvironmentProject>(
       shouldReplacePhysicalProjectWinner(current, candidate) ? candidate : current,
     );
     const identitySource = selectProjectIdentitySource(physicalProjects, winner);
-    const logicalKey = deriveLogicalProjectKey(identitySource, {
-      groupingMode: resolveProjectGroupingMode(winner, input.settings),
-      groupScratchProjects: input.groupScratchProjects ?? false,
-    });
+    // Saved metadata (including a clear) always comes from the newest physical record.
+    const logicalKey = deriveLogicalProjectKey(
+      { ...winner, repositoryIdentity: identitySource.repositoryIdentity },
+      {
+        groupingMode: resolveProjectGroupingMode(winner, input.settings),
+        groupScratchProjects: input.groupScratchProjects ?? false,
+      },
+    );
     logicalKeyByPhysicalKey.set(physicalProjectKey, logicalKey);
     const member = { physicalProjectKey, project: winner };
     const existing = groupedMembers.get(logicalKey);
