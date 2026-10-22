@@ -53,19 +53,20 @@ const make = Effect.gen(function* () {
     Stream.runForEach((job) => job),
     Effect.forkScoped,
   );
-  const serial = <A>(operation: Effect.Effect<A, ManagerError>) =>
-    Effect.gen(function* () {
-      const reply = yield* Deferred.make<A, ManagerError>();
-      yield* Queue.offer(
-        jobs,
-        operation.pipe(
-          Effect.exit,
-          Effect.flatMap((exit) => Deferred.done(reply, exit)),
-          Effect.asVoid,
-        ),
-      );
-      return yield* Deferred.await(reply);
-    });
+  const serial = Effect.fn("PluginManager.serial")(function* <A>(
+    operation: Effect.Effect<A, ManagerError>,
+  ) {
+    const reply = yield* Deferred.make<A, ManagerError>();
+    yield* Queue.offer(
+      jobs,
+      operation.pipe(
+        Effect.exit,
+        Effect.flatMap((exit) => Deferred.done(reply, exit)),
+        Effect.asVoid,
+      ),
+    );
+    return yield* Deferred.await(reply);
+  });
   const persist = (next: PluginConfiguration) =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -145,7 +146,7 @@ const make = Effect.gen(function* () {
     }
   }).pipe(Effect.forkScoped);
 
-  const removeData = (entry: PluginConfigurationEntry) =>
+  const removeData = Effect.fn("PluginManager.removeData")((entry: PluginConfigurationEntry) =>
     Effect.gen(function* () {
       const names = yield* fs.readDirectory(config.secretsDir);
       for (const name of names) {
@@ -162,7 +163,8 @@ const make = Effect.gen(function* () {
         (cause) =>
           new PluginOperationError({ pluginId: entry.id, operation: "remove-data", cause }),
       ),
-    );
+    ),
+  );
 
   return PluginManager.of({
     manage: (input, scopes) =>

@@ -73,7 +73,7 @@ const make = Effect.gen(function* () {
   const environment = yield* HostProcessEnvironment;
   const standalone = yield* HostProcessIsExecutable;
   return PluginModuleLoader.of({
-    load: (path, options) =>
+    load: Effect.fn("PluginModuleLoader.load")((path, options) =>
       Effect.gen(function* () {
         let limit = options?.restartLimit ?? 5;
         const runtimeContext = yield* Effect.context<never>();
@@ -93,6 +93,7 @@ const make = Effect.gen(function* () {
         let ready = Promise.withResolvers<Session>();
         void ready.promise.catch(() => {});
         let failures = 0;
+        let lastStartupFailure: unknown;
         let startedAt = yield* Clock.currentTimeMillis;
 
         const openSession = () => {
@@ -100,11 +101,13 @@ const make = Effect.gen(function* () {
           const workerUrl = import.meta.url.endsWith(".ts")
             ? new URL("./plugin-worker.ts", import.meta.url)
             : new URL("./plugins/plugin-worker.mjs", import.meta.url);
-          const workerEnvironment = {
+          const workerEnvironment: NodeJS.ProcessEnv = {
             ...environment,
             ELECTRON_RUN_AS_NODE: "1",
             NODE_OPTIONS: "--max-old-space-size=256",
           };
+          // Node watch mode reports imports over IPC; workers own that channel exclusively.
+          delete workerEnvironment.WATCH_REPORT_DEPENDENCIES;
           const child = standalone
             ? NodeChildProcess.spawn(executable, ["__plugin-worker"], {
                 stdio: ["ignore", "ignore", "ignore", "ipc"],
@@ -327,13 +330,16 @@ const make = Effect.gen(function* () {
         while (!initial && failures < limit) {
           const result = yield* start.pipe(Effect.result);
           if (result._tag === "Success") initial = result.success;
-          else failures++;
+          else {
+            lastStartupFailure = result.failure;
+            failures++;
+          }
         }
         if (!initial)
           return yield* new PluginOperationError({
             pluginId: "worker",
             operation: "crash-limit",
-            cause: null,
+            cause: lastStartupFailure,
           });
         const activateSession = (session: Session) =>
           session
@@ -408,7 +414,7 @@ const make = Effect.gen(function* () {
           });
         const proxy: T3Plugin = {
           ...initial.manifest,
-          activate: (context) =>
+          activate: Effect.fn("PluginModuleLoader.activate")((context) =>
             Effect.gen(function* () {
               hostContext = context;
               let session: Session | undefined = initial!.session;
@@ -554,6 +560,7 @@ const make = Effect.gen(function* () {
                 isPluginError(cause) ? cause : pluginFailure("activate")(cause),
               ),
             ),
+          ),
         };
         return {
           default: proxy,
@@ -574,6 +581,7 @@ const make = Effect.gen(function* () {
             : new PluginOperationError({ pluginId: "worker", operation: "start", cause }),
         ),
       ),
+    ),
   });
 });
 export const layer = Layer.effect(PluginModuleLoader, make);
