@@ -1,3 +1,4 @@
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import { AuthStandardClientScopes } from "@t3tools/contracts";
@@ -243,4 +244,27 @@ export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activ
         }),
       1,
     ),
+);
+
+it.live("loads plugins when the server inherits Node watch mode IPC reporting", () =>
+  Effect.flatMap(HostProcess.Environment, (environment) =>
+    fixture(
+      () => healthy.replace('id: "healthy"', 'id: "test"'),
+      () =>
+        Effect.gen(function* () {
+          const host = yield* PluginRegistry.PluginRegistry;
+          expect(
+            (yield* host.list(AuthStandardClientScopes)).plugins.map((plugin) => plugin.status),
+          ).toEqual(["active", "active"]);
+          expect(yield* host.execute(envelope("test", "ping"), AuthStandardClientScopes)).toBe(
+            "pong",
+          );
+        }),
+    ).pipe(
+      Effect.provideService(HostProcess.Environment, {
+        ...environment,
+        WATCH_REPORT_DEPENDENCIES: "1",
+      }),
+    ),
+  ),
 );
