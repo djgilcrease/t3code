@@ -2016,9 +2016,16 @@ export const layerAppServerClientFactory: Layer.Layer<
           args,
           environment,
           ...(input.runtimePolicy.cwd === null ? {} : { cwd: input.runtimePolicy.cwd }),
-        }).pipe(Effect.mapError((cause) => new ProviderAdapter.ProviderAdapterOpenSessionError({
-          driver: CODEX_PROVIDER, providerSessionId: input.providerSessionId, cause,
-        })));
+        }).pipe(
+          Effect.mapError(
+            (cause) =>
+              new ProviderAdapter.ProviderAdapterOpenSessionError({
+                driver: CODEX_PROVIDER,
+                providerSessionId: input.providerSessionId,
+                cause,
+              }),
+          ),
+        );
         const command = yield* makeCodexAppServerSpawnCommand({
           command: binaryPath,
           args: launch.args,
