@@ -1,3 +1,4 @@
+import * as PluginRegistry from "../plugins/PluginRegistry.ts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -99,6 +100,7 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
   modelCatalog: Effect.Effect<ClaudeModelCatalog> = Effect.succeed(BUNDLED_CLAUDE_MODEL_CATALOG),
 ) {
   const commandSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const preparePluginLaunch = yield* PluginRegistry.launchPreparer;
   const fileSystem = yield* FileSystem.FileSystem;
   const claudeEnvironment = yield* makeClaudeEnvironment(claudeSettings, environment);
   const scopedModelCatalog = modelCatalog.pipe(
@@ -211,9 +213,11 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
               )
           : cwd;
       const managedMcpConfig = yield* hasClaudeManagedMcpConfig();
-      const spawnCommand = yield* resolveSpawnCommand(
-        claudeSettings.binaryPath || "claude",
-        [
+      const launch = yield* preparePluginLaunch({
+        provider: "claudeAgent",
+        purpose: "text-generation",
+        cwd: workingDirectory,
+        args: [
           "-p",
           "--output-format",
           "json",
@@ -241,10 +245,11 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
           "--permission-mode",
           "dontAsk",
         ],
-        { env: claudeEnvironment },
-      );
+        environment: claudeEnvironment,
+      }).pipe(Effect.mapError((cause) => normalizeCliError("claude", operation, cause, "Plugin launch preparation failed.")));
+      const spawnCommand = yield* resolveSpawnCommand(claudeSettings.binaryPath || "claude", launch.args, { env: launch.environment });
       const command = ChildProcess.make(spawnCommand.command, spawnCommand.args, {
-        env: claudeEnvironment,
+        env: launch.environment,
         cwd: workingDirectory,
         shell: spawnCommand.shell,
         stdin: {
