@@ -52,12 +52,24 @@ function fixture<A, E, R>(
     temp: string,
     calls: ProcessRunner.ProcessRunInput[],
   ) => Effect.Effect<A, E, R | PluginPackages.PluginPackages>,
-  options: { main?: string; tagMoved?: boolean; version?: string; symlink?: boolean } = {},
+  options: {
+    main?: string;
+    tagMoved?: boolean;
+    version?: string;
+    symlink?: boolean;
+    alias?: boolean;
+  } = {},
 ) {
   return Effect.scoped(
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const temp = yield* fs.makeTempDirectoryScoped({ prefix: "t3-plugin-packages-" });
+      let baseDir = temp;
+      if (options.alias) {
+        yield* fs.makeDirectory(`${temp}/storage`);
+        yield* fs.symlink(`${temp}/storage`, `${temp}/alias`);
+        baseDir = `${temp}/alias`;
+      }
       const calls: ProcessRunner.ProcessRunInput[] = [];
       const runner = Layer.succeed(ProcessRunner.ProcessRunner, {
         run: (input) =>
@@ -106,7 +118,7 @@ function fixture<A, E, R>(
         Effect.provide(
           PluginPackages.layer.pipe(
             Layer.provide(runner),
-            Layer.provide(ServerConfig.layerTest(temp, temp)),
+            Layer.provide(ServerConfig.layerTest(baseDir, baseDir)),
           ),
         ),
       );
@@ -202,4 +214,24 @@ it.effect("rejects absolute, escaping, and symlinked entrypoints outside the che
         { main, symlink: true },
       );
   }),
+);
+
+it.effect(
+  "installs through a symlinked state directory without treating its entrypoint as an escape",
+  () =>
+    fixture(
+      (temp) =>
+        Effect.gen(function* () {
+          const packages = yield* PluginPackages.PluginPackages;
+          const fs = yield* FileSystem.FileSystem;
+          const installed = yield* packages.prepare("https://gitlab.com/team/plugin");
+          expect(installed.path).toBe(
+            `${temp}/alias/plugin-packages/example/${sha}/dist/plugin.mjs`,
+          );
+          expect(yield* fs.exists(installed.path)).toBe(true);
+          yield* packages.remove(installed.id);
+          expect(yield* fs.exists(installed.path)).toBe(false);
+        }),
+      { alias: true },
+    ),
 );
