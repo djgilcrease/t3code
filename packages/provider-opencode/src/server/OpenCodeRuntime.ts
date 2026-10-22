@@ -1,3 +1,4 @@
+import { PrepareLaunch } from "@t3tools/provider-core/server/prepareLaunch";
 import * as NodeURL from "node:url";
 
 import type { ChatAttachment, ProviderApprovalDecision } from "@t3tools/contracts";
@@ -413,6 +414,7 @@ function ensureRuntimeError(
 }
 
 const makeOpenCodeRuntime = Effect.gen(function* () {
+  const preparePluginLaunch = yield* PrepareLaunch;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const netService = yield* NetService.NetService;
   const hostPlatform = yield* HostProcess.Platform;
@@ -508,14 +510,18 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
       ));
     const timeoutMs = input.timeoutMs ?? DEFAULT_OPENCODE_SERVER_TIMEOUT_MS;
     const args = ["serve", `--hostname=${hostname}`, `--port=${port}`];
+    const pluginLaunch = yield* preparePluginLaunch({
+      provider: "opencode", purpose: "managed-server", args, environment: input.environment ?? {},
+      ...(input.directory === undefined ? {} : { cwd: input.directory }),
+    }).pipe(Effect.mapError((cause) => new OpenCodeRuntimeError({ operation: "startOpenCodeServerProcess", detail: "Plugin launch preparation failed.", cause })));
     const launch = yield* agentScope.wrap({
       command: input.binaryPath,
-      args,
+      args: pluginLaunch.args,
       name: "opencode",
-      env: input.environment,
+      env: pluginLaunch.environment,
       shared: true,
     });
-    const spawnCommand = yield* resolveCommand(launch.command, launch.args, input.environment);
+    const spawnCommand = yield* resolveCommand(launch.command, launch.args, pluginLaunch.environment);
     const serverPassword = resolveOpenCodeServerPassword({
       external: false,
       ...(input.serverPassword !== undefined ? { serverPassword: input.serverPassword } : {}),
@@ -531,11 +537,11 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
           detached: hostPlatform !== "win32",
           shell: spawnCommand.shell,
           env: {
-            ...input.environment,
+            ...pluginLaunch.environment,
             ...(serverPassword !== undefined ? { OPENCODE_SERVER_PASSWORD: serverPassword } : {}),
             // The value is set explicitly (rather than relying on inheritance) because
             // `extendEnv` is false whenever `input.environment` is provided.
-            OPENCODE_CONFIG_CONTENT: resolveOpenCodeConfigContent(input.environment),
+            OPENCODE_CONFIG_CONTENT: resolveOpenCodeConfigContent(pluginLaunch.environment),
           },
           extendEnv: input.environment === undefined,
         }),

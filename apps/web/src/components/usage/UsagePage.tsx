@@ -1,3 +1,4 @@
+import { PluginPanels } from "../plugins/PluginPanels";
 import { ChatGptUsageButton } from "../settings/ChatGptUsageButton";
 import { usesChatGptSharing } from "@t3tools/shared/usageLimits";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
@@ -520,6 +521,10 @@ export function UsagePage() {
                   : `Select an environment to see ${showingLimits ? "limits" : "usage"}.`}
               </p>
             ) : showingLimits ? (
+              <>
+                {selectedEnvironments.map((environment) => (
+                  <PluginPanels key={environment.environmentId} environmentId={environment.environmentId} location="usage" />
+                ))}
               <UsageLimitsSection
                 selectedEnvironmentIds={selectedEnvironmentIds}
                 hiddenProviders={hiddenProviders}
@@ -536,6 +541,7 @@ export function UsagePage() {
                   ) : null
                 }
               />
+              </>
             ) : shown === null ? (
               <UsageSkeleton />
             ) : !canReadDiagnostics ? (

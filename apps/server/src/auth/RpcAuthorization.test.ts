@@ -31,6 +31,45 @@ import {
 import * as RpcAuthorization from "./RpcAuthorization.ts";
 
 describe("RPC authorization scopes", () => {
+  it.effect("requires the plugin command's declared client permission before dispatch", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const group = WsRpcGroup.omit(
+          ...[...WsRpcGroup.requests.keys()].filter(
+            (
+              tag,
+            ): tag is Exclude<keyof typeof RPC_REQUIRED_SCOPES, typeof WS_METHODS.pluginsExecute> =>
+              tag !== WS_METHODS.pluginsExecute,
+          ),
+        );
+        let handled = 0;
+        const client = yield* RpcTest.makeClient(group).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              group.toLayerHandler(WS_METHODS.pluginsExecute, () =>
+                Effect.sync(() => {
+                  handled++;
+                  return null;
+                }),
+              ),
+              RpcAuthorization.layer([AuthOrchestrationReadScope, AuthDiagnosticsReadScope]),
+            ),
+          ),
+        );
+        const input = { pluginId: "test", commandId: "run", input: {} };
+        const error = yield* client[WS_METHODS.pluginsExecute]({
+          ...input,
+          permission: AuthProvidersManageScope,
+        }).pipe(Effect.flip);
+        expect(error._tag).toBe("EnvironmentAuthorizationError");
+        yield* client[WS_METHODS.pluginsExecute]({
+          ...input,
+          permission: AuthDiagnosticsReadScope,
+        });
+        expect(handled).toBe(1);
+      }),
+    ),
+  );
   it("declares exactly one scope for every RPC in the server group", () => {
     expect(new Set(Object.keys(RPC_REQUIRED_SCOPES))).toEqual(new Set(WsRpcGroup.requests.keys()));
   });

@@ -13,6 +13,8 @@ import {
   AuthOrchestrationReadScope,
   AuthPreviewOperateScope,
   AuthSettingsWriteScope,
+  AuthDiagnosticsReadScope,
+  AuthProvidersManageScope,
   AuthSourceControlWriteScope,
   ThreadId,
   EnvironmentId,
@@ -118,6 +120,33 @@ describe("command permissions", () => {
         yield* cleanup.authorize(registry, env);
         registry.set(sessions(other), AsyncResult.success(grant(false)));
         expect(registry.get(cleanup.permissionAtom(other))).toBe(false);
+      }),
+    ),
+  );
+
+  it.effect("uses each plugin command's catalog permission for availability and dispatch", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const registry = yield* setup;
+        const pluginPermissions = createCommandPermissions(runtime, WS_METHODS.pluginsExecute);
+        const input = {
+          pluginId: "model-routing",
+          commandId: "configure",
+          permission: AuthProvidersManageScope,
+          input: {},
+        };
+        const session = {
+          ...grant(true),
+          scopes: [AuthOrchestrationReadScope, AuthDiagnosticsReadScope],
+          permissions: [AuthOrchestrationReadScope, AuthDiagnosticsReadScope],
+        };
+        registry.set(sessions(env), AsyncResult.success(session));
+        expect(registry.get(pluginPermissions.permissionAtom(env, input))).toBe(false);
+        const denied = yield* pluginPermissions.authorize(registry, env, input).pipe(Effect.flip);
+        expect(denied._tag).toBe("EnvironmentAuthorizationError");
+        const read = { ...input, commandId: "status", permission: AuthDiagnosticsReadScope };
+        expect(registry.get(pluginPermissions.permissionAtom(env, read))).toBe(true);
+        yield* pluginPermissions.authorize(registry, env, read);
       }),
     ),
   );

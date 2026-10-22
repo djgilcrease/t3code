@@ -1,3 +1,4 @@
+import { PrepareLaunch } from "@t3tools/provider-core/server/prepareLaunch";
 import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEventLoggers";
 import type { RelayManagedEndpointRuntimeConfig } from "@t3tools/contracts/relay";
 import * as Random from "effect/Random";
@@ -185,6 +186,11 @@ import * as CursorKeychain from "@t3tools/provider-cursor/server/CursorKeychain"
 import * as CursorUsageAccounts from "@t3tools/provider-cursor/server/CursorUsageAccounts";
 import * as UsageService from "./usage/UsageService.ts";
 import * as CodexUsageHistory from "./usage/CodexUsageHistory.ts";
+import * as PluginRegistry from "./plugins/PluginRegistry.ts";
+import * as PluginModuleLoader from "./plugins/PluginModuleLoader.ts";
+import * as PluginHttp from "./plugins/http.ts";
+import * as PluginPackages from "./plugins/PluginPackages.ts";
+import * as PluginManager from "./plugins/PluginManager.ts";
 import * as RuntimeLayer from "./orchestration-v2/runtimeLayer.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
@@ -284,6 +290,11 @@ const layerUsage = UsageService.layer.pipe(
     ).pipe(Layer.provide(ProviderHostLive.layer.pipe(Layer.provide(ServerSecretStore.layer)))),
   ),
   Layer.provide(layerServerSettings),
+);
+const layerPlugins = PluginManager.layer.pipe(
+  Layer.provide(PluginPackages.layer.pipe(Layer.provide(ProcessRunner.layer))),
+  Layer.provideMerge(PluginRegistry.layer.pipe(Layer.provide(PluginModuleLoader.layer))),
+  Layer.provide(ServerSecretStore.layer),
 );
 
 const layerResourceDiagnostics = Layer.mergeAll(
@@ -651,6 +662,7 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
 );
 
 const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
+  Layer.provideMerge(layerPlugins),
   Layer.provideMerge(layerPtyAdapter),
   Layer.provideMerge(AcpRegistrySupport.layerFromHost.pipe(Layer.provide(ProviderHostLive.layer))),
   Layer.provideMerge(
@@ -664,6 +676,7 @@ const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
   ),
   Layer.provideMerge(
     OpenCodeRuntime.layer.pipe(
+      Layer.provide(Layer.effect(PrepareLaunch, PluginRegistry.launchPreparer).pipe(Layer.provide(layerPlugins))),
       Layer.provide(
         Layer.unwrap(
           Effect.gen(function* () {
@@ -733,6 +746,7 @@ const layerMakeRoutes = Layer.mergeAll(
     ServerHttp.layerAttachmentUploadRoute,
     GuestHttp.layer,
     DeviceHubProxy.layer,
+    PluginHttp.layer,
     ServerBrowserStream.routeLayer,
     ServerHttp.layerStaticAndDevRoute,
     Ws.layer,
@@ -794,7 +808,15 @@ const layerMakeServer = Layer.unwrap(
 
     const layerHttpListening = Layer.effectDiscard(
       Effect.gen(function* () {
-        yield* HttpServer.HttpServer;
+        const server = yield* HttpServer.HttpServer;
+        const plugins = yield* PluginRegistry.PluginRegistry;
+        if (typeof server.address !== "string" && "port" in server.address) {
+          const address = server.address.address.toString();
+          const host = address === "0.0.0.0" ? "127.0.0.1" : address === "::" ? "::1" : address;
+          yield* plugins.setHttpOrigin(
+            `http://${host.includes(":") ? `[${host}]` : host}:${server.address.port}`,
+          );
+        }
         const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
         yield* startup.markHttpListening;
       }),

@@ -82,8 +82,10 @@ export default mergeConfig(
       },
     },
     pack: {
-      // SEA embeds one entry; expose the history worker as a hidden subcommand.
-      entry: packExecutable ? ["src/bin.ts"] : ["src/bin.ts", "src/claude-history-worker.ts"],
+      // SEA embeds one entry; workers use hidden subcommands there.
+      entry: packExecutable
+        ? ["src/bin.ts"]
+        : ["src/bin.ts", "src/claude-history-worker.ts", "src/plugins/plugin-worker.ts"],
       outDir: packExecutable ? "dist-exe" : "dist",
       sourcemap: !packExecutable,
       clean: true,

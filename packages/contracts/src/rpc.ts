@@ -34,6 +34,15 @@ import {
   ChatGptHandoffState,
 } from "./providerSetup.ts";
 import * as Schema from "effect/Schema";
+import {
+  PluginCatalog,
+  PluginView,
+  PluginViewInput,
+  PluginCommandInput,
+  PluginManageInput,
+  PluginOperationError,
+  PluginRequestError,
+} from "./plugins.ts";
 import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
@@ -490,6 +499,12 @@ export const WS_METHODS = {
   deviceDetail: "device.detail",
   deviceAction: "device.action",
 
+  // Server meta
+  pluginsList: "plugins.list",
+  pluginsReadView: "plugins.readView",
+  pluginsExecute: "plugins.execute",
+  pluginsSubscribe: "plugins.subscribe",
+  pluginsManage: "plugins.manage",
   serverProbe: "server.probe",
   serverGetConfig: "server.getConfig",
   serverRefreshProviders: "server.refreshProviders",
@@ -954,6 +969,33 @@ const WsServerRefreshUsageRatesRpc = Rpc.make(WS_METHODS.serverRefreshUsageRates
   payload: Schema.Struct({}),
   success: UsagePricing,
   error: EnvironmentAuthorizationError,
+});
+
+const WsPluginsListRpc = Rpc.make(WS_METHODS.pluginsList, {
+  payload: Schema.Struct({}),
+  success: PluginCatalog,
+  error: EnvironmentAuthorizationError,
+});
+const WsPluginsReadViewRpc = Rpc.make(WS_METHODS.pluginsReadView, {
+  payload: PluginViewInput,
+  success: PluginView,
+  error: Schema.Union([PluginOperationError, PluginRequestError, EnvironmentAuthorizationError]),
+});
+const WsPluginsExecuteRpc = Rpc.make(WS_METHODS.pluginsExecute, {
+  payload: PluginCommandInput,
+  success: Schema.Json,
+  error: Schema.Union([PluginOperationError, PluginRequestError, EnvironmentAuthorizationError]),
+});
+const WsPluginsSubscribeRpc = Rpc.make(WS_METHODS.pluginsSubscribe, {
+  payload: Schema.Struct({}),
+  success: Schema.Number,
+  error: EnvironmentAuthorizationError,
+  stream: true,
+});
+const WsPluginsManageRpc = Rpc.make(WS_METHODS.pluginsManage, {
+  payload: PluginManageInput,
+  success: PluginCatalog,
+  error: Schema.Union([PluginOperationError, PluginRequestError, EnvironmentAuthorizationError]),
 });
 
 const WsServerSignalProcessRpc = Rpc.make(WS_METHODS.serverSignalProcess, {
@@ -1952,6 +1994,11 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
 
 export const WsRpcGroup = RpcGroup.make(
   WsGuestShareCreateRpc,
+  WsPluginsListRpc,
+  WsPluginsReadViewRpc,
+  WsPluginsExecuteRpc,
+  WsPluginsSubscribeRpc,
+  WsPluginsManageRpc,
   WsServerProbeRpc,
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,
