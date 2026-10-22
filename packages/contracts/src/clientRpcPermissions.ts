@@ -5,17 +5,21 @@ import {
   AuthOrchestrationReadScope,
   AuthPreviewOperateScope,
   AuthSettingsWriteScope,
+  AuthEnvironmentMaintainScope,
   AuthSourceControlWriteScope,
   type AuthEnvironmentScope,
 } from "./auth.ts";
 import { ORCHESTRATION_V2_WS_METHODS } from "./orchestrationV2.ts";
 import { WS_METHODS } from "./rpc.ts";
+import { PluginCommandInput } from "./plugins.ts";
 
 /** Incremental client enforcement; the server still authorizes every request. */
 export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.previewClose]: AuthPreviewOperateScope,
   [WS_METHODS.serverRunStorageCleanup]: AuthSettingsWriteScope,
   [WS_METHODS.serverCheckOtlpEndpoint]: AuthSettingsWriteScope,
+  [WS_METHODS.pluginsManage]: AuthEnvironmentMaintainScope,
+  [WS_METHODS.pluginsExecute]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsRunAction]: AuthSourceControlWriteScope,
   [WS_METHODS.pullRequestsUpdate]: AuthSourceControlWriteScope,
   [WS_METHODS.pullRequestsComment]: AuthSourceControlWriteScope,
@@ -54,11 +58,15 @@ export type ClientGuardedRpcTag = keyof typeof CLIENT_GUARDED_RPC_SCOPES;
 
 const decodePrepareThread = Schema.decodeUnknownSync(GitPreparePullRequestThreadInput);
 const decodeStackedAction = Schema.decodeUnknownSync(GitRunStackedActionInput);
+const decodePluginCommand = Schema.decodeUnknownSync(PluginCommandInput);
 
 export function clientRpcRequiredScopes(
   method: string,
   input: unknown,
 ): readonly AuthEnvironmentScope[] {
+  if (method === WS_METHODS.pluginsExecute && input !== undefined) {
+    return [AuthOrchestrationReadScope, decodePluginCommand(input).permission];
+  }
   if (method === WS_METHODS.gitPreparePullRequestThread && input !== undefined) {
     const payload = decodePrepareThread(input);
     if (payload.mode === "worktree" && payload.threadId !== undefined)

@@ -1,3 +1,4 @@
+import * as PluginRegistry from "../plugins/PluginRegistry.ts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -66,6 +67,7 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const commandSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const preparePluginLaunch = yield* PluginRegistry.launchPreparer;
   const serverConfig = yield* Effect.service(ServerConfig.ServerConfig);
   const resolvedEnvironment = environment ?? process.env;
 
@@ -285,9 +287,11 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
         // `codex mcp` rejects --strict-config; the overrides still apply.
         launchArgs: execLaunchArgs.filter((arg) => arg !== "--strict-config"),
       }).pipe(Effect.map(codexMcpServersOff));
-      const spawnCommand = yield* resolveSpawnCommand(
-        binary,
-        [
+      const launch = yield* preparePluginLaunch({
+        provider: "codex",
+        purpose: "text-generation",
+        cwd: cwd,
+        args: [
           "exec",
           ...execLaunchArgs,
           // Text generation needs only the prompt. A user's MCP server would
@@ -311,10 +315,11 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
           ...imagePaths.flatMap((imagePath) => ["--image", imagePath]),
           "-",
         ],
-        { env: effectiveEnvironment },
-      );
+        environment: env,
+      }).pipe(Effect.mapError((cause) => normalizeCliError("codex", operation, cause, "Plugin launch preparation failed.")));
+      const spawnCommand = yield* resolveSpawnCommand(binary, launch.args, { env: launch.environment });
       const command = ChildProcess.make(spawnCommand.command, spawnCommand.args, {
-        env,
+        env: launch.environment,
         cwd,
         shell: spawnCommand.shell,
         stdin: {

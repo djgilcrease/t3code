@@ -1,5 +1,6 @@
 import { Button } from "../../components/ui/Button";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
+import { PluginPanels } from "../plugins/PluginPanels";
 import { ChatGptUsageSummary } from "./ChatGptUsageSummary";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { EnvironmentId, USAGE_CONTRACT_VERSION, type UsageProviderKind } from "@t3tools/contracts";
@@ -295,19 +296,28 @@ function UsageScreen(props: {
           className="gap-6"
         >
           {showingLimits ? (
-            <UsageLimitsSection
-              now={limits.now}
-              failedLabels={limits.failedLabels}
-              selectedEnvironmentIds={selectedEnvironmentIds}
-              cursorPrompt={
-                cursorAccessEnvironments.length > 0 ? (
-                  <CursorEnableLimits
-                    environments={cursorAccessEnvironments}
-                    onEnabled={refreshAfterCursorEnable}
-                  />
-                ) : null
-              }
-            />
+            <>
+              {selectedEnvironments.map((environment) => (
+                <PluginPanels
+                  key={environment.environmentId}
+                  environmentId={environment.environmentId}
+                  location="usage"
+                />
+              ))}
+              <UsageLimitsSection
+                now={limits.now}
+                failedLabels={limits.failedLabels}
+                selectedEnvironmentIds={selectedEnvironmentIds}
+                cursorPrompt={
+                  cursorAccessEnvironments.length > 0 ? (
+                    <CursorEnableLimits
+                      environments={cursorAccessEnvironments}
+                      onEnabled={refreshAfterCursorEnable}
+                    />
+                  ) : null
+                }
+              />
+            </>
           ) : (
             <>
               <View className="gap-3 ios:flex-row ios:items-center">

@@ -25,6 +25,7 @@ export type SettingsPath =
   | "/settings/snap-shot"
   | "/settings/providers"
   | "/settings/integrations"
+  | "/settings/plugins"
   | "/settings/scheduled-tasks"
   | "/settings/source-control"
   | "/settings/storage"
@@ -83,6 +84,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/snap-shot": "SnapShots",
   "/settings/providers": "Providers",
   "/settings/integrations": "Integrations",
+  "/settings/plugins": "Plugins",
   "/settings/scheduled-tasks": "Scheduled Tasks",
   "/settings/source-control": "Source Control",
   "/settings/storage": "Storage",
@@ -168,6 +170,22 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/storage",
     scope: "environment-defaults",
     searchTerms: ["storage cleanup run now results report removed kept failed"],
+  },
+  {
+    id: "plugins",
+    title: "Plugins",
+    to: "/settings/plugins",
+    scope: "environment",
+    searchTerms: [
+      "extensions",
+      "github",
+      "gitlab",
+      "install",
+      "update",
+      "remove",
+      "restart",
+      "crash",
+    ],
   },
   {
     id: "storage-worktrees",
@@ -1041,6 +1059,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/keybindings": null,
   "/settings/providers": null,
   "/settings/integrations": null,
+  "/settings/plugins": "environment",
   "/settings/source-control": "environment-defaults",
   "/settings/storage": "project-defaults",
   "/settings/connections": "connections",

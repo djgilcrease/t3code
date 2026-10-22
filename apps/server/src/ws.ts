@@ -232,6 +232,8 @@ import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import { featureUsage } from "./telemetry/FeatureUsage.ts";
 import type { TelemetryOwner } from "./telemetry/Identify.ts";
 import * as UsageService from "./usage/UsageService.ts";
+import * as PluginRegistry from "./plugins/PluginRegistry.ts";
+import * as PluginManager from "./plugins/PluginManager.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
 import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
@@ -1282,6 +1284,8 @@ export const layerWsRpc = (
               Effect.orElseSucceed(() => null),
             );
       const usage = yield* UsageService.UsageService;
+      const plugins = yield* PluginRegistry.PluginRegistry;
+      const pluginManager = yield* PluginManager.PluginManager;
       const usageLimitSources = yield* UsageLimitSources.UsageLimitSources;
       const projectSetupScriptRunner = yield* ProjectSetupScriptRunner.ProjectSetupScriptRunner;
       const worktreeSetupTracker = yield* WorktreeSetupTracker.WorktreeSetupTracker;
@@ -1856,6 +1860,11 @@ export const layerWsRpc = (
       });
 
       const handlers = ServerWsRpcGroup.of({
+        [WS_METHODS.pluginsList]: () => plugins.list(currentSession.scopes),
+        [WS_METHODS.pluginsReadView]: (input) => plugins.readView(input, currentSession.scopes),
+        [WS_METHODS.pluginsExecute]: (input) => plugins.execute(input, currentSession.scopes),
+        [WS_METHODS.pluginsSubscribe]: () => plugins.changes,
+        [WS_METHODS.pluginsManage]: (input) => pluginManager.manage(input, currentSession.scopes),
         [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command) =>
           Effect.annotateCurrentSpan({
             "orchestration_v2.command_id": command.commandId,

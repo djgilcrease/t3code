@@ -90,6 +90,7 @@ import { SettingsAppearanceRouteScreen } from "./features/settings/SettingsAppea
 import { SettingsClientStorageRouteScreen } from "./features/settings/SettingsClientStorageRouteScreen";
 import { SettingsDiagnosticsRouteScreen } from "./features/diagnostics/SettingsDiagnosticsRouteScreen";
 import { SettingsProviderAccountsRouteScreen } from "./features/settings/SettingsProviderAccountsRouteScreen";
+import { SettingsPluginsRouteScreen } from "./features/settings/SettingsPluginsRouteScreen";
 import { SettingsAuthRouteScreen } from "./features/settings/SettingsAuthRouteScreen";
 import { SettingsEnvironmentDetailRouteScreen } from "./features/settings/SettingsEnvironmentDetailRouteScreen";
 import { SettingsEnvironmentsRouteScreen } from "./features/settings/SettingsEnvironmentsRouteScreen";
@@ -272,6 +273,11 @@ const SettingsContentStack = createV5SheetStackNavigator({
       screen: SettingsProviderAccountsRouteScreen,
       linking: "provider-accounts",
       options: { title: "Provider accounts" },
+    }),
+    SettingsPlugins: createNativeStackScreen({
+      screen: SettingsPluginsRouteScreen,
+      linking: "plugins",
+      options: { title: "Plugins" },
     }),
     SettingsEnvironmentMaintenance: createNativeStackScreen({
       screen: SettingsEnvironmentMaintenanceRouteScreen,

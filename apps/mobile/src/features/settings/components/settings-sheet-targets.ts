@@ -13,6 +13,7 @@ export type SettingsSheetTarget =
   | "SettingsEnvironmentAgentBehavior"
   | "SettingsEnvironmentMaintenance"
   | "SettingsProviderAccounts"
+  | "SettingsPlugins"
   | "SettingsKeyboard"
   | "SettingsMicrophone"
   | "SettingsFollowUp"

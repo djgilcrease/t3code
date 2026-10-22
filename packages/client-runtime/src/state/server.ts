@@ -993,6 +993,11 @@ export function createServerEnvironmentAtoms<R, E>(
     scheduler: configScheduler,
     concurrency: configConcurrency,
   });
+  const pluginChanges = createEnvironmentRpcSubscriptionAtomFamily(runtime, {
+    label: "environment-data:server:plugin-changes",
+    tag: WS_METHODS.pluginsSubscribe,
+    idleTtlMs: 0,
+  });
 
   return {
     configValueAtom,
@@ -1115,6 +1120,25 @@ export function createServerEnvironmentAtoms<R, E>(
     }),
     // A cold transcript scan is measured in seconds, so keep the result around
     // long enough that switching windows or re-rendering does not rescan.
+    pluginCatalog: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:server:plugins",
+      tag: WS_METHODS.pluginsList,
+      refreshTrigger: ({ environmentId }) => pluginChanges({ environmentId, input: {} }),
+    }),
+    pluginView: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:server:plugin-view",
+      tag: WS_METHODS.pluginsReadView,
+      refreshTrigger: ({ environmentId }) => pluginChanges({ environmentId, input: {} }),
+    }),
+    executePluginCommand: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:plugin-command",
+      tag: WS_METHODS.pluginsExecute,
+    }),
+    managePlugins: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:manage-plugins",
+      tag: WS_METHODS.pluginsManage,
+      concurrency: { mode: "singleFlight", key: ({ environmentId }) => environmentId },
+    }),
     usageSummary: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:server:usage-summary",
       tag: WS_METHODS.serverGetUsageSummary,
