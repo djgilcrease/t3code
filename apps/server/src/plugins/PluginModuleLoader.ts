@@ -154,14 +154,35 @@ const make = Effect.gen(function* () {
                 return;
               }
               const id = ++nextId;
+              const supervised = ["command", "view", "launch"].includes(method);
+              // Client refreshes can be superseded while the worker is still answering.
+              // Keep their watchdog until the reply arrives, even after caller cancellation.
+              const watchdog = supervised ? new AbortController() : undefined;
+              if (watchdog)
+                void Effect.runPromiseWith(runtimeContext)(Effect.sleep("30 seconds"), {
+                  signal: watchdog.signal,
+                }).then(
+                  () => {
+                    pending.delete(id);
+                    cleanup();
+                    child.kill("SIGKILL");
+                    reject(new Error("Plugin handler timed out"));
+                  },
+                  () => {},
+                );
               const abort = () => {
-                pending.delete(id);
-                // A stuck handler must not retain a live, unresponsive worker.
-                if (["load", "activate", "command", "view", "launch"].includes(method))
-                  child.kill("SIGKILL");
+                signal?.removeEventListener("abort", abort);
+                if (!supervised) {
+                  pending.delete(id);
+                  cleanup();
+                  if (["load", "activate"].includes(method)) child.kill("SIGKILL");
+                }
                 reject(new Error("Plugin call cancelled"));
               };
-              const cleanup = () => signal?.removeEventListener("abort", abort);
+              const cleanup = () => {
+                signal?.removeEventListener("abort", abort);
+                watchdog?.abort();
+              };
               pending.set(id, { resolve, reject, cleanup });
               signal?.addEventListener("abort", abort, { once: true });
               try {
