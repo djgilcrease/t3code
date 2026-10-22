@@ -4,6 +4,7 @@ import {
   mcpToolResultOutput,
   toolOutputImages,
 } from "@t3tools/shared/toolOutput";
+import * as PluginRegistry from "../../plugins/PluginRegistry.ts";
 import { makeProviderTextDeltaCoalescer } from "./ProviderTextDeltaCoalescer.ts";
 import { claudeTaskOutputRoot, tailClaudeTaskOutput } from "./ClaudeTaskOutputTail.ts";
 import {
@@ -5254,6 +5255,7 @@ export interface ClaudeAdapterV2Options {
   readonly random: SecureRandom.SecureRandom["Service"];
   readonly idAllocator: IdAllocator.IdAllocatorV2["Service"];
   readonly queryRunner: ClaudeAgentSdkQueryRunnerShape;
+  readonly prepareLaunch?: PluginRegistry.PluginRegistry["Service"]["prepareLaunch"];
   readonly scopedLimitNames?: Ref.Ref<ClaudeScopedLimitNames>;
   readonly onUsageLimits?: ManagedServerProvider["applyUsageLimits"];
   readonly continuationRequests?: {
@@ -5286,6 +5288,8 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
       compileClaudeModelSelection(modelSelection, modelCatalog).apiModelId,
     ) ??
     null;
+  const preparePluginLaunch: PluginRegistry.PluginRegistry["Service"]["prepareLaunch"] =
+    adapterOptions.prepareLaunch ?? ((launch) => Effect.succeed(launch));
   const continuationRequests = adapterOptions.continuationRequests ?? {
     offer: () => Effect.void,
   };
@@ -12125,6 +12129,24 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             fileSystem,
             path,
           });
+          // Resolve extension configuration before closing a usable existing process.
+          const pluginLaunch = yield* preparePluginLaunch({
+            provider: "claudeAgent",
+            purpose: "agent",
+            args: [],
+            environment: adapterOptions.environment,
+            ...(turnInput.runtimePolicy.cwd === null ? {} : { cwd: turnInput.runtimePolicy.cwd }),
+          }).pipe(
+            Effect.mapError(
+              (cause) =>
+                new ProviderAdapter.ProviderAdapterOpenSessionError({
+                  driver: CLAUDE_PROVIDER,
+                  providerSessionId: input.providerSessionId,
+                  cause,
+                }),
+            ),
+          );
+
           const closedExistingNativeThreadId = existing !== null ? existing.nativeThreadId : null;
           clearedNativeSessions.delete(nativeThreadId);
           if (existing !== null) {
@@ -12164,7 +12186,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               ? {}
               : { sdkSettings: claudeSdkLaunchArgSettings(launchArgSettings) }),
             environment: claudeQueryEnvironment(
-              adapterOptions.environment,
+              pluginLaunch.environment,
               turnInput.appThread,
               turnInput.appThread.lineage.relationshipToParent === "subagent"
                 ? yield* resolveSubagentPromptCacheTtl(turnInput.runtimePolicy.cwd)
@@ -13739,6 +13761,7 @@ export const createClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2Driver.create")(
     const hostEnvironment = yield* HostProcess.Environment;
     const idAllocator = yield* IdAllocator.IdAllocatorV2;
     const queryRunner = yield* ClaudeAgentSdkQueryRunner;
+    const prepareLaunch = yield* PluginRegistry.launchPreparer;
     const serverConfig = yield* ServerConfig.ServerConfig;
     const continuationRequests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
     const installationGate = yield* ProviderInstallationGate.ProviderInstallationGate;
@@ -13764,6 +13787,7 @@ export const createClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2Driver.create")(
       random,
       idAllocator,
       queryRunner,
+      prepareLaunch,
       continuationRequests,
       installationGate,
       ...hooks,

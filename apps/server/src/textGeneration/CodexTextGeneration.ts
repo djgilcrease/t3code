@@ -1,3 +1,4 @@
+import * as PluginRegistry from "../plugins/PluginRegistry.ts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -74,6 +75,7 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const commandSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const preparePluginLaunch = yield* PluginRegistry.launchPreparer;
   const serverConfig = yield* Effect.service(ServerConfig.ServerConfig);
   const resolvedEnvironment = environment ?? process.env;
 
@@ -306,9 +308,11 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
       const execLaunchArgs = codexExecLaunchArgs(launchArgs);
       // A launch-arg mcp_servers={...} table replaces ours and can re-enable dotted names.
       const launchArgsSetMcpTable = execLaunchArgs.some((arg) => /\bmcp_servers\s*=/.test(arg));
-      const spawnCommand = yield* resolveSpawnCommand(
-        binary,
-        [
+      const launch = yield* preparePluginLaunch({
+        provider: "codex",
+        purpose: "text-generation",
+        cwd: cwd,
+        args: [
           "exec",
           // Before launch args: a later table would replace servers their -c flags define.
           ...(mcpServersOff ? ["--config", mcpServersOff] : []),
@@ -334,10 +338,11 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
           ...imagePaths.flatMap((imagePath) => ["--image", imagePath]),
           "-",
         ],
-        { env: effectiveEnvironment },
-      );
+        environment: env,
+      }).pipe(Effect.mapError((cause) => normalizeCliError("codex", operation, cause, "Plugin launch preparation failed.")));
+      const spawnCommand = yield* resolveSpawnCommand(binary, launch.args, { env: launch.environment });
       const command = ChildProcess.make(spawnCommand.command, spawnCommand.args, {
-        env,
+        env: launch.environment,
         cwd,
         shell: spawnCommand.shell,
         stdin: {

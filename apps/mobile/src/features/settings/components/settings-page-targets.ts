@@ -15,6 +15,7 @@ export const SETTINGS_PAGE_TARGETS = [
   "SettingsLabs",
   "SettingsEnvironmentMaintenance",
   "SettingsProviderAccounts",
+  "SettingsPlugins",
   "SettingsKeyboard",
   "SettingsVoice",
   "SettingsFollowUp",

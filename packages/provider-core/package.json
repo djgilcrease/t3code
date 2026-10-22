@@ -186,6 +186,10 @@
     "./server/usageLimits": {
       "types": "./src/server/usageLimits.ts",
       "import": "./src/server/usageLimits.ts"
+    },
+    "./server/prepareLaunch": {
+      "types": "./src/server/prepareLaunch.ts",
+      "import": "./src/server/prepareLaunch.ts"
     }
   },
   "scripts": {
