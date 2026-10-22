@@ -1,5 +1,10 @@
 import { assert, describe, it } from "@effect/vitest";
-import { CodexSettings, ThreadId, ProviderSessionId, PluginOperationError } from "@t3tools/contracts";
+import {
+  CodexSettings,
+  ThreadId,
+  ProviderSessionId,
+  PluginOperationError,
+} from "@t3tools/contracts";
 import { Platform as HostProcessPlatform } from "@t3tools/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -87,5 +92,4 @@ describe("Codex plugin launch integration", () => {
         assert.lengthOf(spawned, 1);
       }).pipe(Effect.provideService(HostProcessPlatform, "linux")),
   );
-
 });
