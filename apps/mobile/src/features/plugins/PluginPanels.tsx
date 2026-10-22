@@ -19,8 +19,8 @@ import { AsyncResult } from "effect/reactivity";
 import { useContext, useEffect, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { Linking, Switch, TextInput, View } from "react-native";
-import { AppText as Text } from "../../components/AppText";
-import { MaterialButton } from "../../components/MaterialButton";
+import { AppText as Text } from "../../components/ui/AppText";
+import { Button as MaterialButton } from "../../components/ui/Button";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 

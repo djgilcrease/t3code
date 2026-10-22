@@ -2,8 +2,8 @@ import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId, PluginCatalog, PluginManageInput } from "@t3tools/contracts";
 import { useContext, useRef, useState } from "react";
 import { TextInput, View } from "react-native";
-import { AppText as Text } from "../../components/AppText";
-import { MaterialButton } from "../../components/MaterialButton";
+import { AppText as Text } from "../../components/ui/AppText";
+import { Button as MaterialButton } from "../../components/ui/Button";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 

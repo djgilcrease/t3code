@@ -2545,7 +2545,15 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   { error: EnvironmentAuthorizationError },
 ) {}
 
-export const WsRpcGroup = RpcGroup.make(
+export const PluginsWsRpcGroup = RpcGroup.make(
+  WsPluginsListRpc,
+  WsPluginsReadViewRpc,
+  WsPluginsExecuteRpc,
+  WsPluginsSubscribeRpc,
+  WsPluginsManageRpc,
+).middleware(RpcScopeAuthorization);
+
+export const BuiltinWsRpcGroup = RpcGroup.make(
   WsIssuesListRpc,
   WsIssuesDetailRpc,
   WsIssuesCommentsRpc,
@@ -2561,11 +2569,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsIssueTrackersConnectRpc,
   WsIssueTrackersBindProjectRpc,
   WsGuestShareCreateRpc,
-  WsPluginsListRpc,
-  WsPluginsReadViewRpc,
-  WsPluginsExecuteRpc,
-  WsPluginsSubscribeRpc,
-  WsPluginsManageRpc,
   WsServerProbeRpc,
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,
@@ -2813,3 +2816,5 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2SubscribeCommandOutputRpc,
   WsOrchestrationV2SubscribePromptSuggestionRpc,
 ).middleware(RpcScopeAuthorization);
+
+export const WsRpcGroup = BuiltinWsRpcGroup.merge(PluginsWsRpcGroup);
