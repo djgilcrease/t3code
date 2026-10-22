@@ -417,20 +417,19 @@ const make = Effect.gen(function* () {
   return PluginRegistry.of({
     configuration: Effect.sync(() => configuration),
     reconcile,
-    restart: (id) =>
-      Effect.gen(function* () {
-        const item = configuration.plugins.find((entry) => entry.id === id);
-        if (!item || !item.enabled) return false;
-        active.delete(id);
-        restartLimits.delete(id);
-        entries.delete(id);
-        const scope = pluginScopes.get(id);
-        pluginScopes.delete(id);
-        if (scope) yield* Scope.close(scope, Exit.void);
-        yield* loadOne(item);
-        yield* changed;
-        return entries.get(id)?.status === "active";
-      }),
+    restart: Effect.fn("PluginRegistry.restart")(function* (id) {
+      const item = configuration.plugins.find((entry) => entry.id === id);
+      if (!item || !item.enabled) return false;
+      active.delete(id);
+      restartLimits.delete(id);
+      entries.delete(id);
+      const scope = pluginScopes.get(id);
+      pluginScopes.delete(id);
+      if (scope) yield* Scope.close(scope, Exit.void);
+      yield* loadOne(item);
+      yield* changed;
+      return entries.get(id)?.status === "active";
+    }),
     setHttpOrigin: (origin) =>
       Effect.sync(() => {
         httpOrigin = origin;

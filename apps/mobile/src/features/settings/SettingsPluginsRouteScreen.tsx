@@ -1,6 +1,6 @@
 import { View } from "react-native";
-import { ScreenScrollView } from "../../components/ScreenScrollView";
-import { AppText as Text } from "../../components/AppText";
+import { ScreenScrollView } from "../../components/ui/ScreenScrollView";
+import { AppText as Text } from "../../components/ui/AppText";
 import { PluginPanels } from "../plugins/PluginPanels";
 import { SettingsScreen } from "./components/SettingsScreen";
 import {
