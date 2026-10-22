@@ -699,9 +699,21 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
     const timeoutMs = input.timeoutMs ?? DEFAULT_OPENCODE_SERVER_TIMEOUT_MS;
     const args = ["serve", `--hostname=${hostname}`, `--port=${port}`];
     const pluginLaunch = yield* preparePluginLaunch({
-      provider: "opencode", purpose: "managed-server", args, environment: input.environment ?? {},
+      provider: "opencode",
+      purpose: "managed-server",
+      args,
+      environment: input.environment ?? {},
       ...(input.directory === undefined ? {} : { cwd: input.directory }),
-    }).pipe(Effect.mapError((cause) => new OpenCodeRuntimeError({ operation: "startOpenCodeServerProcess", detail: "Plugin launch preparation failed.", cause })));
+    }).pipe(
+      Effect.mapError(
+        (cause) =>
+          new OpenCodeRuntimeError({
+            operation: "startOpenCodeServerProcess",
+            detail: "Plugin launch preparation failed.",
+            cause,
+          }),
+      ),
+    );
     const launch = yield* agentScope.wrap({
       command: input.binaryPath,
       args: pluginLaunch.args,
@@ -709,7 +721,11 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
       env: pluginLaunch.environment,
       shared: true,
     });
-    const spawnCommand = yield* resolveCommand(launch.command, launch.args, pluginLaunch.environment);
+    const spawnCommand = yield* resolveCommand(
+      launch.command,
+      launch.args,
+      pluginLaunch.environment,
+    );
     const serverPassword = resolveOpenCodeServerPassword({
       external: false,
       ...(input.serverPassword !== undefined ? { serverPassword: input.serverPassword } : {}),

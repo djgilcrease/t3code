@@ -234,8 +234,16 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
           "dontAsk",
         ],
         environment: claudeEnvironment,
-      }).pipe(Effect.mapError((cause) => normalizeCliError("claude", operation, cause, "Plugin launch preparation failed.")));
-      const spawnCommand = yield* resolveSpawnCommand(claudeSettings.binaryPath || "claude", launch.args, { env: launch.environment });
+      }).pipe(
+        Effect.mapError((cause) =>
+          normalizeCliError("claude", operation, cause, "Plugin launch preparation failed."),
+        ),
+      );
+      const spawnCommand = yield* resolveSpawnCommand(
+        claudeSettings.binaryPath || "claude",
+        launch.args,
+        { env: launch.environment },
+      );
       const command = ChildProcess.make(spawnCommand.command, spawnCommand.args, {
         env: launch.environment,
         cwd: workingDirectory,
