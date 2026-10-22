@@ -1,3 +1,4 @@
+import { PluginPanels } from "../plugins/PluginPanels";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { ChatGptUsageSummary } from "./ChatGptUsageSummary";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
@@ -303,12 +304,17 @@ function UsageScreen(props: {
               className="gap-6"
             >
               {showingLimits ? (
+                <>
+                  {selectedEnvironments.map((environment) => (
+                    <PluginPanels key={environment.environmentId} environmentId={environment.environmentId} location="usage" />
+                  ))}
                 <UsageLimitsSection
                   now={limits.now}
                   failedLabels={limits.failedLabels}
                   selectedEnvironmentIds={selectedEnvironmentIds}
                   wide={wide}
                 />
+                </>
               ) : (
                 <>
                   {wide ? null : (

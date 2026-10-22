@@ -25,6 +25,7 @@
     "test": "vp test run --config ../../vite.config.ts --dir ."
   },
   "dependencies": {
+    "@t3tools/plugin-sdk": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {

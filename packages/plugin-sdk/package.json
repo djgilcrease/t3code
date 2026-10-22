@@ -1,0 +1,31 @@
+{
+  "name": "@t3tools/plugin-sdk",
+  "version": "0.1.0",
+  "description": "Versioned server plugin API and portable UI contributions for T3 Code",
+  "license": "MIT",
+  "files": [
+    "src/index.ts",
+    "dist/index.js",
+    "dist/index.d.ts"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "vp run build",
+    "prepack": "vp run build",
+    "typecheck": "tsc --noEmit",
+    "test": "vp test run --config ../../vite.config.ts --dir ."
+  },
+  "dependencies": {
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "vite-plus": "catalog:"
+  }
+}
