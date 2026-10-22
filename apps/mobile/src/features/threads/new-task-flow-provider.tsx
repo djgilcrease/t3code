@@ -122,7 +122,7 @@ import {
   resolveNewTaskWorkspaceSelection,
 } from "./new-task-context-presentation";
 import {
-  resolveEnvironmentProjectMatch,
+  resolveNewTaskEnvironmentProject,
   resolveNewTaskEnvironments,
 } from "./new-task-project-selection";
 import { resolveProjectThreadCreationBranch } from "./projectThreadCreationValidation";
@@ -287,17 +287,18 @@ export function NewTaskFlowProvider(
   const [selectedEnvironmentIdOverride, setSelectedEnvironmentId] = useState<EnvironmentId | null>(
     null,
   );
-  const selectedEnvironmentId =
-    selectedEnvironmentIdOverride !== null &&
-    projects.some((project) => project.environmentId === selectedEnvironmentIdOverride)
-      ? selectedEnvironmentIdOverride
-      : (projects[0]?.environmentId ?? null);
   const [selectedProjectKey, setSelectedProjectKey] = useState<string | null>(null);
   const [activeDraftKey, setActiveDraftKey] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [branchQuery, setBranchQuery] = useState("");
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
   const [editingPendingTask, setEditingPendingTask] = useState<QueuedThreadMessage | null>(null);
+  const selectedEnvironmentId =
+    selectedEnvironmentIdOverride !== null &&
+    (editingPendingTask?.environmentId === selectedEnvironmentIdOverride ||
+      projects.some((project) => project.environmentId === selectedEnvironmentIdOverride))
+      ? selectedEnvironmentIdOverride
+      : (projects[0]?.environmentId ?? null);
   const pendingLocalBranchSyncDraftKeysRef = useRef(new Set<string>());
   // Mirrors `editingPendingTask` synchronously so the unmount flush cannot act
   // on a task whose editing session already ended this render.
@@ -717,16 +718,18 @@ export function NewTaskFlowProvider(
   };
 
   const selectEnvironment = (environmentId: EnvironmentId) => {
-    const match = resolveEnvironmentProjectMatch(
-      projects.filter((project) => project.environmentId === environmentId),
+    const match = resolveNewTaskEnvironmentProject({
+      environmentId,
+      projects,
       selectedProject,
-      groupingSettings,
-    );
-    if (match) {
-      carryDraftContentTo(match);
-    }
+      pendingProject: editingPendingProject,
+      settings: groupingSettings,
+    });
+    if (!match) return false;
+    carryDraftContentTo(match);
     setSelectedEnvironmentId(environmentId);
-    setSelectedProjectKey(match ? scopedProjectKey(match.environmentId, match.id) : null);
+    setSelectedProjectKey(scopedProjectKey(match.environmentId, match.id));
+    return true;
   };
 
   const openScratch = useAtomCommand(projectEnvironment.openScratch, { reportFailure: false });
@@ -741,8 +744,7 @@ export function NewTaskFlowProvider(
       return true;
     }
     if (!isScratchDraft) {
-      selectEnvironment(environmentId);
-      return true;
+      return selectEnvironment(environmentId);
     }
     const request = {};
     latestSwitchRef.current = request;
