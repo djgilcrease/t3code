@@ -316,6 +316,7 @@ function makeHarness(options: HarnessOptions = {}) {
               projectId,
               title: project.title,
               workspaceRoot: project.workspaceRoot,
+              groupingIdentity: null,
               defaultModelSelection: project.defaultModelSelection,
               defaultThreadEnvMode: null,
               hasCustomTitle: false,

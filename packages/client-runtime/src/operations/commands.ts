@@ -62,6 +62,7 @@ export interface CreateProjectInput extends CommandMetadata {
   readonly workspaceRoot: string;
   readonly createWorkspaceRootIfMissing?: boolean;
   readonly defaultModelSelection?: ModelSelection | null;
+  readonly groupingIdentity?: string | null;
   readonly scripts?: ReadonlyArray<ProjectScript>;
   readonly trackedFolders?: ReadonlyArray<ProjectTrackedFolder>;
 }
@@ -75,6 +76,7 @@ export interface UpdateProjectInput extends CommandMetadata {
   readonly projectIcon?: ProjectIconOverride | null;
   readonly faviconPath?: string | null;
   readonly defaultThreadEnvMode?: ThreadEnvMode | null;
+  readonly groupingIdentity?: string | null;
   readonly scripts?: ReadonlyArray<ProjectScript>;
   /** Replaces the whole list. Paths only mean something on the project's own environment. */
   readonly trackedFolders?: ReadonlyArray<ProjectTrackedFolder>;
@@ -415,6 +417,7 @@ const mutateProject = Effect.fn("EnvironmentCommands.mutateProject")(function* (
         readonly workspaceRoot: string;
         readonly createWorkspaceRootIfMissing?: boolean;
         readonly defaultModelSelection?: ModelSelection | null;
+        readonly groupingIdentity?: string | null;
         readonly scripts?: ReadonlyArray<ProjectScript>;
         readonly trackedFolders?: ReadonlyArray<ProjectTrackedFolder>;
       }
@@ -425,6 +428,7 @@ const mutateProject = Effect.fn("EnvironmentCommands.mutateProject")(function* (
         readonly title?: string;
         readonly workspaceRoot?: string;
         readonly defaultModelSelection?: ModelSelection | null;
+        readonly groupingIdentity?: string | null;
         readonly scripts?: ReadonlyArray<ProjectScript>;
         readonly trackedFolders?: ReadonlyArray<ProjectTrackedFolder>;
         readonly trackFolders?: ReadonlyArray<ProjectTrackedFolder>;
@@ -455,6 +459,7 @@ export const createProject = Effect.fn("EnvironmentCommands.createProject")(func
     ...(input.defaultModelSelection === undefined
       ? {}
       : { defaultModelSelection: input.defaultModelSelection }),
+    ...(input.groupingIdentity === undefined ? {} : { groupingIdentity: input.groupingIdentity }),
     ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
     ...(input.trackedFolders === undefined ? {} : { trackedFolders: input.trackedFolders }),
   });
@@ -478,6 +483,7 @@ export const updateProject = Effect.fn("EnvironmentCommands.updateProject")(func
     ...(input.defaultThreadEnvMode === undefined
       ? {}
       : { defaultThreadEnvMode: input.defaultThreadEnvMode }),
+    ...(input.groupingIdentity === undefined ? {} : { groupingIdentity: input.groupingIdentity }),
     ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
     ...(input.trackedFolders === undefined ? {} : { trackedFolders: input.trackedFolders }),
     ...(input.trackFolders === undefined ? {} : { trackFolders: input.trackFolders }),

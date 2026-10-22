@@ -67,3 +67,19 @@ Choose **On webhook** as a task's schedule to trigger runs from external service
 - **Deduplication & coalescing**: Set a **Duplicate request key** (e.g. `{{headers.delivery-id}}`; ignores repeats for 7 days) or a **Coalesce key** with a 10–3600s window (default 120s; runs once with the latest payload when the window closes). Coalesced updates are rate-limited to 60/min (`HTTP 429`).
 - **Offline delivery**: By default, offline environments return an error. Enable **Settings → Sharing & access → Hold webhooks while offline** to buffer T3 Connect webhooks for up to 24 hours, and optionally set **Skip requests older than** on the task.
 - **Debugging**: Open **Deliveries** from a task's menu (web/desktop) to inspect recent payloads and rendered prompts.
+
+## Group non-Git projects across computers
+
+Assign the same explicit grouping identity to copies of a non-Git project to show them as one project with a choice of computers. Each computer keeps its own directory, project record, and threads. Names and paths alone never establish this relationship. Git projects continue to group by repository identity; the Separate grouping setting keeps all copies apart.
+
+Generate a lowercase UUID v4 once (for example, `python -c "import uuid; print(uuid.uuid4())"`) and reuse it only for copies of that project:
+
+```sh
+t3 project add /path/to/sdk --grouping-identity <uuid>
+t3 project grouping /path/to/sdk
+t3 project grouping /path/to/sdk --identity <another-uuid>
+t3 project grouping /path/to/sdk --clear
+t3 project list
+```
+
+With `--grouping-identity`, `project add` also updates an existing registration at that path, preserving its title and threads. Without the flag, adding an existing project still reports a conflict. `project list` returns JSON including the saved identity. Agents can use `t3_project_create` or `t3_project_update` with `groupingIdentity`; omit it to preserve the value or pass `null` to clear it. Read and list tools expose the identity. Update the servers and clients on all computers before assigning identities.

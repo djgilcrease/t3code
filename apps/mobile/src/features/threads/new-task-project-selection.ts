@@ -3,6 +3,8 @@ import { availableScratchWorkspaceRoot } from "@t3tools/client-runtime/operation
 import {
   isPickableProjectMember,
   isRepositoryRootProject,
+  deriveLogicalProjectKeyFromSettings,
+  type ProjectGroupingSettings,
 } from "@t3tools/client-runtime/state/project-grouping";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { repositoryGroupingKeyOf, type EnvironmentId, type ServerConfig } from "@t3tools/contracts";
@@ -114,43 +116,17 @@ export function workspaceFolderName(workspaceRoot: string): string | null {
 export function resolveEnvironmentProjectMatch(
   projectsOnTarget: ReadonlyArray<EnvironmentProject>,
   selectedProject: EnvironmentProject | null,
+  settings: ProjectGroupingSettings = {
+    sidebarProjectGroupingMode: "repository",
+    sidebarProjectGroupingOverrides: {},
+  },
 ): EnvironmentProject | null {
-  const repositoryKey = selectedProject?.repositoryIdentity
-    ? repositoryGroupingKeyOf(selectedProject.repositoryIdentity)
-    : null;
-  const workspaceBasename = selectedProject
-    ? workspaceFolderName(selectedProject.workspaceRoot)
-    : null;
-  // Use weaker signals only when identity is unknown; different known repositories never match by basename or title.
-  const isKnownMismatch = (project: EnvironmentProject) => {
-    const projectKey = project.repositoryIdentity
-      ? repositoryGroupingKeyOf(project.repositoryIdentity)
-      : null;
-    return repositoryKey !== null && projectKey !== null && projectKey !== repositoryKey;
-  };
+  if (selectedProject === null) return projectsOnTarget[0] ?? null;
+  const key = deriveLogicalProjectKeyFromSettings(selectedProject, settings);
   return (
-    (repositoryKey !== null
-      ? projectsOnTarget.find(
-          (project) =>
-            (project.repositoryIdentity
-              ? repositoryGroupingKeyOf(project.repositoryIdentity)
-              : null) === repositoryKey,
-        )
-      : undefined) ??
-    (workspaceBasename !== null
-      ? projectsOnTarget.find(
-          (project) =>
-            !isKnownMismatch(project) &&
-            workspaceFolderName(project.workspaceRoot) === workspaceBasename,
-        )
-      : undefined) ??
-    (selectedProject !== null
-      ? projectsOnTarget.find(
-          (project) => !isKnownMismatch(project) && project.title === selectedProject.title,
-        )
-      : undefined) ??
-    projectsOnTarget[0] ??
-    null
+    projectsOnTarget.find(
+      (project) => deriveLogicalProjectKeyFromSettings(project, settings) === key,
+    ) ?? null
   );
 }
 

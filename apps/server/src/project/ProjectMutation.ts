@@ -23,6 +23,9 @@ export const projectMutationOperation = Effect.fn("projectMutationOperation")(fu
         ...(mutation.defaultModelSelection === undefined
           ? {}
           : { defaultModelSelection: mutation.defaultModelSelection }),
+        ...(mutation.groupingIdentity === undefined
+          ? {}
+          : { groupingIdentity: mutation.groupingIdentity }),
         ...(mutation.scripts === undefined ? {} : { scripts: mutation.scripts }),
         ...(mutation.trackedFolders === undefined
           ? {}
@@ -44,6 +47,9 @@ export const projectMutationOperation = Effect.fn("projectMutationOperation")(fu
         ...(mutation.defaultThreadEnvMode === undefined
           ? {}
           : { defaultThreadEnvMode: mutation.defaultThreadEnvMode }),
+        ...(mutation.groupingIdentity === undefined
+          ? {}
+          : { groupingIdentity: mutation.groupingIdentity }),
         ...(mutation.scripts === undefined ? {} : { scripts: mutation.scripts }),
         ...(mutation.trackedFolders === undefined
           ? {}
