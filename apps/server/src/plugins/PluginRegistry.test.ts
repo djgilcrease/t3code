@@ -2,6 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import { AuthStandardClientScopes, PluginOperationError, type T3Plugin } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
+import * as Deferred from "effect/Deferred";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
@@ -167,11 +168,9 @@ it.effect("isolates activation failure and finalizes resources before reporting 
     ],
     Effect.gen(function* () {
       const host = yield* PluginRegistry.PluginRegistry;
+      const catalog = yield* host.list(AuthStandardClientScopes);
       expect(finalized).toBe(true);
-      expect((yield* host.list(AuthStandardClientScopes)).plugins.map((p) => p.status)).toEqual([
-        "failed",
-        "active",
-      ]);
+      expect(catalog.plugins.map((p) => p.status)).toEqual(["failed", "active"]);
     }),
   );
 });
@@ -188,7 +187,7 @@ it.effect("closes active plugin scopes on shutdown", () => {
         ).pipe(Effect.as({})),
       ),
     ],
-    Effect.asVoid(PluginRegistry.PluginRegistry),
+    Effect.flatMap(PluginRegistry.PluginRegistry, (host) => host.list(AuthStandardClientScopes)),
   ).pipe(Effect.tap(() => Effect.sync(() => expect(finalized).toBe(true))));
 });
 
@@ -467,4 +466,20 @@ it.effect(
         ).toMatchObject({ reason: "secret-access-disabled" });
       }),
     ),
+);
+
+it.effect("constructs the environment services while a plugin activation is stalled", () =>
+  Effect.gen(function* () {
+    const started = yield* Deferred.make<void>();
+    yield* withHost(
+      [plugin(() => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)))],
+      Effect.gen(function* () {
+        const host = yield* PluginRegistry.PluginRegistry;
+        yield* Deferred.await(started);
+        yield* host.setHttpOrigin("http://localhost:43123");
+        const bootstrap = yield* host.list(AuthStandardClientScopes).pipe(Effect.forkChild);
+        expect(bootstrap.pollUnsafe()).toBeUndefined();
+      }),
+    );
+  }),
 );
