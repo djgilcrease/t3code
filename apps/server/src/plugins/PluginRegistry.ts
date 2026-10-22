@@ -23,6 +23,7 @@ import {
 import * as Context from "effect/Context";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as Deferred from "effect/Deferred";
 import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -320,9 +321,16 @@ const make = Effect.gen(function* () {
       ),
     );
   });
-  for (const item of configuration.plugins) yield* loadOne(item);
+  const initialized = yield* Deferred.make<void>();
+  // Plugin activation may wait on its watchdog. Keep the environment available
+  // while loading, and gate plugin operations so launches cannot bypass hooks.
+  yield* Effect.forEach(configuration.plugins, loadOne, { concurrency: 4 }).pipe(
+    Effect.ensuring(Deferred.succeed(initialized, undefined)),
+    Effect.forkScoped,
+  );
   const reconcile: PluginRegistry["Service"]["reconcile"] = Effect.fn("PluginRegistry.reconcile")(
     function* (next) {
+      yield* Deferred.await(initialized);
       let succeeded = true;
       for (const old of configuration.plugins) {
         const replacement = next.plugins.find((item) => item.id === old.id);
@@ -352,12 +360,13 @@ const make = Effect.gen(function* () {
       return succeeded;
     },
   );
-  const getPlugin = (id: string) => {
+  const getPlugin = Effect.fn("PluginRegistry.getPlugin")(function* (id: string) {
+    yield* Deferred.await(initialized);
     const plugin = active.get(id);
-    return plugin && entries.get(id)?.status === "active"
+    return yield* plugin && entries.get(id)?.status === "active"
       ? Effect.succeed(plugin)
       : Effect.fail(new PluginRequestError({ pluginId: id, reason: "unavailable" }));
-  };
+  });
   const readView: PluginRegistry["Service"]["readView"] = Effect.fn("PluginRegistry.readView")(
     function* (input, scopes) {
       const plugin = yield* getPlugin(input.pluginId);
@@ -415,9 +424,12 @@ const make = Effect.gen(function* () {
     },
   );
   return PluginRegistry.of({
-    configuration: Effect.sync(() => configuration),
+    configuration: Deferred.await(initialized).pipe(
+      Effect.andThen(Effect.sync(() => configuration)),
+    ),
     reconcile,
     restart: Effect.fn("PluginRegistry.restart")(function* (id) {
+      yield* Deferred.await(initialized);
       const item = configuration.plugins.find((entry) => entry.id === id);
       if (!item || !item.enabled) return false;
       active.delete(id);
@@ -436,26 +448,31 @@ const make = Effect.gen(function* () {
       }),
     changes: SubscriptionRef.changes(revision),
     list: (scopes) =>
-      Effect.sync(() => ({
-        configurationError,
-        plugins: configuration.plugins.flatMap((item) => {
-          const entry = entries.get(item.id);
-          return entry
-            ? [
-                {
-                  ...entry,
-                  restartLimit: item.restartLimit ?? 5,
-                  ...(item.source ? { source: item.source } : {}),
-                  commands: entry.commands.filter((c) => scopes.includes(c.permission)),
-                  views: entry.views.filter((v) => scopes.includes(v.permission)),
-                },
-              ]
-            : [];
-        }),
-      })),
+      Deferred.await(initialized).pipe(
+        Effect.andThen(
+          Effect.sync(() => ({
+            configurationError,
+            plugins: configuration.plugins.flatMap((item) => {
+              const entry = entries.get(item.id);
+              return entry
+                ? [
+                    {
+                      ...entry,
+                      restartLimit: item.restartLimit ?? 5,
+                      ...(item.source ? { source: item.source } : {}),
+                      commands: entry.commands.filter((c) => scopes.includes(c.permission)),
+                      views: entry.views.filter((v) => scopes.includes(v.permission)),
+                    },
+                  ]
+                : [];
+            }),
+          })),
+        ),
+      ),
     readView,
     execute,
     prepareLaunch: Effect.fn("PluginRegistry.prepareLaunch")(function* (launch) {
+      yield* Deferred.await(initialized);
       let current = launch;
       for (const { id } of configuration.plugins) {
         const plugin = active.get(id);
@@ -476,16 +493,17 @@ const make = Effect.gen(function* () {
       }
       return current;
     }),
-    handleHttp: (id, request) => {
+    handleHttp: Effect.fn("PluginRegistry.handleHttp")(function* (id, request) {
+      yield* Deferred.await(initialized);
       const handler = active.get(id)?.handleHttp;
-      return handler
+      return yield* handler
         ? guarded(
             id,
             "http",
             Effect.suspend(() => handler(request)),
           )
         : Effect.succeed(new Response(null, { status: 404 }));
-    },
+    }),
   });
 });
 

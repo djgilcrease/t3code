@@ -1,3 +1,7 @@
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@t3tools/client-runtime/state/runtime";
 import { PluginManagement } from "./PluginManagement";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import type {
@@ -81,6 +85,7 @@ function PluginPanel({
   const registry = useContext(RegistryContext);
   const execute = useAtomCommand(serverEnvironment.executePluginCommand);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const running = useRef(false);
   const [secret, setSecret] = useState<ReturnType<typeof pluginSecretResult>>(null);
   const [copied, setCopied] = useState(false);
@@ -96,6 +101,7 @@ function PluginPanel({
     setSecret(null);
     setCopied(false);
     setBusy(true);
+    setError(null);
     try {
       const outcome = await execute({
         environmentId,
@@ -107,6 +113,12 @@ function PluginPanel({
         },
       });
       if (outcome._tag === "Success") setSecret(pluginSecretResult(outcome.value));
+      if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
+        const failure = squashAtomCommandFailure(outcome);
+        setError(
+          failure instanceof Error ? failure.message : "The plugin command failed. Try again.",
+        );
+      }
       registry.refresh(query);
       return outcome._tag === "Success";
     } finally {
@@ -118,6 +130,7 @@ function PluginPanel({
     <View className="gap-3 rounded-xl border border-border p-4">
       <Text className="font-t3-medium text-foreground">{content?.title ?? view.title}</Text>
       <MaterialButton label="Refresh" onPress={() => registry.refresh(query)} />
+      {error && <Text accessibilityRole="alert">{error}</Text>}
       {secret && (
         <View className="gap-2 rounded-lg border border-border p-3">
           <Text>{secret.label}</Text>
