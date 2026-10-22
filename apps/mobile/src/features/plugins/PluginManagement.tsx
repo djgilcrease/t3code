@@ -1,3 +1,7 @@
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@t3tools/client-runtime/state/runtime";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId, PluginCatalog, PluginManageInput } from "@t3tools/contracts";
 import { useContext, useRef, useState } from "react";
@@ -19,15 +23,23 @@ export function PluginManagement({
   const allowed = useAtomValue(serverEnvironment.managePlugins.permissionAtom(environmentId));
   const [repository, setRepository] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const running = useRef(false);
   const run = async (input: PluginManageInput) => {
     if (running.current || !allowed) return;
     running.current = true;
     setBusy(true);
+    setError(null);
     try {
       const result = await manage({ environmentId, input });
       registry.refresh(serverEnvironment.pluginCatalog({ environmentId, input: {} }));
       if (result._tag === "Success" && input.operation === "install") setRepository("");
+      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+        const failure = squashAtomCommandFailure(result);
+        setError(
+          failure instanceof Error ? failure.message : "The plugin operation failed. Try again.",
+        );
+      }
     } finally {
       running.current = false;
       setBusy(false);
@@ -60,6 +72,7 @@ export function PluginManagement({
         disabled={!allowed || busy}
         onPress={() => void run({ operation: "check" })}
       />
+      {error && <Text accessibilityRole="alert">{error}</Text>}
       {catalog.plugins.length === 0 && <Text>No plugins installed.</Text>}
       {catalog.plugins.map((plugin) => (
         <View key={plugin.id} className="gap-2 rounded-xl border border-border p-3">
