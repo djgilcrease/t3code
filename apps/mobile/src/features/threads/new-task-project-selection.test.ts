@@ -11,7 +11,7 @@ import {
   resolveDraftProjectSelection,
   resolveEnvironmentProjectMatch,
   resolveNewTaskScratchOption,
-  workspaceFolderName,
+  resolveNewTaskEnvironments,
 } from "./new-task-project-selection";
 
 function makeProject(
@@ -195,14 +195,65 @@ describe("resolveEnvironmentProjectMatch", () => {
   });
 });
 
-describe("workspaceFolderName", () => {
-  it("gives volume roots and empty placeholders no folder name", () => {
-    for (const root of ["", "/", "\\", "C:", "C:\\", "c:/"]) {
-      expect(workspaceFolderName(root)).toBeNull();
-    }
-    expect(workspaceFolderName("C:\\Users\\me\\t3code\\")).toBe("t3code");
-    expect(workspaceFolderName("\\\\server\\share")).toBe("share");
-    expect(workspaceFolderName("/home/me/t3code//")).toBe("t3code");
+describe("resolveNewTaskEnvironments", () => {
+  const settings = {
+    sidebarProjectGroupingMode: "repository" as const,
+    sidebarProjectGroupingOverrides: {},
+  };
+  const savedConnectionsById = {
+    mac: { environmentLabel: "Mac" },
+    server: { environmentLabel: "Server" },
+  };
+
+  it("retains the queued task's machine and label while its project shell is absent", () => {
+    const missingProject = makeProject("removed", "mac");
+    expect(
+      resolveNewTaskEnvironments({
+        projects: [makeProject("unrelated", "mac"), makeProject("other", "server")],
+        selectedProject: missingProject,
+        settings,
+        savedConnectionsById,
+        pendingTaskEnvironmentId: missingProject.environmentId,
+      }),
+    ).toEqual([{ environmentId: "mac", environmentLabel: "Mac" }]);
+  });
+
+  it("lists only registered hosts of the explicit group and deduplicates the task's host", () => {
+    const groupingIdentity = "39c61a1b-8a64-43a6-9da5-65c15da93d52";
+    const selectedProject = { ...makeProject("sdk", "mac"), groupingIdentity };
+    const input = {
+      projects: [
+        selectedProject,
+        { ...makeProject("copy", "server"), groupingIdentity },
+        { ...makeProject("copy", "unsaved"), groupingIdentity },
+      ],
+      selectedProject,
+      settings,
+      savedConnectionsById,
+      pendingTaskEnvironmentId: selectedProject.environmentId,
+    };
+    expect(resolveNewTaskEnvironments(input)).toEqual([
+      { environmentId: "mac", environmentLabel: "Mac" },
+      { environmentId: "server", environmentLabel: "Server" },
+    ]);
+    expect(
+      resolveNewTaskEnvironments({
+        ...input,
+        settings: { ...settings, sidebarProjectGroupingMode: "separate" },
+      }),
+    ).toEqual([{ environmentId: "mac", environmentLabel: "Mac" }]);
+  });
+
+  it("does not offer unrelated machines for an ordinary draft with a missing project", () => {
+    expect(
+      resolveNewTaskEnvironments({
+        projects: [makeProject("other", "server")],
+        selectedProject: makeProject("missing", "mac"),
+        settings,
+        savedConnectionsById,
+        pendingTaskEnvironmentId: null,
+      }),
+    ).toEqual([]);
   });
 });
 
