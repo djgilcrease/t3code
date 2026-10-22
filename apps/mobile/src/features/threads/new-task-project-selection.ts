@@ -1,5 +1,9 @@
+import {
+  deriveLogicalProjectKeyFromSettings,
+  type ProjectGroupingSettings,
+} from "@t3tools/client-runtime/state/project-grouping";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
-import { repositoryGroupingKeyOf, type EnvironmentId } from "@t3tools/contracts";
+import { type EnvironmentId } from "@t3tools/contracts";
 
 import { scopedProjectKey } from "../../lib/scopedEntities";
 import type { HomeProjectScope } from "../home/homeThreadList";
@@ -43,48 +47,21 @@ function getOnlySelectableProject(
   return onlyScope?.representative ?? null;
 }
 
+/** Switch machines only within the selected logical project. */
 export function resolveEnvironmentProjectMatch(
   projectsOnTarget: ReadonlyArray<EnvironmentProject>,
   selectedProject: EnvironmentProject | null,
+  settings: ProjectGroupingSettings = {
+    sidebarProjectGroupingMode: "repository",
+    sidebarProjectGroupingOverrides: {},
+  },
 ): EnvironmentProject | null {
-  const repositoryKey = selectedProject?.repositoryIdentity
-    ? repositoryGroupingKeyOf(selectedProject.repositoryIdentity)
-    : null;
-  // `|| null` (not `??`): a pending-task placeholder project can have an empty
-  // workspaceRoot, and an "" basename would match nothing meaningful.
-  const workspaceBasename = selectedProject?.workspaceRoot.split("/").at(-1) || null;
-  // The weaker signals only apply where identity is unknown on at least one
-  // side; two known, different repositories never match on a shared basename
-  // or title (mirrors the environment list filter in the new-task flow).
-  const isKnownMismatch = (project: EnvironmentProject) => {
-    const projectKey = project.repositoryIdentity
-      ? repositoryGroupingKeyOf(project.repositoryIdentity)
-      : null;
-    return repositoryKey !== null && projectKey !== null && projectKey !== repositoryKey;
-  };
+  if (selectedProject === null) return projectsOnTarget[0] ?? null;
+  const key = deriveLogicalProjectKeyFromSettings(selectedProject, settings);
   return (
-    (repositoryKey !== null
-      ? projectsOnTarget.find(
-          (project) =>
-            (project.repositoryIdentity
-              ? repositoryGroupingKeyOf(project.repositoryIdentity)
-              : null) === repositoryKey,
-        )
-      : undefined) ??
-    (workspaceBasename !== null
-      ? projectsOnTarget.find(
-          (project) =>
-            !isKnownMismatch(project) &&
-            project.workspaceRoot.split("/").at(-1) === workspaceBasename,
-        )
-      : undefined) ??
-    (selectedProject !== null
-      ? projectsOnTarget.find(
-          (project) => !isKnownMismatch(project) && project.title === selectedProject.title,
-        )
-      : undefined) ??
-    projectsOnTarget[0] ??
-    null
+    projectsOnTarget.find(
+      (project) => deriveLogicalProjectKeyFromSettings(project, settings) === key,
+    ) ?? null
   );
 }
 

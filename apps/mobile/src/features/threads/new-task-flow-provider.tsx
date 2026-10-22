@@ -1,4 +1,5 @@
 import { ActiveNewTaskContext } from "../../state/active-new-task";
+import { deriveLogicalProjectKeyFromSettings } from "@t3tools/client-runtime/state/project-grouping";
 import * as Dialog from "../../components/ui/Dialog";
 import { resolveFilesystemReadAccess } from "@t3tools/client-runtime/state/filesystem";
 import { useEnvironmentPresentation } from "../../state/presentation";
@@ -20,7 +21,6 @@ import {
   DEFAULT_RUNTIME_MODE,
   DEFAULT_SERVER_SETTINGS,
   MessageId,
-  repositoryGroupingKeyOf,
   T3_PROJECT_FILE_NAME,
   ThreadId,
 } from "@t3tools/contracts";
@@ -373,13 +373,9 @@ export function NewTaskFlowProvider(
       ) !== null,
   );
 
-  const selectedRepositoryKey = selectedProject?.repositoryIdentity
-    ? repositoryGroupingKeyOf(selectedProject.repositoryIdentity)
+  const selectedLogicalProjectKey = selectedProject
+    ? deriveLogicalProjectKeyFromSettings(selectedProject, groupingSettings)
     : null;
-  // `|| null` (not `??`): a pending-task placeholder project can have an empty
-  // workspaceRoot, and an "" basename would reject every real host below.
-  const selectedWorkspaceBasename = selectedProject?.workspaceRoot.split("/").at(-1) || null;
-  const selectedProjectTitle = selectedProject?.title ?? null;
   const environments = (() => {
     if (isScratchDraft) {
       return scratchEnvironments.map((environment) => ({
@@ -392,21 +388,9 @@ export function NewTaskFlowProvider(
       readonly environmentId: EnvironmentId;
       readonly environmentLabel: string;
     }> = [];
-    const hostsSelectedRepository = (project: EnvironmentProject) => {
-      if (selectedRepositoryKey === null && selectedWorkspaceBasename === null) {
-        return true;
-      }
-      const projectKey = project.repositoryIdentity
-        ? repositoryGroupingKeyOf(project.repositoryIdentity)
-        : null;
-      if (selectedRepositoryKey !== null && projectKey !== null) {
-        return projectKey === selectedRepositoryKey;
-      }
-      return (
-        project.workspaceRoot.split("/").at(-1) === selectedWorkspaceBasename ||
-        (selectedProjectTitle !== null && project.title === selectedProjectTitle)
-      );
-    };
+    const hostsSelectedRepository = (project: EnvironmentProject) =>
+      selectedLogicalProjectKey === null ||
+      deriveLogicalProjectKeyFromSettings(project, groupingSettings) === selectedLogicalProjectKey;
     for (const project of projects) {
       if (!hostsSelectedRepository(project)) {
         continue;
@@ -756,6 +740,7 @@ export function NewTaskFlowProvider(
     const match = resolveEnvironmentProjectMatch(
       projects.filter((project) => project.environmentId === environmentId),
       selectedProject,
+      groupingSettings,
     );
     if (match) {
       carryDraftContentTo(match);
