@@ -1,3 +1,7 @@
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@t3tools/client-runtime/state/runtime";
 import { PluginManagement } from "./PluginManagement";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import type {
@@ -84,6 +88,7 @@ function PluginPanel({
   const registry = useContext(RegistryContext);
   const execute = useAtomCommand(serverEnvironment.executePluginCommand);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const running = useRef(false);
   const [secret, setSecret] = useState<ReturnType<typeof pluginSecretResult>>(null);
   const [copied, setCopied] = useState(false);
@@ -99,6 +104,7 @@ function PluginPanel({
     setSecret(null);
     setCopied(false);
     setBusy(true);
+    setError(null);
     try {
       const outcome = await execute({
         environmentId,
@@ -110,6 +116,12 @@ function PluginPanel({
         },
       });
       if (outcome._tag === "Success") setSecret(pluginSecretResult(outcome.value));
+      if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
+        const failure = squashAtomCommandFailure(outcome);
+        setError(
+          failure instanceof Error ? failure.message : "The plugin command failed. Try again.",
+        );
+      }
       registry.refresh(query);
       return outcome._tag === "Success";
     } finally {
@@ -125,6 +137,11 @@ function PluginPanel({
           Refresh
         </Button>
       </div>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
       {secret && (
         <div className="space-y-2 rounded-md border p-3" role="region" aria-label={secret.label}>
           <label className="block space-y-1 text-sm">
