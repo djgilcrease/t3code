@@ -520,7 +520,11 @@ export function UsagePage() {
             ) : showingLimits ? (
               <>
                 {selectedEnvironments.map((environment) => (
-                  <PluginPanels key={environment.environmentId} environmentId={environment.environmentId} location="usage" />
+                  <PluginPanels
+                    key={environment.environmentId}
+                    environmentId={environment.environmentId}
+                    location="usage"
+                  />
                 ))}
               <UsageLimitsSection
                 selectedEnvironmentIds={selectedEnvironmentIds}
