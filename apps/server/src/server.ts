@@ -1,3 +1,4 @@
+import { PrepareLaunch } from "@t3tools/provider-core/server/prepareLaunch";
 import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEventLoggers";
 import * as DatabaseMigrationProgress from "./persistence/DatabaseMigrationProgress.ts";
 import type { RelayManagedEndpointRuntimeConfig } from "@t3tools/contracts/relay";
@@ -231,6 +232,11 @@ import * as CursorAccountReader from "@t3tools/provider-cursor/server/CursorAcco
 import * as CursorUsageAccounts from "@t3tools/provider-cursor/server/CursorUsageAccounts";
 import * as UsageService from "./usage/UsageService.ts";
 import * as CodexUsageHistory from "./usage/CodexUsageHistory.ts";
+import * as PluginRegistry from "./plugins/PluginRegistry.ts";
+import * as PluginModuleLoader from "./plugins/PluginModuleLoader.ts";
+import * as PluginHttp from "./plugins/http.ts";
+import * as PluginPackages from "./plugins/PluginPackages.ts";
+import * as PluginManager from "./plugins/PluginManager.ts";
 import * as RuntimeLayer from "./orchestration-v2/runtimeLayer.ts";
 import * as ThreadViewers from "./orchestration-v2/ThreadViewers.ts";
 import * as WorkflowForge from "./workflows/WorkflowForge.ts";
@@ -338,6 +344,11 @@ const layerUsage = UsageService.layer.pipe(
     ).pipe(Layer.provide(ProviderHostLive.layer.pipe(Layer.provide(ServerSecretStore.layer)))),
   ),
   Layer.provide(layerServerSettings),
+);
+const layerPlugins = PluginManager.layer.pipe(
+  Layer.provide(PluginPackages.layer.pipe(Layer.provide(ProcessRunner.layer))),
+  Layer.provideMerge(PluginRegistry.layer.pipe(Layer.provide(PluginModuleLoader.layer))),
+  Layer.provide(ServerSecretStore.layer),
 );
 
 const layerResourceDiagnostics = Layer.mergeAll(
@@ -830,6 +841,7 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
 );
 
 const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
+  Layer.provideMerge(layerPlugins),
   Layer.provideMerge(layerPtyAdapter),
   Layer.provideMerge(AcpRegistrySupport.layerFromHost.pipe(Layer.provide(ProviderHostLive.layer))),
   Layer.provideMerge(
@@ -843,6 +855,7 @@ const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
   ),
   Layer.provideMerge(
     OpenCodeRuntime.layer.pipe(
+      Layer.provide(Layer.effect(PrepareLaunch, PluginRegistry.launchPreparer).pipe(Layer.provide(layerPlugins))),
       Layer.provide(
         Layer.unwrap(
           Effect.gen(function* () {
@@ -926,6 +939,7 @@ const layerMakeRoutes = Layer.mergeAll(
     GuestHttp.layer,
     LinkThreadHttp.layer,
     DeviceHubProxy.layer,
+    PluginHttp.layer,
     ServerBrowserStream.routeLayer,
     PreviewTunnel.routeLayer,
     ServerHttp.layerStaticAndDevRoute,
@@ -1003,7 +1017,15 @@ const layerMakeServer = Layer.unwrap(
 
     const layerHttpListening = Layer.effectDiscard(
       Effect.gen(function* () {
-        yield* HttpServer.HttpServer;
+        const server = yield* HttpServer.HttpServer;
+        const plugins = yield* PluginRegistry.PluginRegistry;
+        if (typeof server.address !== "string" && "port" in server.address) {
+          const address = server.address.address.toString();
+          const host = address === "0.0.0.0" ? "127.0.0.1" : address === "::" ? "::1" : address;
+          yield* plugins.setHttpOrigin(
+            `http://${host.includes(":") ? `[${host}]` : host}:${server.address.port}`,
+          );
+        }
         const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
         yield* startup.markHttpListening;
       }),

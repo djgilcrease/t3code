@@ -1,6 +1,7 @@
 import { pipe } from "effect/Function";
 import * as DocumentText from "../../provider/DocumentText.ts";
 import { brokenRuntimeError } from "../../provider/providerCompatibility.ts";
+import * as PluginRegistry from "../../plugins/PluginRegistry.ts";
 import {
   revertCodexThread,
   revertCodexThreadAfterTurn,
@@ -1993,6 +1994,7 @@ export const layerAppServerClientFactory: Layer.Layer<
     const { native: nativeEventLogger } = yield* ProviderEventLoggers.ProviderEventLoggers;
     const agentScope = yield* AgentScope;
     const portDiscovery = yield* PortScanner.PortDiscovery;
+    const preparePluginLaunch = yield* PluginRegistry.launchPreparer;
 
     return CodexAppServerClientFactory.of({
       open: Effect.fn("CodexAdapterV2.open")(function* (input) {
@@ -2008,10 +2010,19 @@ export const layerAppServerClientFactory: Layer.Layer<
           cwd: yield* HostProcess.WorkingDirectory,
           environment,
         }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner));
+        const launch = yield* preparePluginLaunch({
+          provider: "codex",
+          purpose: "agent",
+          args,
+          environment,
+          ...(input.runtimePolicy.cwd === null ? {} : { cwd: input.runtimePolicy.cwd }),
+        }).pipe(Effect.mapError((cause) => new ProviderAdapter.ProviderAdapterOpenSessionError({
+          driver: CODEX_PROVIDER, providerSessionId: input.providerSessionId, cause,
+        })));
         const command = yield* makeCodexAppServerSpawnCommand({
           command: binaryPath,
-          args,
-          env: environment,
+          args: launch.args,
+          env: launch.environment,
           threadId: input.threadId,
         }).pipe(Effect.provideService(AgentScope, agentScope));
         const handle = yield* spawner.spawn(command).pipe(
