@@ -1,5 +1,4 @@
 import { ActiveNewTaskContext } from "../../state/active-new-task";
-import { deriveLogicalProjectKeyFromSettings } from "@t3tools/client-runtime/state/project-grouping";
 import * as Dialog from "../../components/ui/Dialog";
 import { resolveFilesystemReadAccess } from "@t3tools/client-runtime/state/filesystem";
 import { useEnvironmentPresentation } from "../../state/presentation";
@@ -122,7 +121,10 @@ import {
   resolveNewTaskLocalWorkspaceSelection,
   resolveNewTaskWorkspaceSelection,
 } from "./new-task-context-presentation";
-import { resolveEnvironmentProjectMatch } from "./new-task-project-selection";
+import {
+  resolveEnvironmentProjectMatch,
+  resolveNewTaskEnvironments,
+} from "./new-task-project-selection";
 import { resolveProjectThreadCreationBranch } from "./projectThreadCreationValidation";
 
 type WorkspaceMode = "local" | "worktree";
@@ -373,9 +375,6 @@ export function NewTaskFlowProvider(
       ) !== null,
   );
 
-  const selectedLogicalProjectKey = selectedProject
-    ? deriveLogicalProjectKeyFromSettings(selectedProject, groupingSettings)
-    : null;
   const environments = (() => {
     if (isScratchDraft) {
       return scratchEnvironments.map((environment) => ({
@@ -383,32 +382,13 @@ export function NewTaskFlowProvider(
         environmentLabel: environment.environmentLabel,
       }));
     }
-    const seen = new Set<EnvironmentId>();
-    const result: Array<{
-      readonly environmentId: EnvironmentId;
-      readonly environmentLabel: string;
-    }> = [];
-    const hostsSelectedRepository = (project: EnvironmentProject) =>
-      selectedLogicalProjectKey === null ||
-      deriveLogicalProjectKeyFromSettings(project, groupingSettings) === selectedLogicalProjectKey;
-    for (const project of projects) {
-      if (!hostsSelectedRepository(project)) {
-        continue;
-      }
-      if (seen.has(project.environmentId)) {
-        continue;
-      }
-      const environment = savedConnectionsById[project.environmentId];
-      if (!environment) {
-        continue;
-      }
-      seen.add(project.environmentId);
-      result.push({
-        environmentId: project.environmentId,
-        environmentLabel: environment.environmentLabel,
-      });
-    }
-    return result;
+    return resolveNewTaskEnvironments({
+      projects,
+      selectedProject,
+      settings: groupingSettings,
+      savedConnectionsById,
+      pendingTaskEnvironmentId: editingPendingTask?.environmentId ?? null,
+    });
   })();
 
   const selectedProjectDraftKey = editingPendingTask
