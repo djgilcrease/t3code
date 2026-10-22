@@ -172,8 +172,11 @@ const make = Effect.gen(function* () {
               operation: "entrypoint",
               cause: null,
             });
-          const main = yield* fs.realPath(path.resolve(checkout, manifest.main));
-          const relative = path.relative(checkout, main);
+          // macOS temp paths often resolve from /var to /private/var. Compare
+          // canonical paths on both sides while still rejecting escaping symlinks.
+          const checkoutRoot = yield* fs.realPath(checkout);
+          const main = yield* fs.realPath(path.resolve(checkoutRoot, manifest.main));
+          const relative = path.relative(checkoutRoot, main);
           if (
             !relative ||
             relative.startsWith(`..${path.sep}`) ||
