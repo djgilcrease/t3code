@@ -523,24 +523,28 @@ export function UsagePage() {
             ) : showingLimits ? (
               <>
                 {selectedEnvironments.map((environment) => (
-                  <PluginPanels key={environment.environmentId} environmentId={environment.environmentId} location="usage" />
+                  <PluginPanels
+                    key={environment.environmentId}
+                    environmentId={environment.environmentId}
+                    location="usage"
+                  />
                 ))}
-              <UsageLimitsSection
-                selectedEnvironmentIds={selectedEnvironmentIds}
-                hiddenProviders={hiddenProviders}
-                now={limitsNow}
-                cursorPrompt={
-                  cursorAccessEnvironments.length > 0 ? (
-                    <CursorEnableLimits
-                      environments={cursorAccessEnvironments}
-                      onEnabled={() => {
-                        void refresh();
-                        void refreshLimits(false, true);
-                      }}
-                    />
-                  ) : null
-                }
-              />
+                <UsageLimitsSection
+                  selectedEnvironmentIds={selectedEnvironmentIds}
+                  hiddenProviders={hiddenProviders}
+                  now={limitsNow}
+                  cursorPrompt={
+                    cursorAccessEnvironments.length > 0 ? (
+                      <CursorEnableLimits
+                        environments={cursorAccessEnvironments}
+                        onEnabled={() => {
+                          void refresh();
+                          void refreshLimits(false, true);
+                        }}
+                      />
+                    ) : null
+                  }
+                />
               </>
             ) : shown === null ? (
               <UsageSkeleton />

@@ -1501,12 +1501,21 @@ export const layerAppServerClientFactory: Layer.Layer<
         const launch = yield* preparePluginLaunch({
           provider: "codex",
           purpose: "agent",
-          args: codexAppServerArgs(resolveCodexLaunchArgs(input.settings.launchArgs, input.environment)),
+          args: codexAppServerArgs(
+            resolveCodexLaunchArgs(input.settings.launchArgs, input.environment),
+          ),
           environment,
           ...(input.runtimePolicy.cwd === null ? {} : { cwd: input.runtimePolicy.cwd }),
-        }).pipe(Effect.mapError((cause) => new ProviderAdapter.ProviderAdapterOpenSessionError({
-          driver: CODEX_PROVIDER, providerSessionId: input.providerSessionId, cause,
-        })));
+        }).pipe(
+          Effect.mapError(
+            (cause) =>
+              new ProviderAdapter.ProviderAdapterOpenSessionError({
+                driver: CODEX_PROVIDER,
+                providerSessionId: input.providerSessionId,
+                cause,
+              }),
+          ),
+        );
         const command = yield* makeCodexAppServerSpawnCommand({
           command: input.settings.binaryPath || "codex",
           args: launch.args,

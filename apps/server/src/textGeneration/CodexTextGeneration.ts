@@ -305,8 +305,14 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
           "-",
         ],
         environment: env,
-      }).pipe(Effect.mapError((cause) => normalizeCliError("codex", operation, cause, "Plugin launch preparation failed.")));
-      const spawnCommand = yield* resolveSpawnCommand(binary, launch.args, { env: launch.environment });
+      }).pipe(
+        Effect.mapError((cause) =>
+          normalizeCliError("codex", operation, cause, "Plugin launch preparation failed."),
+        ),
+      );
+      const spawnCommand = yield* resolveSpawnCommand(binary, launch.args, {
+        env: launch.environment,
+      });
       const command = ChildProcess.make(spawnCommand.command, spawnCommand.args, {
         env: launch.environment,
         cwd,

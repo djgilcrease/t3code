@@ -676,7 +676,11 @@ const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
   ),
   Layer.provideMerge(
     OpenCodeRuntime.layer.pipe(
-      Layer.provide(Layer.effect(PrepareLaunch, PluginRegistry.launchPreparer).pipe(Layer.provide(layerPlugins))),
+      Layer.provide(
+        Layer.effect(PrepareLaunch, PluginRegistry.launchPreparer).pipe(
+          Layer.provide(layerPlugins),
+        ),
+      ),
       Layer.provide(
         Layer.unwrap(
           Effect.gen(function* () {

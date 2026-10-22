@@ -3,6 +3,8 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import { AuthStandardClientScopes } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
+import * as Deferred from "effect/Deferred";
+import type { T3Plugin } from "@t3tools/contracts";
 import * as FileSystem from "effect/FileSystem";
 import * as Fiber from "effect/Fiber";
 import * as TestClock from "effect/testing/TestClock";
@@ -267,4 +269,48 @@ it.live("loads plugins when the server inherits Node watch mode IPC reporting", 
       }),
     ),
   ),
+);
+
+it.effect("keeps a worker alive when a superseded view request is cancelled", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const temp = yield* fs.makeTempDirectoryScoped({ prefix: "t3-cancelled-view-" });
+      yield* fs.writeFileString(
+        `${temp}/plugin.mjs`,
+        `${header}
+import * as Deferred from ${JSON.stringify(import.meta.resolve("effect/Deferred"))};
+const release = Deferred.makeUnsafe();
+export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activate: (host) => Effect.succeed({
+  commands: [{...${JSON.stringify(descriptor("release"))}, run: () => Deferred.succeed(release, undefined).pipe(Effect.as("released"))}],
+  views: [{id: "view", location: "settings", title: "View", permission: "diagnostics:read", read: () => Effect.gen(function* () {
+    yield* host.secrets.set("started", "true");
+    yield* Deferred.await(release);
+    return {title: "View", blocks: []};
+  })}]
+})};`,
+      );
+      const started = yield* Deferred.make<void>();
+      const loader = yield* PluginModuleLoader.PluginModuleLoader;
+      const loaded = yield* loader.load(`${temp}/plugin.mjs`, { restartLimit: 1 });
+      const plugin = loaded.default as T3Plugin;
+      const contributions = yield* plugin.activate({
+        id: "test",
+        dataDirectory: temp,
+        httpBasePath: "/api/plugins/test",
+        httpBaseUrl: Effect.succeed("http://localhost/api/plugins/test"),
+        secrets: {
+          get: () => Effect.succeed(null),
+          set: () => Deferred.succeed(started, undefined).pipe(Effect.asVoid),
+          remove: () => Effect.void,
+        },
+      });
+      const view = contributions.views![0]!;
+      const reading = yield* view.read().pipe(Effect.forkChild);
+      yield* Deferred.await(started);
+      yield* Fiber.interrupt(reading);
+      expect(yield* contributions.commands![0]!.run({})).toBe("released");
+      expect(yield* view.read()).toEqual({ title: "View", blocks: [] });
+    }).pipe(Effect.provide(PluginModuleLoader.layer)),
+  ).pipe(Effect.provide(NodeServices.layer)),
 );
