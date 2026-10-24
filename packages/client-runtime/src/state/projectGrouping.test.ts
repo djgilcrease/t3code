@@ -11,6 +11,7 @@ import {
   derivePhysicalProjectKey,
   resolveGroupDefaultProject,
   resolveScratchProjectScopeKey,
+  resolveProjectGroup,
   sortProjectsByGroupOrder,
   type ProjectGroupingSettings,
 } from "./projectGrouping.ts";
@@ -731,6 +732,11 @@ describe("explicit non-Git grouping", () => {
     expect(
       buildProjectGroups({ projects: [stale, fresh, remote], settings: settings("repository") }),
     ).toHaveLength(1);
+    expect(
+      resolveProjectGroup(fresh, [stale, fresh, remote], settings("repository"))?.members.map(
+        (member) => member.project,
+      ),
+    ).toEqual([fresh, remote]);
   });
   it("does not resurrect a cleared identity from an older duplicate registration", () => {
     const first = copies[0]!;
@@ -746,5 +752,10 @@ describe("explicit non-Git grouping", () => {
     });
     expect(groups).toHaveLength(2);
     expect(groups.flatMap((g) => g.memberProjectRefs)).toHaveLength(3);
+    expect(
+      resolveProjectGroup(first, [first, fresh, copies[2]!], settings("repository"))?.members.map(
+        (member) => member.project,
+      ),
+    ).toEqual([fresh]);
   });
 });
