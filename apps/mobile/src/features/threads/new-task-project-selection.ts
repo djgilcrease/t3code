@@ -3,7 +3,8 @@ import { availableScratchWorkspaceRoot } from "@t3tools/client-runtime/operation
 import {
   isPickableProjectMember,
   isRepositoryRootProject,
-  deriveLogicalProjectKeyFromSettings,
+  derivePhysicalProjectKey,
+  resolveProjectGroup,
   type ProjectGroupingSettings,
 } from "@t3tools/client-runtime/state/project-grouping";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
@@ -115,13 +116,14 @@ export function resolveEnvironmentProjectMatch(
     sidebarProjectGroupingMode: "repository",
     sidebarProjectGroupingOverrides: {},
   },
+  allProjects: ReadonlyArray<EnvironmentProject> = projectsOnTarget,
 ): EnvironmentProject | null {
   if (selectedProject === null) return projectsOnTarget[0] ?? null;
-  const key = deriveLogicalProjectKeyFromSettings(selectedProject, settings);
+  const targetKeys = new Set(projectsOnTarget.map(derivePhysicalProjectKey));
   return (
-    projectsOnTarget.find(
-      (project) => deriveLogicalProjectKeyFromSettings(project, settings) === key,
-    ) ?? null
+    resolveProjectGroup(selectedProject, allProjects, settings)?.members.find((member) =>
+      targetKeys.has(member.physicalProjectKey),
+    )?.project ?? null
   );
 }
 
@@ -150,6 +152,7 @@ export function resolveNewTaskEnvironmentProject(input: {
       input.projects.filter((project) => project.environmentId === input.environmentId),
       input.selectedProject,
       input.settings,
+      input.projects,
     ) ?? (input.pendingProject?.environmentId === input.environmentId ? input.pendingProject : null)
   );
 }
@@ -164,16 +167,12 @@ export function resolveNewTaskEnvironments(input: {
   >;
   readonly pendingTaskEnvironmentId: EnvironmentId | null;
 }): Array<{ readonly environmentId: EnvironmentId; readonly environmentLabel: string }> {
-  const selectedKey = input.selectedProject
-    ? deriveLogicalProjectKeyFromSettings(input.selectedProject, input.settings)
-    : null;
-  const candidates = input.projects
-    .filter(
-      (project) =>
-        selectedKey === null ||
-        deriveLogicalProjectKeyFromSettings(project, input.settings) === selectedKey,
-    )
-    .map((project) => project.environmentId);
+  const matchingProjects = input.selectedProject
+    ? (resolveProjectGroup(input.selectedProject, input.projects, input.settings)?.members.map(
+        (member) => member.project,
+      ) ?? [])
+    : input.projects;
+  const candidates = matchingProjects.map((project) => project.environmentId);
   if (input.pendingTaskEnvironmentId !== null) {
     candidates.unshift(input.pendingTaskEnvironmentId);
   }
