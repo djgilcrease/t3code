@@ -339,6 +339,7 @@ export function NewTaskFlowProvider(
       id: creation.projectId,
       title: creation.projectTitle ?? "Unknown project",
       workspaceRoot: creation.projectCwd ?? "",
+      groupingIdentity: creation.groupingIdentity ?? null,
       repositoryIdentity: null,
       defaultModelSelection: editingPendingTask.modelSelection ?? null,
       scripts: [],
@@ -1020,6 +1021,9 @@ export function NewTaskFlowProvider(
         projectId: selectedProject.id,
         ...(projectTitle !== undefined ? { projectTitle } : {}),
         ...(projectCwd !== undefined ? { projectCwd } : {}),
+        ...(selectedProject.groupingIdentity !== undefined
+          ? { groupingIdentity: selectedProject.groupingIdentity }
+          : {}),
         workspaceMode: mode,
         ...(mode === "worktree" && workspaceSelection?.pullRequestReference
           ? { pullRequestReference: workspaceSelection.pullRequestReference }
