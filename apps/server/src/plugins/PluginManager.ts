@@ -167,7 +167,7 @@ const make = Effect.gen(function* () {
   );
 
   return PluginManager.of({
-    manage: (input, scopes) =>
+    manage: Effect.fn("PluginManager.manage")((input, scopes) =>
       serial(
         Effect.gen(function* () {
           if (!scopes.includes(AuthEnvironmentMaintainScope))
@@ -248,6 +248,7 @@ const make = Effect.gen(function* () {
           return yield* registry.list(scopes);
         }),
       ),
+    ),
   });
 });
 export const layer = Layer.effect(PluginManager, make);

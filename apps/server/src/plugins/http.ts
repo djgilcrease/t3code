@@ -21,7 +21,7 @@ export const layer = Layer.unwrap(
             PluginOperationError: () => Effect.succeed(HttpServerResponse.empty({ status: 502 })),
           }),
         );
-      }).pipe(Effect.catch(() => Effect.succeed(HttpServerResponse.empty({ status: 400 })))),
+      }).pipe(Effect.orElseSucceed(() => HttpServerResponse.empty({ status: 400 }))),
     );
   }),
 );
