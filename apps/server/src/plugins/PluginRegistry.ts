@@ -144,10 +144,9 @@ const make = Effect.gen(function* () {
         () => Effect.succeed('{"plugins":[]}'),
       ),
       Effect.flatMap(decodeConfiguration),
-      Effect.flatMap((value) =>
-        new Set(value.plugins.map((p) => p.id)).size === value.plugins.length
-          ? Effect.succeed(value)
-          : Effect.fail(new PluginError({ operation: "duplicate-id", cause: null })),
+      Effect.filterOrFail(
+        (value) => new Set(value.plugins.map((p) => p.id)).size === value.plugins.length,
+        () => new PluginError({ operation: "duplicate-id", cause: null }),
       ),
       Effect.catch(() => {
         configurationError = true;
@@ -442,12 +441,13 @@ const make = Effect.gen(function* () {
       yield* changed;
       return entries.get(id)?.status === "active";
     }),
-    setHttpOrigin: (origin) =>
+    setHttpOrigin: Effect.fn("PluginRegistry.setHttpOrigin")((origin) =>
       Effect.sync(() => {
         httpOrigin = origin;
       }),
+    ),
     changes: SubscriptionRef.changes(revision),
-    list: (scopes) =>
+    list: Effect.fn("PluginRegistry.list")((scopes) =>
       Deferred.await(initialized).pipe(
         Effect.andThen(
           Effect.sync(() => ({
@@ -469,6 +469,7 @@ const make = Effect.gen(function* () {
           })),
         ),
       ),
+    ),
     readView,
     execute,
     prepareLaunch: Effect.fn("PluginRegistry.prepareLaunch")(function* (launch) {
