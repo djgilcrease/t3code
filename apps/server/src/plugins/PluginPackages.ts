@@ -213,7 +213,7 @@ const make = Effect.gen(function* () {
   return PluginPackages.of({
     latest,
     prepare,
-    remove: (id) =>
+    remove: Effect.fn("PluginPackages.remove")((id) =>
       fs
         .remove(path.join(root, id), { recursive: true, force: true })
         .pipe(
@@ -222,6 +222,7 @@ const make = Effect.gen(function* () {
               new PluginOperationError({ pluginId: id, operation: "remove-package", cause }),
           ),
         ),
+    ),
   });
 });
 export const layer = Layer.effect(PluginPackages, make);
