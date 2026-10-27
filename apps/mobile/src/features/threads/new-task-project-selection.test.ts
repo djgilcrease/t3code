@@ -11,7 +11,6 @@ import {
   resolveDraftProjectSelection,
   resolveEnvironmentProjectMatch,
   resolveNewTaskScratchOption,
-  resolveNewTaskEnvironmentProject,
   resolveNewTaskEnvironments,
 } from "./new-task-project-selection";
 
@@ -196,7 +195,7 @@ describe("resolveEnvironmentProjectMatch", () => {
   });
 });
 
-describe("resolveNewTaskEnvironmentProject", () => {
+describe("collection-aware environment routing", () => {
   const settings = {
     sidebarProjectGroupingMode: "repository" as const,
     sidebarProjectGroupingOverrides: {},
@@ -214,68 +213,20 @@ describe("resolveNewTaskEnvironmentProject", () => {
     };
     const remote = makeProject("copy", "server", { repositoryKey: "github.com/g/sdk" });
     const projects = [selectedProject, older, remote];
-    expect(
-      resolveNewTaskEnvironmentProject({
-        environmentId: remote.environmentId,
-        projects,
-        selectedProject,
-        pendingProject: null,
-        settings,
-      }),
-    ).toBe(remote);
+    expect(resolveEnvironmentProjectMatch([remote], selectedProject, settings, projects)).toBe(
+      remote,
+    );
     expect(
       resolveNewTaskEnvironments({
         projects,
         selectedProject,
         settings,
-        pendingTaskEnvironmentId: null,
         savedConnectionsById: {
           mac: { environmentLabel: "Mac" },
           server: { environmentLabel: "Server" },
         },
       }).map((environment) => environment.environmentId),
     ).toEqual(["mac", "server"]);
-  });
-
-  it("preserves the queued project's identity when its host has no loaded projects", () => {
-    const pendingProject = makeProject("queued-project", "offline");
-    const unrelated = makeProject("unrelated", "server");
-    const input = {
-      environmentId: pendingProject.environmentId,
-      projects: [unrelated],
-      selectedProject: pendingProject,
-      pendingProject,
-      settings,
-    };
-    expect(resolveNewTaskEnvironmentProject(input)).toBe(pendingProject);
-    // Returning to the task's own host must also preserve its stamped project.
-    expect(resolveNewTaskEnvironmentProject({ ...input, selectedProject: unrelated })).toBe(
-      pendingProject,
-    );
-    expect(
-      resolveNewTaskEnvironmentProject({ ...input, environmentId: unrelated.environmentId }),
-    ).toBeNull();
-  });
-
-  it("switches within the explicit group without reusing the queued project on another host", () => {
-    const groupingIdentity = "39c61a1b-8a64-43a6-9da5-65c15da93d52";
-    const pendingProject = { ...makeProject("sdk", "mac"), groupingIdentity };
-    const copy = { ...makeProject("sdk-copy", "server"), groupingIdentity };
-    const input = {
-      environmentId: copy.environmentId,
-      projects: [pendingProject, copy],
-      selectedProject: pendingProject,
-      pendingProject,
-      settings,
-    };
-    expect(resolveNewTaskEnvironmentProject(input)).toBe(copy);
-    expect(resolveNewTaskEnvironmentProject({ ...input, projects: [] })).toBeNull();
-    expect(
-      resolveNewTaskEnvironmentProject({
-        ...input,
-        settings: { ...settings, sidebarProjectGroupingMode: "separate" },
-      }),
-    ).toBeNull();
   });
 });
 
@@ -289,20 +240,7 @@ describe("resolveNewTaskEnvironments", () => {
     server: { environmentLabel: "Server" },
   };
 
-  it("retains the queued task's machine and label while its project shell is absent", () => {
-    const missingProject = makeProject("removed", "mac");
-    expect(
-      resolveNewTaskEnvironments({
-        projects: [makeProject("unrelated", "mac"), makeProject("other", "server")],
-        selectedProject: missingProject,
-        settings,
-        savedConnectionsById,
-        pendingTaskEnvironmentId: missingProject.environmentId,
-      }),
-    ).toEqual([{ environmentId: "mac", environmentLabel: "Mac" }]);
-  });
-
-  it("lists only registered hosts of the explicit group and deduplicates the task's host", () => {
+  it("lists only registered hosts of the explicit group", () => {
     const groupingIdentity = "39c61a1b-8a64-43a6-9da5-65c15da93d52";
     const selectedProject = { ...makeProject("sdk", "mac"), groupingIdentity };
     const input = {
@@ -314,7 +252,6 @@ describe("resolveNewTaskEnvironments", () => {
       selectedProject,
       settings,
       savedConnectionsById,
-      pendingTaskEnvironmentId: selectedProject.environmentId,
     };
     expect(resolveNewTaskEnvironments(input)).toEqual([
       { environmentId: "mac", environmentLabel: "Mac" },
@@ -335,7 +272,6 @@ describe("resolveNewTaskEnvironments", () => {
         selectedProject: makeProject("missing", "mac"),
         settings,
         savedConnectionsById,
-        pendingTaskEnvironmentId: null,
       }),
     ).toEqual([]);
   });
