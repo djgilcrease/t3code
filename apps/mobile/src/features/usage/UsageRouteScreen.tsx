@@ -352,20 +352,20 @@ function UsageScreen(props: {
                     location="usage"
                   />
                 ))}
-              <UsageLimitsSection
-                now={limits.now}
-                failedLabels={limits.failedLabels}
-                selectedEnvironmentIds={selectedEnvironmentIds}
-                wide={wide}
-                cursorPrompt={
-                  cursorAccessEnvironments.length > 0 ? (
-                    <CursorEnableLimits
-                      environments={cursorAccessEnvironments}
-                      onEnabled={refreshAfterCursorEnable}
-                    />
-                  ) : null
-                }
-              />
+                <UsageLimitsSection
+                  now={limits.now}
+                  failedLabels={limits.failedLabels}
+                  selectedEnvironmentIds={selectedEnvironmentIds}
+                  wide={wide}
+                  cursorPrompt={
+                    cursorAccessEnvironments.length > 0 ? (
+                      <CursorEnableLimits
+                        environments={cursorAccessEnvironments}
+                        onEnabled={refreshAfterCursorEnable}
+                      />
+                    ) : null
+                  }
+                />
               </>
             ) : (
               <>
