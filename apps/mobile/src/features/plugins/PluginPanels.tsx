@@ -89,7 +89,7 @@ function PluginPanel({
   const running = useRef(false);
   const [secret, setSecret] = useState<ReturnType<typeof pluginSecretResult>>(null);
   const [copied, setCopied] = useState(false);
-  // oxlint-disable-next-line t3code/react-effect-budget -- Secret expiry owns a timer cancelled on replacement or unmount.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Secret expiry owns a timer cancelled on replacement or unmount.
   useEffect(() => {
     if (!secret) return;
     const timer = setTimeout(() => setSecret(null), 30_000);
