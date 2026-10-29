@@ -191,6 +191,8 @@ const PriorToolCall = Schema.Struct({
 const McpToolUseCall = Schema.Struct({
   tool: Schema.String,
   args: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+  /** Top-level allowlist; required values still come from args. */
+  allowedArgs: Schema.optional(Schema.Array(Schema.String)),
 });
 const McpToolUseCallWithAlternatives = Schema.Struct({
   ...McpToolUseCall.fields,
@@ -2465,14 +2467,15 @@ export const gradeSample = (
   // `tool` may list alternatives, as in "link_pull_request|watch_pull_request"; counts add up.
   const count = (tool: string) =>
     calls.filter((call) => tool.split("|").includes(call.tool)).length;
-  const found = ({ tool, args = {}, argsAnyOf, success }: McpToolUseCall, among = calls) =>
+  const found = ({ tool, args = {}, argsAnyOf, success, allowedArgs }: McpToolUseCall, among = calls) =>
     among.some(
       (call) =>
         tool.split("|").includes(call.tool) &&
         (success === undefined || call.failed === false) &&
         matches(args, call.input) &&
-        (argsAnyOf === undefined ||
-          argsAnyOf.some((alternative) => matches(alternative, call.input))),
+        (argsAnyOf === undefined || argsAnyOf.some((alternative) => matches(alternative, call.input))) &&
+        (allowedArgs === undefined ||
+          (isRecord(call.input) && Object.keys(call.input).every((key) => allowedArgs.includes(key)))),
     );
   const label = ({ tool, args }: McpToolUseCall) => (args ? `${tool} ${valueText(args)}` : tool);
   for (const call of expect.calls ?? []) add(`calls ${label(call)}`, found(call));
