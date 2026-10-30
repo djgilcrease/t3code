@@ -106,29 +106,30 @@ function PluginPanel({
     setCopied(false);
     setBusy(true);
     setError(null);
-    try {
-      const outcome = await execute({
-        environmentId,
-        input: {
-          pluginId: plugin.id,
-          commandId: command.id,
-          permission: command.permission,
-          input: action.input,
-        },
+    return execute({
+      environmentId,
+      input: {
+        pluginId: plugin.id,
+        commandId: command.id,
+        permission: command.permission,
+        input: action.input,
+      },
+    })
+      .then((outcome) => {
+        if (outcome._tag === "Success") setSecret(pluginSecretResult(outcome.value));
+        if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
+          const failure = squashAtomCommandFailure(outcome);
+          setError(
+            failure instanceof Error ? failure.message : "The plugin command failed. Try again.",
+          );
+        }
+        registry.refresh(query);
+        return outcome._tag === "Success";
+      })
+      .finally(() => {
+        running.current = false;
+        setBusy(false);
       });
-      if (outcome._tag === "Success") setSecret(pluginSecretResult(outcome.value));
-      if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
-        const failure = squashAtomCommandFailure(outcome);
-        setError(
-          failure instanceof Error ? failure.message : "The plugin command failed. Try again.",
-        );
-      }
-      registry.refresh(query);
-      return outcome._tag === "Success";
-    } finally {
-      running.current = false;
-      setBusy(false);
-    }
   };
   return (
     <section className="space-y-3 rounded-lg border p-4" aria-label={view.title}>
