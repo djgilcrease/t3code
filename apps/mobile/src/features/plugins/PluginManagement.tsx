@@ -30,20 +30,21 @@ export function PluginManagement({
     running.current = true;
     setBusy(true);
     setError(null);
-    try {
-      const result = await manage({ environmentId, input });
-      registry.refresh(serverEnvironment.pluginCatalog({ environmentId, input: {} }));
-      if (result._tag === "Success" && input.operation === "install") setRepository("");
-      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-        const failure = squashAtomCommandFailure(result);
-        setError(
-          failure instanceof Error ? failure.message : "The plugin operation failed. Try again.",
-        );
-      }
-    } finally {
-      running.current = false;
-      setBusy(false);
-    }
+    return manage({ environmentId, input })
+      .then((result) => {
+        registry.refresh(serverEnvironment.pluginCatalog({ environmentId, input: {} }));
+        if (result._tag === "Success" && input.operation === "install") setRepository("");
+        if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+          const failure = squashAtomCommandFailure(result);
+          setError(
+            failure instanceof Error ? failure.message : "The plugin operation failed. Try again.",
+          );
+        }
+      })
+      .finally(() => {
+        running.current = false;
+        setBusy(false);
+      });
   };
   return (
     <View className="gap-4">
