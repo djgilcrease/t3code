@@ -1606,8 +1606,8 @@ importers:
   packages/plugin-sdk:
     dependencies:
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       vite-plus:
         specifier: 1.4.0
