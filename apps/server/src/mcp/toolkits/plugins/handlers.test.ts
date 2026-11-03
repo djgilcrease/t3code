@@ -99,7 +99,7 @@ function call(
     Effect.provideService(McpSchema.McpServerClient, client),
     Effect.provide(
       McpHttpServer.toolkitRegistration(PluginsToolkit, Handlers.layer).pipe(
-        Layer.provideMerge(McpServer.McpServer.layer),
+        Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
         Layer.provide(Layer.mock(ThreadManagement.ThreadManagementService)({})),
         Layer.provide(
           Layer.mock(ServerEnvironment.ServerEnvironment)({
