@@ -1,3 +1,4 @@
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import { AuthStandardClientScopes, PluginOperationError, type T3Plugin } from "@t3tools/contracts";
@@ -78,7 +79,7 @@ function withHost<A, E, R>(
       );
       return yield* use.pipe(Effect.provide(hostLayer));
     }),
-  ).pipe(Effect.provide(NodeServices.layer));
+  ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)));
 }
 
 it.effect(
@@ -434,7 +435,7 @@ it.effect(
           ),
         );
       }),
-    ).pipe(Effect.provide(NodeServices.layer)),
+    ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
 );
 
 it.effect(
