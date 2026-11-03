@@ -1,3 +1,4 @@
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
@@ -68,7 +69,7 @@ function fixture<A, E, R>(
         ),
       );
     }),
-  ).pipe(Effect.provide(NodeServices.layer));
+  ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)));
 }
 
 it.live("contains a module-level process exit and stops after the default five attempts", () =>
@@ -312,5 +313,5 @@ export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activ
       expect(yield* contributions.commands![0]!.run({})).toBe("released");
       expect(yield* view.read()).toEqual({ title: "View", blocks: [] });
     }).pipe(Effect.provide(PluginModuleLoader.layer)),
-  ).pipe(Effect.provide(NodeServices.layer)),
+  ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
 );
