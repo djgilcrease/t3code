@@ -21,7 +21,7 @@ describe("Codex plugin launch integration", () => {
     "applies plugin routing at spawn and refuses to spawn when the routing hook fails",
     () =>
       Effect.gen(function* () {
-        const spawned: Array<{ args: readonly string[]; env: unknown }> = [];
+        const spawned: Array<{ args: ChildProcess.StandardCommand["args"]; env: unknown }> = [];
         const spawner = ChildProcessSpawner.make((command) => {
           if (ChildProcess.isStandardCommand(command))
             spawned.push({ args: command.args, env: command.options.env });

@@ -1,3 +1,4 @@
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import { AuthStandardClientScopes, PluginError, PluginOperationError } from "@t3tools/contracts";
@@ -183,7 +184,7 @@ function fixture<A, E, R>(
       );
       return yield* use(temp, state).pipe(Effect.provide(manager));
     }),
-  ).pipe(Effect.provide(NodeServices.layer));
+  ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)));
 }
 
 it.effect(
