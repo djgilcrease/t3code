@@ -13,6 +13,7 @@ import * as PlatformError from "effect/PlatformError";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEventLoggers";
+import * as PortScanner from "../../preview/PortScanner.ts";
 import * as PluginRegistry from "../../plugins/PluginRegistry.ts";
 import * as CodexAdapterV2 from "./CodexAdapterV2.ts";
 const DEFAULT_CODEX_SETTINGS = Schema.decodeSync(CodexSettings)({});
@@ -35,7 +36,13 @@ describe("Codex plugin launch integration", () => {
         });
         let routingAvailable = true;
         const factory = yield* CodexAdapterV2.CodexAppServerClientFactory.pipe(
-          Effect.provide(CodexAdapterV2.layerAppServerClientFactory),
+          Effect.provide(
+            CodexAdapterV2.layerAppServerClientFactory.pipe(
+              Layer.provide(
+                Layer.mock(PortScanner.PortDiscovery)({ trackAgent: () => () => undefined }),
+              ),
+            ),
+          ),
           Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
           Effect.provideService(
             ProviderEventLoggers.ProviderEventLoggers,
