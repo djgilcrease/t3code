@@ -4,17 +4,18 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { PluginPanels } from "../plugins/PluginPanels";
 import { SettingsScreen } from "./components/SettingsScreen";
 import {
-  AndroidSettingsEnvironmentFilter,
+  useSettingsEnvironmentMenu,
   SettingsEnvironmentFilterHeader,
 } from "./components/SettingsEnvironmentFilterHeader";
 import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
 
 export function SettingsPluginsRouteScreen() {
+  const environmentMenu = useSettingsEnvironmentMenu();
   const { selectedTargets, selectedProjectKey } = useSettingsEnvironmentFilter();
   return (
     <>
       <SettingsEnvironmentFilterHeader />
-      <SettingsScreen title="Plugins" trailing={<AndroidSettingsEnvironmentFilter />}>
+      <SettingsScreen title="Plugins" menus={[environmentMenu]}>
         <ScreenScrollView
           contentInsetAdjustmentBehavior="automatic"
           className="flex-1"
