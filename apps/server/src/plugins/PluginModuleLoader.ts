@@ -347,7 +347,7 @@ const make = Effect.gen(function* () {
             if (current) yield* Effect.promise(current.close);
           }),
         );
-        let initial: { session: Session; manifest: typeof PluginManifest.Type } | undefined;
+        let initial: { session: Session; manifest: PluginManifest } | undefined;
         while (!initial && failures < limit) {
           const result = yield* start.pipe(Effect.result);
           if (result._tag === "Success") initial = result.success;
