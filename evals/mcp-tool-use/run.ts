@@ -193,6 +193,7 @@ const McpToolUseCall = Schema.Struct({
   args: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
   /** Top-level allowlist; required values still come from args. */
   allowedArgs: Schema.optional(Schema.Array(Schema.String)),
+  requiredArgs: Schema.optional(Schema.Array(Schema.String)),
 });
 const McpToolUseCallWithAlternatives = Schema.Struct({
   ...McpToolUseCall.fields,
@@ -2467,13 +2468,14 @@ export const gradeSample = (
   // `tool` may list alternatives, as in "link_pull_request|watch_pull_request"; counts add up.
   const count = (tool: string) =>
     calls.filter((call) => tool.split("|").includes(call.tool)).length;
-  const found = ({ tool, args = {}, argsAnyOf, success, allowedArgs }: McpToolUseCall, among = calls) =>
+  const found = ({ tool, args = {}, argsAnyOf, success, allowedArgs, requiredArgs }: McpToolUseCall, among = calls) =>
     among.some(
       (call) =>
         tool.split("|").includes(call.tool) &&
         (success === undefined || call.failed === false) &&
         matches(args, call.input) &&
         (argsAnyOf === undefined || argsAnyOf.some((alternative) => matches(alternative, call.input))) &&
+        (requiredArgs === undefined || (isRecord(call.input) && requiredArgs.every((key) => call.input[key] !== undefined))) &&
         (allowedArgs === undefined ||
           (isRecord(call.input) && Object.keys(call.input).every((key) => allowedArgs.includes(key)))),
     );
