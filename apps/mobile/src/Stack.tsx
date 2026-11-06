@@ -294,7 +294,7 @@ const SETTINGS_SCREENS = {
   SettingsPlugins: createNativeStackScreen({
     screen: SettingsPluginsRouteScreen,
     linking: "settings/plugins",
-    options: { ...SETTINGS_PAGE_OPTIONS, title: "Plugins" },
+    options: settingsPage("Plugins"),
   }),
   SettingsEnvironmentMaintenance: createNativeStackScreen({
     screen: SettingsEnvironmentMaintenanceRouteScreen,
