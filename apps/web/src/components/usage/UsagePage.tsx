@@ -541,11 +541,11 @@ export function UsagePage() {
                     location="usage"
                   />
                 ))}
-              <UsageLimitsSection
-                selectedEnvironmentIds={selectedEnvironmentIds}
-                hiddenProviders={hiddenProviders}
-                now={limitsNow}
-              />
+                <UsageLimitsSection
+                  selectedEnvironmentIds={selectedEnvironmentIds}
+                  hiddenProviders={hiddenProviders}
+                  now={limitsNow}
+                />
               </>
             ) : shown === null ? (
               <UsageSkeleton />
