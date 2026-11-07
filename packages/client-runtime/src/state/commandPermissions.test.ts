@@ -17,7 +17,6 @@ import {
   AuthProvidersManageScope,
   AuthSettingsWriteScope,
   AuthDiagnosticsReadScope,
-  AuthProvidersManageScope,
   AuthSourceControlWriteScope,
   ThreadId,
   EnvironmentId,
