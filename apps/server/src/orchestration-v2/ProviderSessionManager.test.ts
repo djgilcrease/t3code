@@ -1,3 +1,4 @@
+import * as PluginRegistry from "../plugins/PluginRegistry.ts";
 import * as NetAddress from "effect/net/NetAddress";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -5,6 +6,7 @@ import { assert, it } from "@effect/vitest";
 import { AgentScope } from "@t3tools/shared/AgentScope";
 import {
   EnvironmentId,
+  PluginOperationError,
   type ModelSelection,
   type OrchestrationV2AppThread,
   type OrchestrationV2DomainEvent,
@@ -604,6 +606,7 @@ function layerTest(input: {
   readonly scopeCloseReached?: Deferred.Deferred<void>;
   readonly serverSettingsLayer?: ReturnType<typeof ServerSettings.layerTest>;
   readonly projectServiceLayer?: Layer.Layer<ProjectService.ProjectService>;
+  readonly pluginRegistryLayer?: Layer.Layer<PluginRegistry.PluginRegistry>;
 }) {
   const layerConfiguredEventSink =
     input.flakyReleaseWrites !== undefined
@@ -688,6 +691,7 @@ function layerTest(input: {
           layerTestStores,
           ...(input.serverSettingsLayer === undefined ? [] : [input.serverSettingsLayer]),
           ...(input.projectServiceLayer === undefined ? [] : [input.projectServiceLayer]),
+          ...(input.pluginRegistryLayer === undefined ? [] : [input.pluginRegistryLayer]),
         ),
       ),
     ),
@@ -2567,6 +2571,25 @@ it.effect(
       const mcpConfigs = yield* Ref.make<
         ReadonlyArray<McpProviderSession.McpProviderSessionConfig | undefined>
       >([]);
+      const enabled = yield* Ref.make(true);
+      const pluginRegistryLayer = Layer.mock(PluginRegistry.PluginRegistry)({
+        mcpServers: () =>
+          Ref.get(enabled).pipe(
+            Effect.map((enabled) => {
+              const servers: import("@t3tools/contracts").PluginMcpServers = enabled
+                ? {
+                    "test-database": {
+                      transport: "stdio",
+                      command: "db-server",
+                      args: [],
+                      environment: {},
+                    },
+                  }
+                : {};
+              return servers;
+            }),
+          ),
+      });
       const effect = Effect.gen(function* () {
         const eventSink = yield* EventSink.EventSinkV2;
         const idAllocator = yield* IdAllocator.IdAllocatorV2;
@@ -2595,6 +2618,8 @@ it.effect(
         const originalToken = original?.authorizationHeader.replace(/^Bearer\s+/, "");
         assert.isDefined(originalToken);
 
+        assert.equal(Object.keys(original?.additionalServers ?? {}).length, 1);
+        yield* Ref.set(enabled, false);
         yield* manager.detach({ providerSessionId, threadId, detail: "Workspace changed." });
         assert.equal(
           (yield* registry.resolve(originalToken!))?.thread.threadId,
@@ -2615,6 +2640,7 @@ it.effect(
         );
         assert.equal((yield* registry.resolve(originalToken!))?.thread.threadId, threadId);
 
+        assert.deepEqual((yield* mcpSessions.read(threadId))?.additionalServers, {});
         yield* manager.close(providerSessionId);
         assert.isUndefined(yield* registry.resolve(originalToken!));
       });
@@ -2625,6 +2651,7 @@ it.effect(
             state,
             idleTimeoutMs: 1_000,
             mcpConfigs,
+            pluginRegistryLayer,
           }),
         ),
       );
@@ -4414,4 +4441,127 @@ it.effect("ProviderSessionManagerV2 gives a delegated child its project's device
     });
     assert.isTrue(child?.capabilities?.has("device"));
   }),
+);
+
+it.effect("resolves plugin MCP policies separately for projects sharing one provider process", () =>
+  Effect.gen(function* () {
+    const state = yield* Ref.make(emptyState);
+    const observed: Array<import("@t3tools/contracts").PluginMcpContext> = [];
+    const unavailable = yield* Ref.make(false);
+    const pluginRegistryLayer = Layer.mock(PluginRegistry.PluginRegistry)({
+      mcpServers: (context) =>
+        Effect.gen(function* () {
+          if (yield* Ref.get(unavailable))
+            return yield* new PluginOperationError({
+              pluginId: "test",
+              operation: "mcp-plugin-unavailable",
+              cause: null,
+            });
+          observed.push(context);
+          return {
+            "test-database": {
+              transport: "http" as const,
+              url: "https://database.invalid/mcp",
+              headers: { "X-Project": context.projectDirectory ?? "missing" },
+            },
+          };
+        }),
+    });
+    yield* Effect.gen(function* () {
+      const eventSink = yield* EventSink.EventSinkV2;
+      const ids = yield* IdAllocator.IdAllocatorV2;
+      const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
+      const sessions = yield* McpProviderSessions.McpProviderSessions;
+      const now = yield* DateTime.now;
+      const first = ThreadId.make("plugin-project-a"),
+        second = ThreadId.make("plugin-project-b");
+      const providerSessionId = yield* ids.allocate.providerSession({
+        providerInstanceId: modelSelection.instanceId,
+        threadId: first,
+      });
+      let runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime | undefined;
+      for (const threadId of [first, second]) {
+        const projectId = ProjectId.make(`project-${threadId}`);
+        yield* eventSink.write({
+          events: [yield* makeThreadCreatedEvent({ idAllocator: ids, threadId, projectId, now })],
+        });
+        runtime = yield* manager.open({
+          threadId,
+          providerSessionId,
+          modelSelection,
+          runtimePolicy,
+        });
+      }
+      assert.equal((yield* Ref.get(state)).openCount, 1);
+      assert.deepEqual(
+        observed.map((context) => ({
+          provider: context.provider,
+          instanceId: context.instanceId,
+          projectDirectory: context.projectDirectory,
+          cwd: context.cwd,
+        })),
+        [first, second].map((id) => ({
+          provider: "codex",
+          instanceId: "codex",
+          projectDirectory: `/projects/project-${id}`,
+          cwd: process.cwd(),
+        })),
+      );
+      const a = yield* sessions.read(first),
+        b = yield* sessions.read(second);
+      assert.notEqual(a?.authorizationHeader, b?.authorizationHeader);
+      assert.deepEqual(a?.additionalServers?.["test-database"], {
+        transport: "http",
+        url: "https://database.invalid/mcp",
+        headers: { "X-Project": `/projects/project-${first}` },
+      });
+      assert.deepEqual(b?.additionalServers?.["test-database"], {
+        transport: "http",
+        url: "https://database.invalid/mcp",
+        headers: { "X-Project": `/projects/project-${second}` },
+      });
+      yield* Ref.set(unavailable, true);
+      const third = ThreadId.make("plugin-project-c");
+      yield* eventSink.write({
+        events: [
+          yield* makeThreadCreatedEvent({
+            idAllocator: ids,
+            threadId: third,
+            projectId: ProjectId.make("project-c"),
+            now,
+          }),
+        ],
+      });
+      assert.equal(
+        (yield* runtime!
+          .ensureThread({ threadId: third, modelSelection, runtimePolicy })
+          .pipe(Effect.flip))._tag,
+        "ProviderAdapterOpenSessionError",
+      );
+      assert.isUndefined(yield* sessions.read(third));
+      assert.equal((yield* Ref.get(state)).openCount, 1);
+    }).pipe(
+      Effect.provide(
+        layerTest({
+          state,
+          idleTimeoutMs: 1_000,
+          capabilities: {
+            ...CodexCapabilities,
+            sessions: {
+              ...CodexCapabilities.sessions,
+              supportsMultipleProviderThreadsPerSession: true,
+            },
+          },
+          pluginRegistryLayer,
+          projectServiceLayer: Layer.mock(ProjectService.ProjectService)({
+            getById: (id) =>
+              Effect.succeedSome({
+                ...makeBrowserAccessProject(id),
+                workspaceRoot: `/projects/${id}`,
+              }),
+          }),
+        }),
+      ),
+    );
+  }).pipe(Effect.scoped),
 );

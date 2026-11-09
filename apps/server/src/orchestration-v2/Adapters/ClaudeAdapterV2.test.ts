@@ -552,7 +552,16 @@ describe("ClaudeAdapterV2 MCP query overrides", () => {
 
   it("pre-approves only read-only t3-code tools in a read-only sandbox", () => {
     const threadId = ThreadId.make("thread-claude-mcp-read-only");
-    const mcpSession = mcpSessionFor(threadId);
+    const mcpSession = {
+      ...mcpSessionFor(threadId),
+      additionalServers: {
+        "mcp-manager-database": {
+          transport: "http" as const,
+          url: "https://database.invalid/mcp",
+          headers: { "X-Key": "private-db-token" },
+        },
+      },
+    };
     const overrides = ClaudeAdapterV2.claudeMcpQueryOverrides({
       mcpSession,
       readOnlySandbox: true,
@@ -564,8 +573,16 @@ describe("ClaudeAdapterV2 MCP query overrides", () => {
         ...ClaudeAdapterV2.CLAUDE_READ_ONLY_ALLOWED_TOOLS,
         ...ClaudeAdapterV2.CLAUDE_READ_ONLY_T3_MCP_ALLOWED_TOOLS,
       ],
-      mcpServers: T3_MCP_SERVERS,
+      mcpServers: {
+        ...T3_MCP_SERVERS,
+        "mcp-manager-database": {
+          type: "http",
+          url: "https://database.invalid/mcp",
+          headers: { "X-Key": "private-db-token" },
+        },
+      },
     });
+    assert.isFalse(overrides.allowedTools?.some((tool) => tool.includes("mcp-manager")));
     assert.isFalse(overrides.allowedTools?.includes(ClaudeAdapterV2.CLAUDE_T3_MCP_TOOL_WILDCARD));
   });
 

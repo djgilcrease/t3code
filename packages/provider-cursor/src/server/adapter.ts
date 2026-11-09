@@ -1,3 +1,4 @@
+import { sdkMcpServers } from "@t3tools/provider-core/server/mcpServers";
 import type {
   AgentMessage,
   AgentOptions,
@@ -206,6 +207,7 @@ export function cursorMcpServers(
     return undefined;
   }
   return {
+    ...sdkMcpServers(session.additionalServers),
     "t3-code": {
       type: "http",
       url: session.endpoint,
