@@ -3,7 +3,7 @@
 A plugin lives in its own repository. It exports a versioned manifest and an
 Effect-based `activate(context)` function, and runs in a supervised process on
 the owning T3 environment. Feature code imports this SDK and `effect`, never T3
-server internals. API version **1** uses Effect **4.0.1**.
+server internals. API version **1** uses Effect **4.1.2**.
 
 ```ts
 import type { T3Plugin } from "@t3tools/plugin-sdk";
@@ -114,6 +114,17 @@ folder in place but clears their T3-managed data and credentials.
   and managed OpenCode servers are integrated. Claude's SDK agent path accepts
   only environment overrides; the SDK owns its arguments. A failed hook fails
   the launch. Disabled plugins no longer participate; stopped hooks fail closed.
+- **MCP servers** are resolved with `mcpServers({ provider, instanceId,
+  projectDirectory, cwd })` before a thread's provider session is attached. Names
+  must start with `<plugin-id>-`; T3's built-in endpoint is reserved. Return
+  normalized stdio (`command`, `args`, `environment`), HTTP, or SSE (`url`,
+  `headers`) definitions. The host translates them into native session settings,
+  preserving provider configuration files. Never use process-wide launch flags
+  for project-scoped MCP settings: Codex can share one process across projects.
+  Changes apply to new sessions; running sessions retain their snapshot. Check
+  `context.capabilities` for `provider-mcp-servers` before relying on this hook.
+  Pi and external OpenCode servers are unsupported; Codex and Muse reject SSE,
+  and ACP agents must advertise remote transport support.
 - **HTTP handlers** use standard streaming `Request` and `Response` objects below
   `/api/plugins/<id>/`. Authenticate API keys, OAuth state/PKCE, or webhook
   signatures yourself. This route has no T3 browser session. Use
@@ -136,7 +147,7 @@ on disable, update, removal, activation failure, or shutdown, and kills a worker
 that does not exit. Cleanup must tolerate abrupt termination. Each load and
 activation attempt has a 15-second deadline; commands, views, launch hooks, and
 HTTP response acquisition have a 30-second deadline. Streaming body lifetimes
-have no whole-response deadline. View and command results are limited to
+have no whole-response deadline. View, command, and MCP contribution results are limited to
 256 KiB; views also have collection limits. IPC messages are limited to 1 MiB.
 
 T3 restarts crashed workers, stops after five failed attempts by default, and

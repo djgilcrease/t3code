@@ -2005,9 +2005,23 @@ describe("CursorAdapterV2", () => {
       endpoint: "http://127.0.0.1:43123/mcp",
       authorizationHeader: "Bearer secret-cursor-mcp-token",
       browserToolsAvailable: true,
+      additionalServers: {
+        "mcp-manager-database": {
+          transport: "stdio" as const,
+          command: "db-server",
+          args: [],
+          environment: { ANY_NAME: "private-db-token" },
+        },
+      },
     };
 
     assert.deepEqual(cursorMcpServers(mcpSession), {
+      "mcp-manager-database": {
+        type: "stdio",
+        command: "db-server",
+        args: [],
+        env: { ANY_NAME: "private-db-token" },
+      },
       "t3-code": {
         type: "http",
         url: "http://127.0.0.1:43123/mcp",
@@ -2036,6 +2050,7 @@ describe("CursorAdapterV2", () => {
 
     const logged = JSON.stringify(CursorAgentSdk.loggedCursorAgentOptions(options));
     assert.notInclude(logged, "secret-cursor-api-key");
+    assert.notInclude(logged, "private-db-token");
     assert.notInclude(logged, "secret-cursor-mcp-token");
   });
 

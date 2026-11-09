@@ -4985,6 +4985,14 @@ describe("AcpAdapterV2", () => {
         endpoint: "http://127.0.0.1:43123/mcp",
         authorizationHeader: "Bearer target-thread-token",
         browserToolsAvailable: true,
+        additionalServers: {
+          "mcp-manager-database": {
+            transport: "stdio",
+            command: "db-server",
+            args: [],
+            environment: { TOKEN: "private-db-token" },
+          },
+        },
       });
       const runtimePolicy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
         runtimeMode: "full-access",
@@ -5036,6 +5044,13 @@ describe("AcpAdapterV2", () => {
         sessionId: "mock-session-1",
         cwd: process.cwd(),
         mcpServers: [
+          {
+            type: "stdio",
+            name: "mcp-manager-database",
+            command: "db-server",
+            args: [],
+            env: [{ name: "TOKEN", value: "private-db-token" }],
+          },
           {
             type: "stdio",
             name: "t3-code",

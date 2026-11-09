@@ -190,6 +190,10 @@
     "./server/prepareLaunch": {
       "types": "./src/server/prepareLaunch.ts",
       "import": "./src/server/prepareLaunch.ts"
+    },
+    "./server/mcpServers": {
+      "types": "./src/server/mcpServers.ts",
+      "import": "./src/server/mcpServers.ts"
     }
   },
   "scripts": {

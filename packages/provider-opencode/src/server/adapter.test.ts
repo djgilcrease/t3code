@@ -9,6 +9,7 @@ import type { OpencodeClient, ToolPart } from "@opencode-ai/sdk/v2";
 import { toolOutputImages } from "@t3tools/shared/toolOutput";
 import {
   CheckpointId,
+  EnvironmentId,
   NodeId,
   ProjectId,
   ProviderInstanceId,
@@ -3558,4 +3559,94 @@ it.live.each([true, false])("opens an authenticated OpenCode session (external=%
       McpProviderSessions.layer,
     ]),
   ),
+);
+
+it.effect.each([false, true])(
+  "applies plugin MCP servers only to a managed OpenCode process (external=%s)",
+  (external) =>
+    Effect.gen(function* () {
+      const threadId = ThreadId.make("opencode-plugin-mcp");
+      const instanceId = ProviderInstanceId.make("opencode");
+      yield* (yield* McpProviderSessions.McpProviderSessions).set({
+        environmentId: EnvironmentId.make("test-environment"),
+        threadId,
+        providerSessionId: "mcp-test",
+        providerInstanceId: instanceId,
+        endpoint: "http://127.0.0.1:43123/mcp",
+        authorizationHeader: "Bearer t3-token",
+        browserToolsAvailable: true,
+        additionalServers: {
+          "mcp-manager-database": {
+            transport: "stdio",
+            command: "db-server",
+            args: ["--read-only"],
+            environment: { ANY_KEY: "private-db-token" },
+          },
+        },
+      });
+      const additions: Array<unknown> = [];
+      const nativeEvents = asyncEventStream();
+      yield* Effect.addFinalizer(() => Effect.sync(() => nativeEvents.close()));
+      const adapter = yield* makeOpenCodeAdapterV2({
+        instanceId,
+        settings: OPENCODE_TEST_SETTINGS,
+        environment: {},
+      }).pipe(
+        Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, {
+          connectToOpenCodeServer: () =>
+            Effect.succeed({ url: "http://test.invalid", external, exitCode: null }),
+          createOpenCodeSdkClient: () => ({
+            mcp: {
+              add: async (input: unknown) => {
+                additions.push(input);
+                return { data: true };
+              },
+            },
+            event: { subscribe: async () => ({ stream: nativeEvents.stream }) },
+          }),
+        } as unknown as OpenCodeRuntime.OpenCodeRuntime["Service"]),
+      );
+      const opened = yield* adapter
+        .openSession({
+          threadId,
+          providerSessionId: ProviderSessionId.make("opencode-plugin-mcp"),
+          modelSelection: { instanceId, model: "default" },
+          runtimePolicy: runtimePolicy("full-access"),
+        })
+        .pipe(Effect.exit);
+      assert.equal(Exit.isFailure(opened), external);
+      assert.deepEqual(
+        additions,
+        external
+          ? []
+          : [
+              {
+                name: "t3-code",
+                config: {
+                  type: "remote",
+                  url: "http://127.0.0.1:43123/mcp",
+                  headers: { Authorization: "Bearer t3-token" },
+                  oauth: false,
+                },
+              },
+              {
+                name: "mcp-manager-database",
+                config: {
+                  type: "local",
+                  command: ["db-server", "--read-only"],
+                  environment: { ANY_KEY: "private-db-token" },
+                  enabled: true,
+                },
+              },
+            ],
+      );
+    }).pipe(
+      Effect.scoped,
+      Effect.provide([
+        NodeServices.layer,
+        IdAllocator.layer,
+        McpProviderSessions.layer,
+        TestProviderHost.layer().pipe(Layer.provide(NodeServices.layer)),
+      ]),
+    ),
 );

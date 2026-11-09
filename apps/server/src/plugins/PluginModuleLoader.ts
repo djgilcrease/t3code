@@ -9,6 +9,7 @@ import {
 } from "@t3tools/shared/HostProcess";
 import {
   PluginManifest,
+  PluginMcpServers,
   PluginView,
   PluginCommandDescriptor,
   PluginViewDescriptor,
@@ -55,6 +56,7 @@ export class PluginModuleLoader extends Context.Service<
 const Activated = Schema.Struct({
   commands: Schema.Array(PluginCommandDescriptor),
   views: Schema.Array(PluginViewDescriptor),
+  mcp: Schema.Boolean,
   launch: Schema.Boolean,
   http: Schema.Boolean,
 });
@@ -369,6 +371,7 @@ const make = Effect.gen(function* () {
               {
                 id: hostContext!.id,
                 dataDirectory: hostContext!.dataDirectory,
+                capabilities: [...(hostContext!.capabilities ?? [])],
                 httpBasePath: hostContext!.httpBasePath,
               },
               AbortSignal.timeout(15_000),
@@ -471,6 +474,14 @@ const make = Effect.gen(function* () {
                   ...view,
                   read: () => call("view", { id: view.id }).pipe(Effect.map(decodeView)),
                 })),
+                ...(metadata.mcp
+                  ? {
+                      mcpServers: (context) =>
+                        call("mcp-servers", context).pipe(
+                          Effect.map(Schema.decodeUnknownSync(PluginMcpServers)),
+                        ),
+                    }
+                  : {}),
                 ...(metadata.launch
                   ? {
                       prepareLaunch: (launch: PluginLaunch) =>

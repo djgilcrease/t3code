@@ -1,3 +1,4 @@
+import { openCodeMcpServers } from "@t3tools/provider-core/server/mcpServers";
 import type {
   Event as OpenCodeEvent,
   Message as OpenCodeMessage,
@@ -969,6 +970,12 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
         });
 
         const mcpSession = yield* mcpSessions.read(input.threadId);
+        if (connection.external && Object.keys(mcpSession?.additionalServers ?? {}).length > 0)
+          return yield* new ProviderAdapter.ProviderAdapterOpenSessionError({
+            driver: OPENCODE_PROVIDER,
+            providerSessionId: input.providerSessionId,
+            cause: "Plugin MCP servers require a T3-managed OpenCode server",
+          });
         const hasT3Mcp = mcpSession !== undefined && !connection.external;
         const orchestrationSystemPrompt = t3OrchestrationSystemPrompt(
           hasT3Mcp,
@@ -986,6 +993,12 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
               },
             }),
           );
+        }
+
+        if (!connection.external) {
+          for (const server of openCodeMcpServers(mcpSession?.additionalServers)) {
+            yield* OpenCodeRuntime.runOpenCodeSdk("mcp.add", () => client.mcp.add(server));
+          }
         }
 
         const now = yield* DateTime.now;

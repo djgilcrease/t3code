@@ -1,3 +1,4 @@
+import { acpMcpServers } from "@t3tools/provider-core/server/mcpServers";
 // @effect-diagnostics nodeBuiltinImport:off
 
 import {
@@ -909,6 +910,7 @@ function acpMcpContext(
   // codex-acp 1.2.0 and pi-acp drop injected HTTP servers, so HTTP is opt-in per flavor.
   return {
     servers: [
+      ...acpMcpServers(session.additionalServers),
       {
         name: "t3-code",
         command: self.command,
@@ -920,10 +922,14 @@ function acpMcpContext(
         ],
       },
     ],
-    acpServers: [{ type: "acp", name: "t3-code", serverId: "t3-code" }],
+    acpServers: [
+      ...acpMcpServers(session.additionalServers),
+      { type: "acp", name: "t3-code", serverId: "t3-code" },
+    ],
     httpServers:
       mcpOverHttp === true
         ? [
+            ...acpMcpServers(session.additionalServers),
             {
               type: "http",
               name: "t3-code",
