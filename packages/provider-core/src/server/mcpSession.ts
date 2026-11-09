@@ -1,4 +1,4 @@
-import type { EnvironmentId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
+import type { PluginMcpServers, EnvironmentId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 import type * as Effect from "effect/Effect";
 
 /**
@@ -19,6 +19,7 @@ export function parseMcpToolExposureMode(
 }
 
 export interface McpProviderSessionConfig {
+  readonly additionalServers?: PluginMcpServers;
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly providerSessionId: string;

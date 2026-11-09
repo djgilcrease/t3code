@@ -7,6 +7,7 @@ import * as Stream from "effect/Stream";
 import {
   PluginError,
   PluginManifest,
+  PluginMcpContext,
   type PluginContext,
   type PluginContributions,
   type T3Plugin,
@@ -20,6 +21,7 @@ import {
   MAX_PLUGIN_MESSAGE_BYTES,
   type PluginMessage,
 } from "./pluginProtocol.ts";
+const decodeMcpContext = Schema.decodeUnknownSync(PluginMcpContext);
 
 /** Runs only in the isolated plugin process, including in single-executable installs. */
 export async function runPluginWorker(): Promise<void> {
@@ -75,6 +77,9 @@ export async function runPluginWorker(): Promise<void> {
         const context: PluginContext = {
           id: String(payload.id),
           dataDirectory: String(payload.dataDirectory),
+          capabilities: Array.isArray(payload.capabilities)
+            ? payload.capabilities.filter((value): value is string => typeof value === "string")
+            : [],
           httpBasePath: String(payload.httpBasePath),
           httpBaseUrl: hostEffect("http-url", null).pipe(Effect.map(String)),
           secrets: {
@@ -106,9 +111,15 @@ export async function runPluginWorker(): Promise<void> {
             ({ run: _run, ...descriptor }) => descriptor,
           ),
           views: (contributions.views ?? []).map(({ read: _read, ...descriptor }) => descriptor),
+          mcp: !!contributions.mcpServers,
           launch: !!contributions.prepareLaunch,
           http: !!contributions.handleHttp,
         };
+      }
+      case "mcp-servers": {
+        return await Effect.runPromise(
+          contributions.mcpServers!(decodeMcpContext(message.payload)),
+        );
       }
       case "command": {
         const command = contributions.commands?.find((command) => command.id === payload.id);
