@@ -1,3 +1,4 @@
+import { sdkMcpServers } from "@t3tools/provider-core/server/mcpServers";
 import * as DocumentText from "../../provider/DocumentText.ts";
 import {
   compactDynamicToolOutput,
@@ -2031,6 +2032,7 @@ export function claudeMcpQueryOverrides(input: {
   return {
     allowedTools: Array.from(new Set([...(input.allowedTools ?? []), ...mcpAllowedTools])),
     mcpServers: {
+      ...sdkMcpServers(session.additionalServers),
       "t3-code": {
         type: "http",
         url: session.endpoint,

@@ -456,6 +456,8 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       const scope = yield* Effect.scope;
       const cwd = input.runtimePolicy.cwd ?? host.paths.cwd;
       const mcpSession = yield* mcpSessions.read(input.threadId);
+      if (Object.keys(mcpSession?.additionalServers ?? {}).length > 0)
+        return yield* protocolError("Pi does not support plugin MCP servers");
       const provideCacheFs = <A, E>(effect: Effect.Effect<A, E, FileSystem.FileSystem>) =>
         effect.pipe(
           Effect.provideService(FileSystem.FileSystem, fileSystem),

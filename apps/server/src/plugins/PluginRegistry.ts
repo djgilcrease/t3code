@@ -1,5 +1,8 @@
 import {
   PluginCatalog,
+  PluginMcpServers,
+  type PluginMcpContext,
+  type PluginMcpServer,
   PluginCommandDescriptor,
   PluginManifest,
   PluginViewDescriptor,
@@ -85,6 +88,9 @@ export class PluginRegistry extends Context.Service<
       scopes: readonly AuthEnvironmentScope[],
       audience?: "client" | "agent" | "agent-read",
     ) => Effect.Effect<Schema.Json, RequestError>;
+    readonly mcpServers: (
+      context: PluginMcpContext,
+    ) => Effect.Effect<PluginMcpServers, PluginOperationError>;
     readonly prepareLaunch: (
       launch: PluginLaunch,
     ) => Effect.Effect<PluginLaunch, PluginOperationError>;
@@ -205,6 +211,7 @@ const make = Effect.gen(function* () {
       const context: PluginContext = {
         id: item.id,
         dataDirectory,
+        capabilities: ["provider-mcp-servers"],
         httpBasePath: `/api/plugins/${item.id}`,
         httpBaseUrl: Effect.suspend(() =>
           httpOrigin === undefined
@@ -252,6 +259,8 @@ const make = Effect.gen(function* () {
         new Set(views.map((v) => v.id)).size !== views.length ||
         contributions.commands?.some((c) => typeof c.run !== "function") ||
         contributions.views?.some((v) => typeof v.read !== "function") ||
+        (contributions.mcpServers !== undefined &&
+          typeof contributions.mcpServers !== "function") ||
         (contributions.prepareLaunch !== undefined &&
           typeof contributions.prepareLaunch !== "function") ||
         (contributions.handleHttp !== undefined && typeof contributions.handleHttp !== "function")
@@ -472,6 +481,38 @@ const make = Effect.gen(function* () {
     ),
     readView,
     execute,
+    mcpServers: Effect.fn("PluginRegistry.mcpServers")(function* (context) {
+      yield* Deferred.await(initialized);
+      const servers: Record<string, PluginMcpServer> = {};
+      for (const { id } of configuration.plugins) {
+        const plugin = active.get(id);
+        if (!plugin?.mcpServers) continue;
+        if (entries.get(id)?.status !== "active")
+          return yield* new PluginOperationError({
+            pluginId: id,
+            operation: "mcp-plugin-unavailable",
+            cause: null,
+          });
+        const additional = yield* guarded(
+          id,
+          "mcp",
+          Effect.suspend(() => plugin.mcpServers!(context)).pipe(
+            Effect.flatMap(Schema.decodeUnknownEffect(PluginMcpServers)),
+            Effect.flatMap(boundedResult),
+          ),
+        );
+        for (const [name, config] of Object.entries(additional)) {
+          if (!name.startsWith(`${id}-`) || Object.hasOwn(servers, name))
+            return yield* new PluginOperationError({
+              pluginId: id,
+              operation: "mcp-server-name",
+              cause: null,
+            });
+          servers[name] = config;
+        }
+      }
+      return servers;
+    }),
     prepareLaunch: Effect.fn("PluginRegistry.prepareLaunch")(function* (launch) {
       yield* Deferred.await(initialized);
       let current = launch;

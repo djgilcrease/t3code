@@ -127,7 +127,8 @@ const marker = ${JSON.stringify(`${temp}/attempts`)};
 fs.appendFileSync(marker, "attempt\\n");
 export default { apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activate: () => Effect.sync(() => {
   if (fs.readFileSync(marker, "utf8").trim().split("\\n").length > 1 && !fs.existsSync(${JSON.stringify(`${temp}/fixed`)})) throw new Error("uncaught activation failure");
-  return { prepareLaunch: (launch) => Effect.succeed({...launch, environment: {...launch.environment, ROUTED: "yes"}}),
+  return { mcpServers: () => Effect.succeed({"test-database": {transport: "stdio", command: "db-server", args: [], environment: {TOKEN: "private-db-token"}}}),
+    prepareLaunch: (launch) => Effect.succeed({...launch, environment: {...launch.environment, ROUTED: "yes"}}),
     commands: [{...${JSON.stringify(descriptor("crash"))}, run: () => Effect.sync(() => { process.nextTick(() => { throw new Error("uncaught runtime failure"); }); return null; })}] };
 }) };`,
       (temp) =>
@@ -157,6 +158,10 @@ export default { apiVersion: 1, id: "test", name: "Test", version: "1.0.0", acti
             args: [],
             environment: {},
           };
+          expect(
+            (yield* host.mcpServers({ provider: "codex", instanceId: "codex" }).pipe(Effect.flip))
+              .operation,
+          ).toBe("mcp-plugin-unavailable");
           expect((yield* host.prepareLaunch(launch).pipe(Effect.flip)).operation).toBe(
             "launch-plugin-unavailable",
           );
@@ -166,6 +171,14 @@ export default { apiVersion: 1, id: "test", name: "Test", version: "1.0.0", acti
           yield* fs.writeFileString(`${temp}/fixed`, "fixed");
           expect(yield* host.restart("test")).toBe(true);
           expect((yield* host.prepareLaunch(launch)).environment.ROUTED).toBe("yes");
+          expect(yield* host.mcpServers({ provider: "codex", instanceId: "codex" })).toEqual({
+            "test-database": {
+              transport: "stdio",
+              command: "db-server",
+              args: [],
+              environment: { TOKEN: "private-db-token" },
+            },
+          });
         }),
       2,
     ),

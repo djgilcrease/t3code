@@ -395,6 +395,14 @@ describe("MuseAdapterV2", () => {
         endpoint: "http://127.0.0.1:43210/mcp",
         authorizationHeader: "Bearer thread-scoped-test-token",
         browserToolsAvailable: true,
+        additionalServers: {
+          "mcp-manager-database": {
+            transport: "stdio",
+            command: "db-server",
+            args: [],
+            environment: { TOKEN: "private-db-token" },
+          },
+        },
       });
       for (const nativeId of [undefined, "saved-native-session"]) {
         const fake = yield* makeFakeMuse();
@@ -403,6 +411,13 @@ describe("MuseAdapterV2", () => {
         const call = yield* fake.takeCall(nativeId ? "session/resume" : "session/start");
         assert.deepStrictEqual(call.params.config, {
           mcpServers: {
+            "mcp-manager-database": {
+              transport: "stdio",
+              mode: "required",
+              command: "db-server",
+              args: [],
+              env: { TOKEN: "private-db-token" },
+            },
             "t3-code": {
               transport: "streamableHttp",
               mode: "optional",
