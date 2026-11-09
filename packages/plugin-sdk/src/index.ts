@@ -152,6 +152,33 @@ export class PluginError extends Schema.TaggedError<PluginError>()("PluginError"
   }
 }
 
+export const PluginMcpServer = Schema.Union([
+  Schema.Struct({
+    transport: Schema.Literal("stdio"),
+    command: Text,
+    args: Schema.Array(Text).check(Schema.isMaxLength(100)),
+    environment: Schema.Record(Label, Text),
+  }),
+  Schema.Struct({
+    transport: Schema.Literals(["http", "sse"]),
+    url: Text,
+    headers: Schema.Record(Label, Text),
+  }),
+]);
+export type PluginMcpServer = typeof PluginMcpServer.Type;
+export const PluginMcpServers = Schema.Record(PluginLocalId, PluginMcpServer).check(
+  Schema.makeFilter((servers) => Object.keys(servers).length <= 100),
+);
+export type PluginMcpServers = typeof PluginMcpServers.Type;
+
+export const PluginMcpContext = Schema.Struct({
+  provider: Label,
+  instanceId: Label,
+  projectDirectory: Schema.optionalKey(Text),
+  cwd: Schema.optionalKey(Text),
+});
+export type PluginMcpContext = typeof PluginMcpContext.Type;
+
 /** Only T3-owned launches pass through this hook. Terminal shells are unaffected. */
 export interface PluginLaunch {
   readonly provider: string;
@@ -163,6 +190,7 @@ export interface PluginLaunch {
 export interface PluginContext {
   readonly id: string;
   readonly dataDirectory: string;
+  readonly capabilities?: readonly string[];
   /** Relative URL on the owning environment; never a baked-in localhost origin. */
   readonly httpBasePath: string;
   /** Resolved when the environment is listening; evaluate inside handlers, not activation. */
@@ -183,6 +211,7 @@ export interface PluginContributions {
   readonly views?: readonly (PluginViewDescriptor & {
     readonly read: () => Effect.Effect<PluginView, PluginError>;
   })[];
+  readonly mcpServers?: (context: PluginMcpContext) => Effect.Effect<PluginMcpServers, PluginError>;
   readonly prepareLaunch?: (launch: PluginLaunch) => Effect.Effect<PluginLaunch, PluginError>;
   /**
    * Routes below httpBasePath. Own authentication explicitly (API key, PKCE/state,

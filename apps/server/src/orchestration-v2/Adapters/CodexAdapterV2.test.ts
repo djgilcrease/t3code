@@ -373,6 +373,10 @@ describe("CodexAdapterV2 native protocol logging", () => {
           params: {
             threadId: "native-1",
             id: "evt-1",
+            "mcp_servers.mcp-manager-database": {
+              env: { ARBITRARY_NAME: "private-db-token" },
+              http_headers: { "X-Custom": "private-header" },
+            },
             http_headers: { Authorization: "Bearer secret-codex-token" },
             usage: { inputTokens: 12, outputTokens: 8, totalTokens: 20 },
           },
@@ -400,6 +404,7 @@ describe("CodexAdapterV2 native protocol logging", () => {
             params: {
               threadId: "native-1",
               id: "evt-1",
+              "mcp_servers.mcp-manager-database": "[REDACTED]",
               http_headers: { Authorization: "[REDACTED]" },
               usage: { inputTokens: 12, outputTokens: 8, totalTokens: 20 },
             },
@@ -2437,6 +2442,14 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         endpoint: "http://127.0.0.1:43123/mcp",
         authorizationHeader: "Bearer secret-codex-token",
         browserToolsAvailable: true,
+        additionalServers: {
+          "mcp-manager-database": {
+            transport: "stdio",
+            command: "db-server",
+            args: ["--read-only"],
+            environment: { TOKEN: "private-db-token" },
+          },
+        },
       });
       const requests: Array<unknown> = [];
       const preamble = codexReplayPreamble({
@@ -2490,6 +2503,11 @@ describe("CodexAdapterV2 post-settle continuation", () => {
             "features.concurrent_reasoning_summaries": true,
             "shell_environment_policy.set.T3CODE_THREAD_ID": `thread-${scenario}`,
             "mcp_servers.envprobe.env.T3CODE_THREAD_ID": `thread-${scenario}`,
+            "mcp_servers.mcp-manager-database": {
+              command: "db-server",
+              args: ["--read-only"],
+              env: { TOKEN: "private-db-token" },
+            },
             "mcp_servers.t3-code": {
               url: "http://127.0.0.1:43123/mcp",
               tool_timeout_sec: 3_900,

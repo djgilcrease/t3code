@@ -47,6 +47,90 @@ const envelope = {
   input: {},
 };
 
+it.effect(
+  "resolves namespaced MCP servers for the destination project and rejects collisions",
+  () =>
+    withHost(
+      [
+        plugin((context) =>
+          Effect.succeed({
+            mcpServers: (input) =>
+              Effect.succeed({
+                "test-database": {
+                  transport: "http",
+                  url: `https://${input.instanceId}.invalid/mcp`,
+                  headers: {
+                    "X-Key": context.capabilities?.includes("provider-mcp-servers")
+                      ? "private-token"
+                      : "missing",
+                  },
+                },
+              }),
+          }),
+        ),
+        plugin(
+          () =>
+            Effect.succeed({
+              mcpServers: () =>
+                Effect.succeed({
+                  "other-database": {
+                    transport: "stdio",
+                    command: "server",
+                    args: [],
+                    environment: {},
+                  },
+                }),
+            }),
+          "other",
+        ),
+      ],
+      Effect.gen(function* () {
+        const host = yield* PluginRegistry.PluginRegistry;
+        const servers = yield* host.mcpServers({
+          provider: "codex",
+          instanceId: "work",
+          projectDirectory: "/work/project",
+        });
+        expect(servers["test-database"]).toEqual({
+          transport: "http",
+          url: "https://work.invalid/mcp",
+          headers: { "X-Key": "private-token" },
+        });
+        expect(servers["other-database"]?.transport).toBe("stdio");
+        expect(JSON.stringify(yield* host.list(AuthStandardClientScopes))).not.toContain(
+          "private-token",
+        );
+        const configuration = yield* host.configuration;
+        yield* host.reconcile({
+          plugins: configuration.plugins.map((item) => ({ ...item, enabled: false })),
+        });
+        expect(yield* host.mcpServers({ provider: "codex", instanceId: "work" })).toEqual({});
+      }),
+    ).pipe(
+      Effect.andThen(
+        withHost(
+          [
+            plugin(() =>
+              Effect.succeed({
+                mcpServers: () =>
+                  Effect.succeed({
+                    "t3-code": { transport: "stdio", command: "server", args: [], environment: {} },
+                  }),
+              }),
+            ),
+          ],
+          Effect.gen(function* () {
+            const host = yield* PluginRegistry.PluginRegistry;
+            expect(
+              (yield* host.mcpServers({ provider: "codex", instanceId: "work" }).pipe(Effect.flip))
+                .operation,
+            ).toBe("mcp-server-name");
+          }),
+        ),
+      ),
+    ),
+);
+
 function withHost<A, E, R>(
   modules: readonly unknown[],
   use: Effect.Effect<A, E, R | PluginRegistry.PluginRegistry>,
