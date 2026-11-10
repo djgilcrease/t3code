@@ -1,6 +1,7 @@
 import { expect, it } from "@effect/vitest";
 import type { PluginCatalog } from "@t3tools/contracts";
 import {
+  clientNotificationRevisionId,
   resolveClientNoticeRoute,
   clientNoticeRoutingConflicted,
   resolvePluginNotificationRoute,
@@ -104,4 +105,11 @@ it("routes client notices only with known matching context and refuses ambiguous
   expect(clientNoticeRoutingConflicted(connected)).toBe(true);
   expect(resolveClientNoticeRoute(connected)).toBeUndefined();
   expect(resolveClientNoticeRoute(connected, event)?.environmentId).toBe("one");
+});
+
+it("keeps long source identities distinct after the readable id prefix is bounded", () => {
+  const prefix = "guide:" + "x".repeat(180);
+  expect(clientNotificationRevisionId(prefix + ":run-1", "Review ready")).not.toBe(
+    clientNotificationRevisionId(prefix + ":run-2", "Review ready"),
+  );
 });

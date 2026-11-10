@@ -8,6 +8,7 @@ import {
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
+import { setToastNotificationRouter } from "../../ui/toast";
 import { guideRunKey, useGuideRunStore } from "./guideRunStore";
 import { startGuideRunNotifications } from "./PullRequestGuideRunCoordinator";
 
@@ -119,4 +120,43 @@ it("does not report the previous run's failure when a Running answer starts a wa
   registry.set(atom, AsyncResult.success(idle));
   expect(useGuideRunStore.getState().watches[key]).toBe(undefined);
   stop();
+});
+
+it("gives repeated guide outcomes distinct delivery identities while preserving the same user-facing text", () => {
+  const ids: string[] = [];
+  const originalDocument = globalThis.document;
+  vi.stubGlobal("document", { visibilityState: "hidden", hasFocus: () => false });
+  setToastNotificationRouter((options) => {
+    ids.push(options.id!);
+    return false;
+  });
+  const { registry, stop } = setup();
+  try {
+    const atom = guideAtom(`${environmentId}:1`);
+    for (const at of ["2026-11-10T00:00:00Z", "2026-11-10T00:01:00Z"]) {
+      registry.set(atom, AsyncResult.success(running));
+      useGuideRunStore.getState().watch({
+        environmentId,
+        reference: reference(1),
+        title: "Review",
+        previousGuideAt: null,
+        previousFailedAt: null,
+        since: 0,
+      });
+      registry.set(
+        atom,
+        AsyncResult.success({
+          guide: null,
+          run: { _tag: "Failed", failedAt: at, detail: "Failed" },
+        } as unknown as PullRequestReviewGuideResult),
+      );
+    }
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).not.toBe(ids[1]);
+  } finally {
+    stop();
+    registry.dispose();
+    setToastNotificationRouter(undefined);
+    vi.stubGlobal("document", originalDocument);
+  }
 });
