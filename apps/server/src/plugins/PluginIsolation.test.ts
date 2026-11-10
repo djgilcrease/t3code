@@ -507,3 +507,34 @@ export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activ
     );
   },
 );
+
+it.live("carries trusted command identity across the isolated worker boundary", () =>
+  fixture(
+    () =>
+      `${header}\nexport default {apiVersion:1,id:"test",name:"Test",version:"1.0.0",activate:()=>Effect.succeed({commands:[{...${JSON.stringify(descriptor("identity"))},run:(input,context)=>Effect.succeed({input,context})}]})};`,
+    () =>
+      Effect.gen(function* () {
+        const host = yield* PluginRegistry.PluginRegistry;
+        const input = { ...envelope("test", "identity"), input: { projectId: "forged" } };
+        expect(
+          yield* host.execute(input, AuthStandardClientScopes, "agent", {
+            environmentId: "env",
+            projectId: "trusted",
+            threadId: "thread",
+          }),
+        ).toEqual({
+          input: { projectId: "forged" },
+          context: {
+            audience: "agent",
+            environmentId: "env",
+            projectId: "trusted",
+            threadId: "thread",
+          },
+        });
+        expect(yield* host.execute(input, AuthStandardClientScopes)).toEqual({
+          input: { projectId: "forged" },
+          context: { audience: "client" },
+        });
+      }),
+  ),
+);

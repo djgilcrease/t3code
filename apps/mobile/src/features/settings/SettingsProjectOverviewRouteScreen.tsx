@@ -301,6 +301,14 @@ function ProjectOverviewContent(props: {
 
   return (
     <>
+      {props.members.map((member) => (
+        <PluginPanels
+          key={`${member.environmentId}:${member.id}`}
+          environmentId={member.environmentId}
+          location="project-settings"
+          context={{ projectId: member.id }}
+        />
+      ))}
       <View className="flex-row items-center gap-4 px-2">
         <ProjectFavicon
           environmentId={representative.environmentId}
