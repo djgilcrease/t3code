@@ -114,6 +114,7 @@ export async function runPluginWorker(): Promise<void> {
           mcp: !!contributions.mcpServers,
           launch: !!contributions.prepareLaunch,
           http: !!contributions.handleHttp,
+          httpResponseTimeoutMs: contributions.httpResponseTimeoutMs ?? 30_000,
         };
       }
       case "mcp-servers": {
