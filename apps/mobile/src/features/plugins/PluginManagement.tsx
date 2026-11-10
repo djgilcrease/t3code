@@ -21,7 +21,6 @@ export function PluginManagement({
   const registry = useContext(RegistryContext);
   const manage = useAtomCommand(serverEnvironment.managePlugins);
   const allowed = useAtomValue(serverEnvironment.managePlugins.permissionAtom(environmentId));
-  const [repository, setRepository] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const running = useRef(false);
@@ -33,7 +32,6 @@ export function PluginManagement({
     return manage({ environmentId, input })
       .then((result) => {
         registry.refresh(serverEnvironment.pluginCatalog({ environmentId, input: {} }));
-        if (result._tag === "Success" && input.operation === "install") setRepository("");
         if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
           const failure = squashAtomCommandFailure(result);
           setError(
@@ -49,25 +47,9 @@ export function PluginManagement({
   return (
     <View className="gap-4">
       <Text>
-        Install from a GitHub or GitLab repository. Plugins run trusted code on this environment.
-        Updates are checked daily and installed when you choose Update.
+        Actions below affect this machine only. Updates are checked daily and installed only when
+        you choose Update.
       </Text>
-      <TextInput
-        accessibilityLabel="Plugin repository URL"
-        placeholder="https://github.com/owner/plugin"
-        value={repository}
-        onChangeText={setRepository}
-        editable={!busy && allowed}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="url"
-        className="min-h-12 rounded-lg border border-border px-3 text-foreground"
-      />
-      <MaterialButton
-        label={busy ? "Working…" : "Install plugin"}
-        disabled={!allowed || busy || !repository.trim()}
-        onPress={() => void run({ operation: "install", repository })}
-      />
       <MaterialButton
         label="Check for updates"
         disabled={!allowed || busy}
@@ -81,6 +63,9 @@ export function PluginManagement({
             {plugin.name} {plugin.source?.tag ?? plugin.version} · {plugin.status}
             {plugin.failure ? ` (${plugin.failure})` : ""}
           </Text>
+          {!plugin.source && (
+            <Text>Local registration. Local paths and data are never synced.</Text>
+          )}
           {plugin.source && (
             <>
               <Text selectable>{plugin.source.repository}</Text>
