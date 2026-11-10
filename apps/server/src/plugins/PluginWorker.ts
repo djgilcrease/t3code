@@ -212,7 +212,7 @@ export async function runPluginWorker(): Promise<void> {
       case "view": {
         const view = contributions.views?.find((view) => view.id === payload.id);
         if (!view) throw new Error("Unknown view");
-        return await Effect.runPromise(view.read());
+        return await Effect.runPromise(view.read(payload.context as PluginInput | undefined));
       }
       case "launch":
         return encodePluginLaunch(

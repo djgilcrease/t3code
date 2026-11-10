@@ -66,7 +66,29 @@ export const PluginField = Schema.Struct({
   ),
   required: Schema.optionalKey(Schema.Boolean),
 });
+export const PluginManagedEnvironment = Schema.Struct({
+  id: PluginLocalId,
+  kind: Schema.Literal("environment"),
+  environmentId: Label,
+  label: Label,
+  url: Text,
+  state: Schema.Literals([
+    "starting",
+    "running",
+    "stopping",
+    "stopped",
+    "deleting",
+    "deleted",
+    "error",
+  ]),
+  connect: PluginAction,
+  threadId: Schema.optionalKey(Label),
+  launchRequestId: Schema.optionalKey(Label),
+});
+export type PluginManagedEnvironment = typeof PluginManagedEnvironment.Type;
+
 export const PluginBlock = Schema.Union([
+  PluginManagedEnvironment,
   Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("text"), text: Text }),
   Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("link"), label: Label, url: Text }),
   Schema.Struct({
@@ -141,7 +163,14 @@ export type PluginView = typeof PluginView.Type;
 export const PluginViewDescriptor = Schema.Struct({
   id: PluginLocalId,
   title: Label,
-  location: Schema.Literals(["settings", "settings-page", "usage", "thread-details"]),
+  location: Schema.Literals([
+    "settings",
+    "settings-page",
+    "usage",
+    "thread-details",
+    "managed-environments",
+    "environment-launcher",
+  ]),
   permission: PluginPermission,
 });
 export type PluginViewDescriptor = typeof PluginViewDescriptor.Type;
@@ -162,6 +191,12 @@ export const PluginSecretResult = Schema.Struct({
   value: Text,
 });
 export type PluginSecretResult = typeof PluginSecretResult.Type;
+
+export const PluginEnvironmentLaunchResult = Schema.Struct({
+  $t3: Schema.Literal("environment-launch"),
+  requestId: Label,
+});
+export type PluginEnvironmentLaunchResult = typeof PluginEnvironmentLaunchResult.Type;
 
 /** Ends a `thread-details` action with a message, and optionally a thread to open. */
 export const PluginNoticeResult = Schema.Struct({
@@ -255,6 +290,11 @@ export const PluginActivity = Schema.Struct({
   waiting: Schema.Boolean,
   closed: Schema.Boolean,
   lastActivity: Schema.Number,
+  threads: Schema.optionalKey(
+    Schema.Array(Schema.Struct({ threadId: Label, subagent: Schema.Boolean })).check(
+      Schema.isMaxLength(10_000),
+    ),
+  ),
 });
 export type PluginActivity = typeof PluginActivity.Type;
 export const PluginThreadSummary = Schema.Struct({
@@ -416,7 +456,7 @@ export interface PluginContributions {
     readonly run: (input: PluginInput) => Effect.Effect<Schema.Json, PluginError>;
   })[];
   readonly views?: readonly (PluginViewDescriptor & {
-    readonly read: () => Effect.Effect<PluginView, PluginError>;
+    readonly read: (input?: PluginInput) => Effect.Effect<PluginView, PluginError>;
   })[];
   readonly mcpServers?: (context: PluginMcpContext) => Effect.Effect<PluginMcpServers, PluginError>;
   readonly prepareLaunch?: (launch: PluginLaunch) => Effect.Effect<PluginLaunch, PluginError>;

@@ -213,6 +213,8 @@ export class TerminalManager extends Context.Service<
       registerCleanup?: (stop: () => void) => void,
     ) => Effect.Effect<() => void, TerminalError>;
 
+    readonly inputActivity: Effect.Effect<ReadonlyMap<string, number>>;
+
     readonly write: (input: TerminalWriteInput) => Effect.Effect<void, TerminalError>;
 
     readonly resize: (
@@ -3455,6 +3457,8 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     );
   };
 
+  const terminalInputs = new Map<string, number>();
+  const inputActivity = Effect.sync(() => new Map(terminalInputs));
   const write: TerminalManager["Service"]["write"] = Effect.fn("terminal.write")(function* (input) {
     const terminalId = input.terminalId;
     const session = yield* requireSession(input.threadId, terminalId);
@@ -3477,6 +3481,11 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
           cause,
         }),
     });
+    if (input.data.length > 0) {
+      terminalInputs.delete(input.threadId);
+      terminalInputs.set(input.threadId, DateTime.toEpochMillis(yield* DateTime.now));
+      if (terminalInputs.size > 10_000) terminalInputs.delete(terminalInputs.keys().next().value!);
+    }
   });
 
   const resizeLocked = Effect.fn("terminal.resize")(function* (
@@ -3621,6 +3630,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     observeStream,
     resyncStream,
     write,
+    inputActivity,
     resize,
     clear,
     close,
