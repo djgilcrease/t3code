@@ -1,4 +1,5 @@
 import {
+  PluginNotificationRoutes,
   PluginCatalog,
   PluginLifecycleEvent,
   PluginLifecycleTimeout,
@@ -32,6 +33,7 @@ import {
   type T3Plugin,
 } from "@t3tools/contracts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import * as NotificationJournal from "./NotificationJournal.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import { summarizePluginActivity } from "./pluginActivity.ts";
 import * as Context from "effect/Context";
@@ -161,6 +163,7 @@ const authorize = (permission: AuthEnvironmentScope, scopes: readonly AuthEnviro
 
 const make = Effect.gen(function* () {
   const identity = yield* Effect.serviceOption(ServerEnvironment.ServerEnvironmentIdentity);
+  const notifications = yield* Effect.serviceOption(NotificationJournal.NotificationJournal);
   const projection = yield* Effect.serviceOption(ProjectionStore.ProjectionStoreV2);
   const config = yield* ServerConfig.ServerConfig;
   const fs = yield* FileSystem.FileSystem;
@@ -264,6 +267,7 @@ const make = Effect.gen(function* () {
               Effect.mapError((cause) => new PluginError({ operation: "environment-id", cause })),
             )
           : undefined,
+        ...(Option.isSome(notifications) ? { notifications: notifications.value } : {}),
         activity: Option.isSome(projection)
           ? projection.value.getShellSnapshot().pipe(
               Effect.flatMap(({ threads }) =>
@@ -325,6 +329,8 @@ const make = Effect.gen(function* () {
           ...(Option.isSome(projection) ? ["environment-activity"] : []),
           "thread-portability",
           "plugin-commands",
+          "notification-routing",
+          ...(Option.isSome(notifications) ? ["notification-journal"] : []),
         ],
         httpBasePath: `/api/plugins/${item.id}`,
         httpBaseUrl: Effect.suspend(() =>
@@ -391,7 +397,20 @@ const make = Effect.gen(function* () {
       );
       active.set(item.id, { ...contributions, httpResponseTimeoutMs, lifecycleTimeoutMs });
       if (module.setRestartLimit) restartLimits.set(item.id, module.setRestartLimit);
+      const refreshRoutes = Effect.gen(function* () {
+        if (!contributions.notificationRoutes) return;
+        const routes = yield* guarded(
+          item.id,
+          "notification-routes",
+          Effect.suspend(contributions.notificationRoutes).pipe(
+            Effect.flatMap(Schema.decodeUnknownEffect(PluginNotificationRoutes)),
+          ),
+        );
+        const entry = entries.get(item.id);
+        if (entry) entries.set(item.id, { ...entry, notificationRoutes: routes });
+      });
       entries.set(item.id, { ...manifest, status: "active", commands, views });
+      yield* refreshRoutes;
       if (module.health) {
         const healthStream = module.health;
         yield* healthStream.pipe(
@@ -418,7 +437,17 @@ const make = Effect.gen(function* () {
       }
       if (contributions.changes)
         yield* contributions.changes.pipe(
-          Stream.runForEach(() => changed),
+          Stream.runForEach(() =>
+            refreshRoutes.pipe(
+              Effect.catch(() =>
+                Effect.sync(() => {
+                  const entry = entries.get(item.id);
+                  if (entry) entries.set(item.id, { ...entry, notificationRoutes: [] });
+                }),
+              ),
+              Effect.andThen(changed),
+            ),
+          ),
           Effect.catchCause(() =>
             Effect.logWarning("Plugin change stream stopped.", { pluginId: item.id }),
           ),

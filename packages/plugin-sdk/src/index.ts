@@ -398,8 +398,60 @@ export interface PluginPeers {
   readonly run: (call: PluginPeerCall) => Effect.Effect<Schema.Json, PluginError>;
 }
 
+export const PluginNotificationKind = Schema.Literals([
+  "completion",
+  "input",
+  "approval",
+  "failure",
+  "usage-limit",
+  "guest-request",
+]);
+export type PluginNotificationKind = typeof PluginNotificationKind.Type;
+export const PluginNotification = Schema.Struct({
+  id: Label,
+  sequence: Schema.Int,
+  kind: PluginNotificationKind,
+  threadId: Label,
+  sourceThreadId: Schema.optionalKey(Label),
+  targetEnvironmentId: Schema.optionalKey(Label),
+  projectId: Label,
+  provider: Label,
+  title: Label,
+  occurredAt: Schema.String,
+});
+export type PluginNotification = typeof PluginNotification.Type;
+export const PluginNotificationRead = Schema.Struct({
+  after: Schema.NullOr(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+});
+export type PluginNotificationRead = typeof PluginNotificationRead.Type;
+export const PluginNotificationBatch = Schema.Struct({
+  cursor: Schema.Int,
+  events: Schema.Array(PluginNotification).check(Schema.isMaxLength(100)),
+});
+export type PluginNotificationBatch = typeof PluginNotificationBatch.Type;
+
+export const PluginNotificationRoute = Schema.Struct({
+  id: PluginLocalId,
+  events: Schema.Array(PluginNotificationKind).check(Schema.isMaxLength(20)),
+  projects: Schema.Array(Label).check(Schema.isMaxLength(100)),
+  providers: Schema.Array(Label).check(Schema.isMaxLength(100)),
+  inApp: Schema.Boolean,
+  mode: Schema.Literals(["off", "notifications", "sound", "notifications-and-sound"]),
+});
+export type PluginNotificationRoute = typeof PluginNotificationRoute.Type;
+export const PluginNotificationRoutes = Schema.Array(PluginNotificationRoute).check(
+  Schema.isMaxLength(100),
+);
+export type PluginNotificationRoutes = typeof PluginNotificationRoutes.Type;
+
 export interface PluginContext {
-  /** Committed thread activity, including subagents and background work; connection presence is excluded. */
+  /** Null starts at the current tail; persist the returned cursor with the delivery outbox. */
+  readonly notifications?: {
+    readonly read: (
+      input: PluginNotificationRead,
+    ) => Effect.Effect<PluginNotificationBatch, PluginError>;
+  };
+  /** Committed thread activity, including background work; connection presence is excluded. */
   readonly activity?: Effect.Effect<PluginActivity, PluginError> | undefined;
   readonly id: string;
   readonly dataDirectory: string;
@@ -445,6 +497,8 @@ export const PluginLifecycleTimeout = Schema.Int.check(
 export interface PluginContributions {
   /** Called before disable/removal. Refuse while externally owned resources need cleanup. */
   readonly beforeRemove?: () => Effect.Effect<void, PluginError>;
+  /** Explicit client routing policy; no contribution leaves builtin preferences in control. */
+  readonly notificationRoutes?: () => Effect.Effect<PluginNotificationRoutes, PluginError>;
   /** Emit after background state changes; clients refetch mounted views, without polling. */
   readonly changes?: Stream.Stream<void, PluginError>;
   readonly onLifecycle?: (
