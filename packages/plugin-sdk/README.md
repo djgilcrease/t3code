@@ -184,6 +184,16 @@ folder in place but clears their T3-managed data and credentials.
   repositories is the plugin's job. A failure's `cause` is an `Error` whose
   message is safe to show the user. Nothing here reaches other threads' turns,
   events, or provider sessions. Require `thread-portability`.
+- **Other plugins** are reached through `context.plugins`. `list` returns the
+  other active plugins with the commands they expose to agents; `run` calls one
+  with `{ pluginId, commandId, input }` and returns its JSON result. A plugin
+  calls as an agent would: only `agent: true` commands, never a secret result,
+  and each call keeps the 30-second and 256 KiB limits. Check `list` first to
+  use a plugin only when it is installed. A refusal's `cause` is an `Error`
+  whose message is `unavailable`, `unknown-contribution`,
+  `agent-access-disabled`, `secret-access-disabled`, or `failed`. Report your
+  own user-facing failures in the JSON result, because a failed command tells
+  its caller nothing more. Require `plugin-commands`.
 - **Changes** is an optional Effect stream. Emit after background state changes;
   T3 refreshes mounted plugin views. Commands also invalidate them. Nothing
   mounts in the chat transcript, and clients do not poll plugin views.

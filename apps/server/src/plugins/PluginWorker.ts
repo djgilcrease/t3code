@@ -11,6 +11,7 @@ import {
   PluginMcpContext,
   PluginLifecycleEvent,
   PluginProcessResult,
+  PluginPeer,
   PluginThreadExport,
   PluginThreadImport,
   PluginThreadProject,
@@ -29,6 +30,7 @@ import {
   type PluginMessage,
 } from "./pluginProtocol.ts";
 const decodeProcessResult = Schema.decodeUnknownSync(PluginProcessResult);
+const decodePeers = Schema.decodeUnknownSync(Schema.Array(PluginPeer));
 const decodeThreadSummary = Schema.decodeUnknownSync(PluginThreadSummary);
 const decodeThreadExport = Schema.decodeUnknownSync(PluginThreadExport);
 const decodeThreadProjects = Schema.decodeUnknownSync(Schema.Array(PluginThreadProject));
@@ -123,6 +125,10 @@ export async function runPluginWorker(): Promise<void> {
           activity: hostEffect("activity", null).pipe(Effect.map(decodeActivity)),
           runProcess: (input) =>
             hostEffect("process-run", input).pipe(Effect.map(decodeProcessResult)),
+          plugins: {
+            list: () => hostEffect("plugin-list", null).pipe(Effect.map(decodePeers)),
+            run: (call) => hostEffect("plugin-run", call),
+          },
           threads: {
             describe: (threadId) =>
               hostEffect("thread-describe", { threadId }).pipe(Effect.map(decodeThreadSummary)),

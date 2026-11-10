@@ -455,6 +455,7 @@ export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activ
   commands: [
     {...${JSON.stringify(descriptor("describe"))}, run: (input) => host.threads.describe(input.threadId).pipe(${shown})},
     {...${JSON.stringify(descriptor("export"))}, run: (input) => host.threads.export({ threadId: "known", file: input.file }).pipe(${shown})},
+    {...${JSON.stringify(descriptor("peer"))}, run: (input) => host.plugins.run({ pluginId: "healthy", commandId: input.commandId, input: {} }).pipe(${shown})},
   ],
 })};`,
       (temp) =>
@@ -497,6 +498,11 @@ export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activ
             },
           );
           expect(exported).toEqual([inside]);
+          // Another plugin's command crosses two workers and back.
+          expect(yield* run("peer", { commandId: "ping" })).toBe("pong");
+          expect(yield* run("peer", { commandId: "missing" })).toEqual({
+            shown: "unknown-contribution",
+          });
         }),
     );
   },
