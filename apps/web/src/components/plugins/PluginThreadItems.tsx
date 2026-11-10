@@ -1,6 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import {
   pluginActionDestinations,
+  pluginDestinationLabel,
   pluginThreadDetailsViews,
   type PluginStatus,
 } from "@t3tools/client-runtime/plugins";
@@ -171,6 +172,7 @@ function PluginStatusActionButton({
   onPress: (action: PluginStatusAction) => void;
 }) {
   const command = plugin.commands.find((candidate) => candidate.id === action.command);
+  const catalogs = useAtomValue(pluginCatalogsAtom);
   const allowed = useAtomValue(
     serverEnvironment.executePluginCommand.permissionAtom(environmentId, {
       pluginId: plugin.id,
@@ -179,6 +181,12 @@ function PluginStatusActionButton({
       input: action.input,
     }),
   );
+  // An action that needs another machine has nothing to offer when none is connected.
+  if (
+    action.environment !== undefined &&
+    pluginActionDestinations(catalogs, environmentId, plugin.id).length === 0
+  )
+    return null;
   return (
     <ThreadDetailsControl
       size="xs"
@@ -208,15 +216,21 @@ function PluginStatusActionDialog({ run }: { run: PluginActionRun }) {
   const { environments } = useEnvironments();
   const machines = useEnvironmentMachines();
   const picker = run.action.environment;
-  const destinations = picker
-    ? pluginActionDestinations(catalogs, environmentId, plugin.id).map((target) => ({
-        environmentId: target.environmentId,
-        label:
-          environments.find((environment) => environment.environmentId === target.environmentId)
-            ?.label ?? target.environmentId,
-        machine: machines.get(target.environmentId) ?? "server",
-      }))
-    : [];
+  const named = (id: EnvironmentId) => {
+    const found = environments.find((environment) => environment.environmentId === id);
+    return { label: found?.label ?? id, displayUrl: found?.displayUrl ?? null };
+  };
+  const targets = picker ? pluginActionDestinations(catalogs, environmentId, plugin.id) : [];
+  const destinations = targets.map((target) => ({
+    environmentId: target.environmentId,
+    label: pluginDestinationLabel(named(target.environmentId), [
+      named(environmentId).label,
+      ...targets
+        .filter((other) => other.environmentId !== target.environmentId)
+        .map((other) => named(other.environmentId).label),
+    ]),
+    machine: machines.get(target.environmentId) ?? "server",
+  }));
   const [chosen, setChosen] = useState<EnvironmentId | null>(null);
   const destination =
     destinations.find((target) => target.environmentId === chosen) ?? destinations[0] ?? null;

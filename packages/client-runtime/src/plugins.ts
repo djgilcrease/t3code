@@ -116,6 +116,19 @@ export function pluginActionDestinations<
   );
 }
 
+/**
+ * Two machines can share a name, such as two servers on one host. A destination whose name
+ * matches the current machine or another destination shows its address as well.
+ */
+export function pluginDestinationLabel(
+  target: { readonly label: string; readonly displayUrl: string | null },
+  otherLabels: readonly string[],
+): string {
+  return target.displayUrl !== null && otherLabels.includes(target.label)
+    ? `${target.label} (${target.displayUrl})`
+    : target.label;
+}
+
 export interface PluginActionStep {
   readonly environmentId: string;
   readonly commandId: string;
