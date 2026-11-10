@@ -19,6 +19,10 @@
       "types": "./src/workspaceBasenameLookup.ts",
       "default": "./src/workspaceBasenameLookup.ts"
     },
+    "./plugin-installation": {
+      "types": "./src/usePluginInstallation.ts",
+      "default": "./src/usePluginInstallation.ts"
+    },
     "./plugins": {
       "types": "./src/plugins.ts",
       "default": "./src/plugins.ts"
@@ -573,6 +577,7 @@
     "test": "vp test run"
   },
   "dependencies": {
+    "@effect/atom-react": "catalog:",
     "@pierre/diffs": "catalog:",
     "@t3tools/contracts": "workspace:*",
     "@t3tools/provider-acp-registry": "workspace:*",
@@ -590,11 +595,13 @@
     "@t3tools/source-control-definitions": "workspace:*",
     "effect": "catalog:",
     "jszip": "3.10.1",
+    "react": "catalog:",
     "three": "0.180.0",
     "unbash": "^5.0.0"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
+    "@types/react": "catalog:",
     "@types/three": "0.180.0",
     "vite-plus": "catalog:"
   }

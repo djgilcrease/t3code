@@ -153,7 +153,6 @@ function SettingsRouteLayout() {
       singleEnvironment={
         pathname === "/settings/providers" ||
         pathname === "/settings/secrets" ||
-        pathname === "/settings/plugins" ||
         pathname.startsWith("/settings/extensions/")
       }
       onChange={(next) => {
