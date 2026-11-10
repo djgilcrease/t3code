@@ -1,6 +1,7 @@
 import { useAtomMount, useAtomValue } from "@effect/atom-react";
 import { asLaunchingThread } from "@t3tools/client-runtime/state/thread-inbox";
 import { ThreadHoverCard, ThreadHoverCardTrigger } from "../ThreadHoverCard";
+import { PluginStatusDots } from "../plugins/PluginStatusDots";
 import { ThreadTerminalStatusButton } from "../ThreadStatusIndicators";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
 import { formatWorktreePathForDisplay } from "../../worktreeCleanup";
@@ -1321,7 +1322,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         aria-hidden
         className="pointer-events-none ml-auto inline-flex shrink-0 items-center gap-1"
       >
-        <SidebarProviderIcon
+        <PluginStatusDots environmentId={thread.environmentId} />
+                <SidebarProviderIcon
           thread={thread}
           providerEntryByInstanceId={props.providerEntryByInstanceId}
         />
@@ -1330,7 +1332,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   );
   const titleLineIcons = metaLineEmpty ? (
     <span aria-hidden className="inline-flex shrink-0 items-center gap-1">
-      <SidebarProviderIcon
+      <PluginStatusDots environmentId={thread.environmentId} />
+            <SidebarProviderIcon
         thread={thread}
         providerEntryByInstanceId={props.providerEntryByInstanceId}
       />

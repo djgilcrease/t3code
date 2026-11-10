@@ -46,6 +46,16 @@ export const PluginAction = Schema.Struct({
   input: PluginInput,
 });
 export type PluginAction = typeof PluginAction.Type;
+export const PluginTone = Schema.Literals(["success", "warning", "danger", "muted"]);
+export type PluginTone = typeof PluginTone.Type;
+export const PluginStatusAction = Schema.Struct({
+  ...PluginAction.fields,
+  /** Shown in a confirmation before the command runs. */
+  confirm: Schema.optionalKey(Text),
+  /** Ask for another connected environment running this plugin; its id is sent under `name`. */
+  environment: Schema.optionalKey(Schema.Struct({ name: PluginLocalId, label: Label })),
+});
+export type PluginStatusAction = typeof PluginStatusAction.Type;
 export const PluginField = Schema.Struct({
   name: PluginLocalId,
   label: Label,
@@ -71,6 +81,14 @@ export const PluginBlock = Schema.Union([
     command: PluginLocalId,
     fields: Schema.Array(PluginField).check(Schema.isMaxLength(40)),
     input: PluginInput,
+  }),
+  Schema.Struct({
+    id: PluginLocalId,
+    kind: Schema.Literal("status"),
+    tone: Schema.optionalKey(PluginTone),
+    label: Schema.optionalKey(Label),
+    detail: Schema.optionalKey(Text),
+    actions: Schema.Array(PluginStatusAction).check(Schema.isMaxLength(3)),
   }),
   Schema.Struct({
     id: PluginLocalId,
@@ -102,7 +120,8 @@ export const PluginView = Schema.Struct({
               unique(field.options?.map((option) => option.value) ?? []),
             )
           );
-        if (block.kind === "actions") return unique(block.actions.map((action) => action.id));
+        if (block.kind === "actions" || block.kind === "status")
+          return unique(block.actions.map((action) => action.id));
         if (block.kind === "table")
           return (
             unique(block.columns) &&
@@ -121,7 +140,7 @@ export type PluginView = typeof PluginView.Type;
 export const PluginViewDescriptor = Schema.Struct({
   id: PluginLocalId,
   title: Label,
-  location: Schema.Literals(["settings", "settings-page", "usage"]),
+  location: Schema.Literals(["settings", "settings-page", "usage", "thread-details"]),
   permission: PluginPermission,
 });
 export type PluginViewDescriptor = typeof PluginViewDescriptor.Type;
@@ -142,6 +161,15 @@ export const PluginSecretResult = Schema.Struct({
   value: Text,
 });
 export type PluginSecretResult = typeof PluginSecretResult.Type;
+
+/** Ends a `thread-details` action with a message, and optionally a thread to open. */
+export const PluginNoticeResult = Schema.Struct({
+  $t3: Schema.Literal("notice"),
+  tone: PluginTone,
+  text: Text,
+  thread: Schema.optionalKey(Schema.Struct({ environmentId: Label, threadId: Label })),
+});
+export type PluginNoticeResult = typeof PluginNoticeResult.Type;
 
 export class PluginError extends Schema.TaggedError<PluginError>()("PluginError", {
   operation: Schema.String,

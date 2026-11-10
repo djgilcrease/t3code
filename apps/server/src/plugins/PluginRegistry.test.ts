@@ -42,6 +42,22 @@ const command = {
   agent: false,
   run: () => Effect.succeed(null),
 };
+const status = {
+  id: "state",
+  kind: "status" as const,
+  tone: "warning" as const,
+  label: "Paused",
+  actions: [
+    {
+      id: "move",
+      label: "Move",
+      command: "change",
+      input: {},
+      confirm: "Ignored files stay behind.",
+      environment: { name: "destination", label: "Move to" },
+    },
+  ],
+};
 const envelope = {
   pluginId: "test",
   commandId: "change",
@@ -222,6 +238,13 @@ it.effect("filters and authorizes views and rejects malformed view output", () =
                   blocks: [{ id: "private", kind: "text", text: "x".repeat(20_000) }],
                 }),
             },
+            ...(["thread-details", "usage"] as const).map((location) => ({
+              id: location,
+              title: "Row",
+              location,
+              permission: "orchestration:read" as const,
+              read: () => Effect.succeed({ title: "Row", blocks: [status] }),
+            })),
           ],
         }),
       ),
@@ -229,7 +252,17 @@ it.effect("filters and authorizes views and rejects malformed view output", () =
     Effect.gen(function* () {
       const host = yield* PluginRegistry.PluginRegistry;
       const input = { pluginId: "test", viewId: "private" };
-      expect((yield* host.list(["orchestration:read"])).plugins[0]?.views).toEqual([]);
+      const row = { pluginId: "test", viewId: "thread-details" };
+      expect((yield* host.readView(row, ["orchestration:read"])).blocks).toEqual([status]);
+      // A status block is only drawn by the thread details row.
+      expect(
+        (yield* host
+          .readView({ ...row, viewId: "usage" }, ["orchestration:read"])
+          .pipe(Effect.flip))._tag,
+      ).toBe("PluginOperationError");
+      expect(
+        (yield* host.list(["orchestration:read"])).plugins[0]?.views.map((view) => view.id),
+      ).toEqual(["thread-details", "usage"]);
       expect((yield* host.readView(input, ["orchestration:read"]).pipe(Effect.flip))._tag).toBe(
         "EnvironmentAuthorizationError",
       );

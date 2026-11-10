@@ -222,6 +222,7 @@ function PluginPanel({
               ))}
             </View>
           );
+        if (block.kind === "status") return null;
         return (
           <View key={block.id} className="gap-3">
             {block.rows.map((row) => (
