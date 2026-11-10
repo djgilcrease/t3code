@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   pluginActionDestinations,
+  pluginDestinationLabel,
   pluginStatusActionInput,
   runPluginAction,
   pluginFormDefaults,
@@ -163,6 +164,16 @@ describe("thread details actions", () => {
         "rehome",
       ).map((target) => target.environmentId),
     ).toEqual(["running"]);
+  });
+  it("shows a destination's address only when its name alone would be ambiguous", () => {
+    const server = { label: "system76-pc", displayUrl: "http://localhost:16126" };
+    expect(pluginDestinationLabel(server, ["macbook"])).toBe("system76-pc");
+    expect(pluginDestinationLabel(server, ["system76-pc"])).toBe(
+      "system76-pc (http://localhost:16126)",
+    );
+    expect(pluginDestinationLabel({ ...server, displayUrl: null }, ["system76-pc"])).toBe(
+      "system76-pc",
+    );
   });
   it("turns a failed command into a notice and passes a plugin's notice through", async () => {
     const start = { environmentId: "source", commandId: "move", input: {} };
