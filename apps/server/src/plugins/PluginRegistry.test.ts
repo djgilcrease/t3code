@@ -477,13 +477,34 @@ it.effect("namespaces secrets without collisions and rejects traversal keys", ()
 
 it.effect("notifies clients after commands without polling", () =>
   withHost(
-    [plugin(() => Effect.succeed({ commands: [command] }))],
+    [
+      plugin(() =>
+        Effect.succeed({
+          commands: [
+            command,
+            {
+              ...command,
+              id: "step",
+              run: () =>
+                Effect.succeed({ $t3: "relay" as const, command: "change", input: { chunk: 1 } }),
+            },
+          ],
+        }),
+      ),
+    ],
     Effect.gen(function* () {
       const host = yield* PluginRegistry.PluginRegistry;
-      const before = yield* host.changes.pipe(Stream.take(1), Stream.runCollect);
+      const revision = host.changes.pipe(
+        Stream.take(1),
+        Stream.runCollect,
+        Effect.map((values) => values[0] ?? 0),
+      );
+      const before = yield* revision;
+      // A relayed step is one of many; refreshing every view after each would flood clients.
+      yield* host.execute({ ...envelope, commandId: "step" }, AuthStandardClientScopes);
+      expect(yield* revision).toBe(before);
       yield* host.execute(envelope, AuthStandardClientScopes);
-      const after = yield* host.changes.pipe(Stream.take(1), Stream.runCollect);
-      expect(after[0]).toBe((before[0] ?? 0) + 1);
+      expect(yield* revision).toBe(before + 1);
     }),
   ),
 );

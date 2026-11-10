@@ -64,6 +64,8 @@ interface Run {
   readonly action: PluginStatusAction;
   readonly phase: "ask" | "running" | "done";
   readonly notice: PluginNoticeResult | null;
+  /** Progress reported by a relayed step. */
+  readonly status: string | null;
 }
 
 /** Plugin status items and actions for a thread, under its machine's name. */
@@ -146,7 +148,7 @@ function PluginThreadView({
     return { ok: false, message: failure instanceof Error ? failure.message : null };
   };
   const start = (action: PluginStatusAction, destination: EnvironmentId | null) => {
-    setRun({ action, phase: "running", notice: null });
+    setRun({ action, phase: "running", notice: null, status: null });
     void runPluginAction({
       start: {
         environmentId,
@@ -154,7 +156,11 @@ function PluginThreadView({
         input: pluginStatusActionInput(action, threadId, destination),
       },
       execute: executeStep,
-    }).then((notice) => setRun(notice === null ? null : { action, phase: "done", notice }));
+      onStatus: (status) =>
+        setRun((current) => (current?.phase === "running" ? { ...current, status } : current)),
+    }).then((notice) =>
+      setRun(notice === null ? null : { action, phase: "done", notice, status: null }),
+    );
   };
   const confirmThenStart = (action: PluginStatusAction, destination: EnvironmentId | null) => {
     if (action.confirm === undefined) start(action, destination);
@@ -168,7 +174,8 @@ function PluginThreadView({
       });
   };
   const press = (action: PluginStatusAction) => {
-    if (action.environment !== undefined) setRun({ action, phase: "ask", notice: null });
+    if (action.environment !== undefined)
+      setRun({ action, phase: "ask", notice: null, status: null });
     else confirmThenStart(action, null);
   };
 
@@ -201,7 +208,7 @@ function PluginThreadView({
                 environmentId={environmentId}
                 plugin={plugin}
                 busy={busy}
-                working={busy && run?.action.id === action.id}
+                working={busy && run?.action.id === action.id ? (run.status ?? "Working…") : null}
                 onPress={press}
               />
             ))}
@@ -255,7 +262,7 @@ function ActionRow({
   environmentId: EnvironmentId;
   plugin: Entry;
   busy: boolean;
-  working: boolean;
+  working: string | null;
   onPress: (action: PluginStatusAction) => void;
 }) {
   const command = plugin.commands.find((candidate) => candidate.id === action.command);
@@ -271,7 +278,7 @@ function ActionRow({
     <ListRow
       icon="arrow.right.circle"
       label={action.label}
-      {...(working ? { description: "Working…" } : {})}
+      {...(working !== null ? { description: working } : {})}
       disabled={!command || !allowed || busy}
       onPress={() => onPress(action)}
     />
