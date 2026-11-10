@@ -14,7 +14,7 @@ import {
   type ProjectId,
   ThreadId,
 } from "@t3tools/contracts";
-import { turnItemUpdateCanEndBackgroundWork } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
+import { shouldRefreshNotificationPresentation } from "./notificationEvents.ts";
 import { notificationTransition } from "../plugins/notificationTransition.ts";
 import * as ProviderCommitBatch from "./ProviderCommitBatch.ts";
 import * as Context from "effect/Context";
@@ -409,15 +409,8 @@ const layerBase: Layer.Layer<
           storedEvents
             .filter(
               ({ event }) =>
-                event.type === "thread.archived" ||
-                event.type === "thread.deleted" ||
-                event.type === "thread.metadata-updated" ||
-                event.type === "run.updated" ||
-                event.type === "runtime-request.updated" ||
-                event.type === "subagent.updated" ||
-                event.type === "thread.guest-share-updated" ||
-                (event.type === "turn-item.updated" &&
-                  turnItemUpdateCanEndBackgroundWork(event.payload)),
+                shouldRefreshNotificationPresentation(event) ||
+                event.type === "thread.guest-share-updated",
             )
             .map((stored) => [stored.event.threadId, stored] as const),
         );
@@ -433,7 +426,11 @@ const layerBase: Layer.Layer<
         });
         for (const [threadId, stored] of candidates) {
           const after = yield* projectionStore.getThreadShell(threadId);
-          const transition = notificationTransition(before.get(threadId) ?? null, after);
+          const transition =
+            notificationTransition(before.get(threadId) ?? null, after) ??
+            (shouldRefreshNotificationPresentation(stored.event)
+              ? { kind: "activity" as const }
+              : null);
           if (transition === null) continue;
           const target = after ?? before.get(threadId);
           if (target == null) continue;
