@@ -1,5 +1,12 @@
 import { expect, it } from "@effect/vitest";
-import { EnvironmentId, type AuthEnvironmentScope, type PluginCatalog } from "@t3tools/contracts";
+import {
+  EnvironmentId,
+  ProjectId,
+  ThreadId,
+  ProviderInstanceId,
+  type AuthEnvironmentScope,
+  type PluginCatalog,
+} from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
@@ -69,10 +76,13 @@ const scope = (
 function call(
   name: string,
   access: "read-only" | "approval-required" | "full-access",
-  options: { foreign?: boolean } = {},
+  options: { foreign?: boolean; thread?: boolean } = {},
 ) {
-  const invoked: Array<{ scopes: readonly AuthEnvironmentScope[]; audience: string | undefined }> =
-    [];
+  const invoked: Array<{
+    scopes: readonly AuthEnvironmentScope[];
+    audience: string | undefined;
+    context: unknown;
+  }> = [];
   return Effect.gen(function* () {
     const server = yield* McpServer.McpServer;
     const result = yield* server.callTool({
@@ -83,7 +93,7 @@ function call(
           : {
               pluginId: "example",
               commandId: "status",
-              input: {},
+              input: { projectId: "forged-project", threadId: "forged-thread" },
               permission: "diagnostics:read",
             },
     });
@@ -92,15 +102,37 @@ function call(
     );
     return { output, invoked };
   }).pipe(
-    Effect.provideService(
-      McpInvocationContext.McpInvocationContext,
-      scope(access, options.foreign),
-    ),
+    Effect.provideService(McpInvocationContext.McpInvocationContext, {
+      ...scope(access, options.foreign),
+      ...(options.thread
+        ? {
+            thread: {
+              threadId: ThreadId.make("trusted-thread"),
+              providerSessionId: "session",
+              providerInstanceId: ProviderInstanceId.make("codex"),
+            },
+          }
+        : {}),
+    }),
     Effect.provideService(McpSchema.McpServerClient, client),
     Effect.provide(
       McpHttpServer.toolkitRegistration(PluginsToolkit, Handlers.layer).pipe(
         Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
-        Layer.provide(Layer.mock(ThreadManagement.ThreadManagementService)({})),
+        Layer.provide(
+          Layer.mock(ThreadManagement.ThreadManagementService)({
+            getThreadShell: () =>
+              Effect.succeed({
+                id: ThreadId.make("trusted-thread"),
+                projectId: ProjectId.make("trusted-project"),
+                deletedAt: null,
+                archivedAt: null,
+                activeRunId: "run",
+                providerInstanceId: ProviderInstanceId.make("codex"),
+                runtimeMode: "full-access",
+                interactionMode: "default",
+              } as never),
+          }),
+        ),
         Layer.provide(
           Layer.mock(ServerEnvironment.ServerEnvironment)({
             getEnvironmentId: Effect.succeed(environmentId),
@@ -109,9 +141,9 @@ function call(
         Layer.provide(
           Layer.mock(PluginRegistry.PluginRegistry)({
             list: () => Effect.succeed(catalog),
-            execute: (_, scopes, audience) =>
+            execute: (_, scopes, audience, context) =>
               Effect.sync(() => {
-                invoked.push({ scopes, audience });
+                invoked.push({ scopes, audience, context });
                 return { ready: true };
               }),
           }),
@@ -133,6 +165,7 @@ it.effect("read tools use only read scopes and enforce the read-only audience", 
     expect(output).toEqual({ ready: true });
     expect(invoked).toHaveLength(1);
     expect(invoked[0]?.audience).toBe("agent-read");
+    expect(invoked[0]?.context).toEqual({ environmentId });
     expect(invoked[0]?.scopes.every((permission) => permission.endsWith(":read"))).toBe(true);
   }),
 );
@@ -157,5 +190,17 @@ it.effect("denies credentials belonging to a different environment", () =>
     const { output, invoked } = yield* call("t3_plugin_run", "full-access", { foreign: true });
     expect(output).toMatchObject({ code: "capability_denied" });
     expect(invoked).toEqual([]);
+  }),
+);
+
+it.effect("binds plugin commands to the credential thread instead of agent input", () =>
+  Effect.gen(function* () {
+    const { invoked, output } = yield* call("t3_plugin_run", "full-access", { thread: true });
+    expect(output).toEqual({ ready: true });
+    expect(invoked[0]?.context).toEqual({
+      environmentId,
+      projectId: "trusted-project",
+      threadId: "trusted-thread",
+    });
   }),
 );
