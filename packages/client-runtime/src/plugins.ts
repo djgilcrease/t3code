@@ -253,3 +253,15 @@ export function pluginGraphLayout(
   });
   return { width: columns * 16 + 4, rows };
 }
+
+export function pluginThreadPanels(catalog: PluginCatalog, hasRepository: boolean) {
+  return catalog.plugins
+    .filter((plugin) => plugin.status === "active")
+    .flatMap((plugin) =>
+      plugin.views
+        .filter(
+          (view) => view.location === "thread-panel" && (!view.requiresRepository || hasRepository),
+        )
+        .map((view) => ({ plugin, view })),
+    );
+}
