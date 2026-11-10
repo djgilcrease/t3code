@@ -1,6 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import {
   pluginActionDestinations,
+  pluginDestinationLabel,
   pluginStatusActionInput,
   pluginThreadDetailsViews,
   runPluginAction,
@@ -259,6 +260,7 @@ function ActionRow({
   onPress: (action: PluginStatusAction) => void;
 }) {
   const command = plugin.commands.find((candidate) => candidate.id === action.command);
+  const catalogs = useAtomValue(pluginCatalogsAtom);
   const allowed = useAtomValue(
     serverEnvironment.executePluginCommand.permissionAtom(environmentId, {
       pluginId: plugin.id,
@@ -267,6 +269,12 @@ function ActionRow({
       input: action.input,
     }),
   );
+  // An action that needs another machine has nothing to offer when none is connected.
+  if (
+    action.environment !== undefined &&
+    pluginActionDestinations(catalogs, environmentId, plugin.id).length === 0
+  )
+    return null;
   return (
     <ListRow
       icon="arrow.right.circle"
@@ -294,6 +302,10 @@ function Destinations({
   const catalogs = useAtomValue(pluginCatalogsAtom);
   const { environments } = useEnvironments();
   const destinations = pluginActionDestinations(catalogs, environmentId, plugin.id);
+  const named = (id: EnvironmentId) => {
+    const found = environments.find((environment) => environment.environmentId === id);
+    return { label: found?.label ?? id, displayUrl: found?.displayUrl ?? null };
+  };
   return (
     <View>
       {destinations.length === 0 ? (
@@ -308,10 +320,12 @@ function Destinations({
           <ListRow
             key={target.environmentId}
             icon="laptopcomputer"
-            label={
-              environments.find((environment) => environment.environmentId === target.environmentId)
-                ?.label ?? target.environmentId
-            }
+            label={pluginDestinationLabel(named(target.environmentId), [
+              named(environmentId).label,
+              ...destinations
+                .filter((other) => other.environmentId !== target.environmentId)
+                .map((other) => named(other.environmentId).label),
+            ])}
             description={label}
             onPress={() => onPick(target.environmentId)}
           />
