@@ -1,3 +1,4 @@
+import { PluginSourceRead } from "@t3tools/contracts";
 import * as ProcessRunner from "../processRunner.ts";
 // @effect-diagnostics nodeBuiltinImport:off -- Node IPC is the plugin process boundary.
 import * as NodeChildProcess from "node:child_process";
@@ -74,9 +75,12 @@ const Activated = Schema.Struct({
   lifecycleTimeoutMs: PluginLifecycleTimeout,
   mcp: Schema.Boolean,
   launch: Schema.Boolean,
+  taskContext: Schema.optionalKey(Schema.Boolean),
   http: Schema.Boolean,
   httpResponseTimeoutMs: PluginHttpResponseTimeout,
 });
+const decodeSourceRead = Schema.decodeUnknownSync(PluginSourceRead);
+const decodeTaskText = Schema.decodeUnknownEffect(Schema.String.check(Schema.isMaxLength(16_384)));
 const decodeNotificationTargets = Schema.decodeSync(PluginNotificationTargets);
 const decodeNotificationRoutes = Schema.decodeUnknownSync(PluginNotificationRoutes);
 const decodeNotificationBatch = Schema.decodeSync(PluginNotificationBatch);
@@ -353,6 +357,10 @@ const make = Effect.gen(function* () {
               if (outcome.failure !== null) shownToUser.add(failure);
               throw failure;
             }
+            if (method === "project-describe" && hostContext.projects)
+              return await run(hostContext.projects.describe(String(payload.projectId)));
+            if (method === "project-source" && hostContext.projects)
+              return await run(hostContext.projects.readSource(decodeSourceRead(value)));
             if (method.startsWith("thread-")) {
               const threads = hostContext.threads;
               if (!threads) throw new Error("Thread access unavailable");
@@ -676,6 +684,17 @@ const make = Effect.gen(function* () {
                       mcpServers: (context) =>
                         call("mcp-servers", context).pipe(
                           Effect.map(Schema.decodeUnknownSync(PluginMcpServers)),
+                        ),
+                    }
+                  : {}),
+                ...(metadata.taskContext
+                  ? {
+                      taskContext: (input) =>
+                        call("task-context", input).pipe(
+                          Effect.flatMap(decodeTaskText),
+                          Effect.mapError(
+                            (cause) => new PluginError({ operation: "task-context", cause }),
+                          ),
                         ),
                     }
                   : {}),

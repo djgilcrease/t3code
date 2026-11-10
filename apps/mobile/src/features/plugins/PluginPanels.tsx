@@ -1,3 +1,4 @@
+import { PluginAssociationsView } from "./PluginAssociationsView";
 import { launchImageLibraryAsync } from "expo-image-picker";
 import { clientNoticeRoutingConflicted } from "@t3tools/client-runtime/notificationRouting";
 import { pluginCatalogsAtom } from "../../state/plugins";
@@ -25,8 +26,8 @@ import {
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
 import * as Option from "effect/Option";
-import { AsyncResult } from "effect/reactivity";
-import { useContext, useEffect, useRef, useState } from "react";
+import { AsyncResult, Atom } from "effect/reactivity";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { Image, Pressable, Linking, ScrollView, Switch, TextInput, View } from "react-native";
 import Svg, { Path, Circle } from "react-native-svg";
@@ -34,6 +35,17 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { Button as MaterialButton } from "../../components/ui/Button";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
+
+function associationQuery(selection: PluginInput) {
+  const search = selection.associationSearch;
+  return search &&
+    typeof search === "object" &&
+    !Array.isArray(search) &&
+    "query" in search &&
+    typeof search.query === "string"
+    ? search.query
+    : "";
+}
 
 type Entry = PluginCatalog["plugins"][number];
 
@@ -89,13 +101,14 @@ export function PluginPanels({
         plugin.views
           .filter(
             (view) =>
+              plugin.status === "active" &&
               view.location === location &&
               (!pluginId || plugin.id === pluginId) &&
               (!viewId || view.id === viewId),
           )
           .map((view) => (
             <PluginPanel
-              key={`${plugin.id}:${view.id}`}
+              key={`${plugin.id}:${view.id}:${JSON.stringify(context ?? {})}`}
               environmentId={environmentId}
               plugin={plugin}
               view={view}
@@ -131,6 +144,29 @@ function PluginPanel({
   const content = page?.view ?? Option.getOrNull(AsyncResult.value(result));
   const registry = useContext(RegistryContext);
   const execute = useAtomCommand(serverEnvironment.executePluginCommand);
+  const allowedCommands = useAtomValue(
+    useMemo(
+      () =>
+        Atom.make(
+          (get) =>
+            new Set(
+              plugin.commands
+                .filter((command) =>
+                  get(
+                    serverEnvironment.executePluginCommand.permissionAtom(environmentId, {
+                      pluginId: plugin.id,
+                      commandId: command.id,
+                      permission: command.permission,
+                      input: {},
+                    }),
+                  ),
+                )
+                .map((command) => command.id),
+            ),
+        ),
+      [environmentId, plugin],
+    ),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const running = useRef(false);
@@ -186,11 +222,12 @@ function PluginPanel({
         setBusy(false);
       });
   };
+  if (content?.blocks.length === 0 && !page) return null;
   return (
     <View className="gap-3 rounded-xl border border-border p-4">
       <Text className="font-t3-medium text-foreground">{content?.title ?? view.title}</Text>
       <MaterialButton
-        label="Refresh"
+        label={page ? "Back" : "Refresh"}
         onPress={() => {
           setPage(null);
           registry.refresh(query);
@@ -226,6 +263,36 @@ function PluginPanel({
         <Text accessibilityRole="alert">This plugin view could not be loaded.</Text>
       )}
       {content?.blocks.map((block) => {
+        if (block.kind === "toggle")
+          return (
+            <View key={block.id} className="flex-row items-center justify-between">
+              <Text>{block.label}</Text>
+              <Switch
+                accessibilityLabel={block.label}
+                value={block.value}
+                disabled={busy || !allowedCommands.has(block.action.command)}
+                onValueChange={() => void run(block.action)}
+              />
+            </View>
+          );
+        if (block.kind === "associations")
+          return (
+            <PluginAssociationsView
+              key={block.id}
+              block={block}
+              busy={busy}
+              run={run}
+              submittedQuery={associationQuery(selection)}
+              canRun={(action) => allowedCommands.has(action.command)}
+              search={(query, cursor) =>
+                setSelection((current) => ({
+                  ...current,
+                  associationSearch: { blockId: block.id, query, ...(cursor ? { cursor } : {}) },
+                }))
+              }
+            />
+          );
+
         if (block.kind === "graph")
           return (
             <PluginGraph
