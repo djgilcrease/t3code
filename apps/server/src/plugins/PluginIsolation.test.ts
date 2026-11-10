@@ -430,3 +430,74 @@ export default {apiVersion:1,id:"test",name:"Test",version:"1.0.0",activate:cont
       }),
     ),
 );
+
+it.effect(
+  "gives a worker thread access with failures it can show, inside its own data only",
+  () => {
+    const summary = {
+      environmentId: "environment-home",
+      environmentLabel: "home",
+      threadId: "known",
+      title: "Known thread",
+      projectId: "project",
+      repository: "github.com/example/repo",
+      directory: "/repo",
+      branch: "main",
+      running: false,
+      subagents: 0,
+      archived: false,
+    };
+    const exported: Array<string> = [];
+    const shown = `Effect.catch((error) => Effect.succeed({ shown: error.cause.message }))`;
+    return fixture(
+      () => `${header}
+export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activate: (host) => Effect.succeed({
+  commands: [
+    {...${JSON.stringify(descriptor("describe"))}, run: (input) => host.threads.describe(input.threadId).pipe(${shown})},
+    {...${JSON.stringify(descriptor("export"))}, run: (input) => host.threads.export({ threadId: "known", file: input.file }).pipe(${shown})},
+  ],
+})};`,
+      (temp) =>
+        Effect.gen(function* () {
+          const host = yield* PluginRegistry.PluginRegistry;
+          const run = (commandId: string, input: Record<string, string>) =>
+            host.execute({ ...envelope("test", commandId), input }, AuthStandardClientScopes);
+          expect(yield* run("describe", { threadId: "known" })).toEqual({
+            shown: "Thread access is not ready on this environment.",
+          });
+          yield* host.setThreads({
+            describe: (threadId) =>
+              threadId === "known"
+                ? Effect.succeed(summary)
+                : Effect.fail({ message: "This thread does not exist on this environment." }),
+            export: (input) =>
+              Effect.sync(() => {
+                exported.push(input.file);
+                return {
+                  snapshot: null,
+                  snapshotRef: null,
+                  head: null,
+                  messages: 0,
+                  omittedMessages: 0,
+                };
+              }),
+            projects: () => Effect.succeed([]),
+            import: () => Effect.fail({ message: "unused" }),
+            archive: () => Effect.void,
+          });
+          expect(yield* run("describe", { threadId: "known" })).toEqual(summary);
+          expect(yield* run("describe", { threadId: "missing" })).toEqual({
+            shown: "This thread does not exist on this environment.",
+          });
+          const inside = `${temp}/plugins/test/conversation.json`;
+          expect(yield* run("export", { file: inside })).toMatchObject({ messages: 0 });
+          expect(yield* run("export", { file: `${temp}/plugins/other/conversation.json` })).toEqual(
+            {
+              shown: "The file must be inside the plugin's data directory.",
+            },
+          );
+          expect(exported).toEqual([inside]);
+        }),
+    );
+  },
+);

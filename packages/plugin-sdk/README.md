@@ -169,6 +169,21 @@ folder in place but clears their T3-managed data and credentials.
   trees on worker exit and limits buffered output and concurrent jobs. Require
   `supervised-processes`; direct unmanaged child processes cannot receive these
   guarantees. Never return raw secret-bearing script output in lifecycle errors.
+- **Thread portability** uses `context.threads` to copy a thread to another
+  environment that runs the same plugin. `describe` reads a thread's title,
+  repository identity, directory, branch, and whether it is running or has
+  subagent threads. `export` stops a running turn while holding its queue,
+  commits the working tree to a snapshot ref (tracked changes and untracked
+  files Git does not ignore; its parent is `HEAD`), and writes the conversation
+  to a file in your data directory. `projects` finds this environment's clones
+  of a repository. `import` creates a thread from that file in a new worktree of
+  a local branch you prepared; its first turn starts a new provider session and
+  is handed the copied history. `archive` notes in the source thread where the
+  work continues, then archives it. The conversation file is the host's own
+  versioned format: carry it as bytes. Moving Git objects between the two
+  repositories is the plugin's job. A failure's `cause` is an `Error` whose
+  message is safe to show the user. Nothing here reaches other threads' turns,
+  events, or provider sessions. Require `thread-portability`.
 - **Changes** is an optional Effect stream. Emit after background state changes;
   T3 refreshes mounted plugin views. Commands also invalidate them. Nothing
   mounts in the chat transcript, and clients do not poll plugin views.
