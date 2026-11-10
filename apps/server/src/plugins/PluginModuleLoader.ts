@@ -15,6 +15,7 @@ import {
   PluginLifecycleTimeout,
   PluginLifecycleResult,
   PluginProcessInput,
+  PluginPeerCall,
   type PluginLifecycleEvent,
   PluginHttpResponseTimeout,
   PluginView,
@@ -83,6 +84,7 @@ const decodeThreadArchive = Schema.decodeUnknownSync(
     movedTo: Schema.Struct({ environmentLabel: Schema.String, threadId: Schema.String }),
   }),
 );
+const decodePeerCall = Schema.decodeUnknownSync(PluginPeerCall);
 /** Marks a host failure whose text the plugin may show its user. */
 const shownToUser = new WeakSet<Error>();
 const decodeActivated = Schema.decodeUnknownSync(Activated);
@@ -297,6 +299,28 @@ const make = Effect.gen(function* () {
             if (method === "activity" && hostContext.activity)
               return decodeActivity(await run(hostContext.activity));
             if (method === "http-url") return await run(hostContext.httpBaseUrl);
+            if (method === "plugin-list" || method === "plugin-run") {
+              const plugins = hostContext.plugins;
+              if (!plugins) throw new Error("Plugin access unavailable");
+              const call: Effect.Effect<Schema.Json, PluginError> =
+                method === "plugin-list"
+                  ? plugins.list().pipe(Effect.map((peers) => [...peers]))
+                  : plugins.run(decodePeerCall(value));
+              const outcome = await run(
+                call.pipe(
+                  Effect.match({
+                    onSuccess: (result) => ({ result }),
+                    onFailure: (error) => ({
+                      failure: error.cause instanceof Error ? error.cause.message : null,
+                    }),
+                  }),
+                ),
+              );
+              if ("result" in outcome) return outcome.result;
+              const failure = new Error(outcome.failure ?? "Plugin call failed");
+              if (outcome.failure !== null) shownToUser.add(failure);
+              throw failure;
+            }
             if (method.startsWith("thread-")) {
               const threads = hostContext.threads;
               if (!threads) throw new Error("Thread access unavailable");

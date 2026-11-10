@@ -333,12 +333,37 @@ export interface PluginThreads {
   }) => Effect.Effect<void, PluginError>;
 }
 
+export const PluginPeer = Schema.Struct({
+  id: PluginId,
+  name: Label,
+  version: Label,
+  commands: Schema.Array(PluginCommandDescriptor),
+});
+export type PluginPeer = typeof PluginPeer.Type;
+export const PluginPeerCall = Schema.Struct({
+  pluginId: PluginId,
+  commandId: PluginLocalId,
+  input: PluginInput,
+});
+export type PluginPeerCall = typeof PluginPeerCall.Type;
+
+/**
+ * Other plugins on this environment. A plugin reaches only what an agent could: commands
+ * declared with `agent: true`, and never a secret result. Check `list` before relying on an
+ * optional plugin. A failure's `cause` is an Error naming why the call was refused.
+ */
+export interface PluginPeers {
+  readonly list: () => Effect.Effect<readonly PluginPeer[], PluginError>;
+  readonly run: (call: PluginPeerCall) => Effect.Effect<Schema.Json, PluginError>;
+}
+
 export interface PluginContext {
   /** Committed thread activity, including subagents and background work; connection presence is excluded. */
   readonly activity?: Effect.Effect<PluginActivity, PluginError> | undefined;
   readonly id: string;
   readonly dataDirectory: string;
   readonly threads?: PluginThreads;
+  readonly plugins?: PluginPeers;
   readonly runProcess?: (
     input: PluginProcessInput,
   ) => Effect.Effect<PluginProcessResult, PluginError>;
