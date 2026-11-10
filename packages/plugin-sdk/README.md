@@ -267,3 +267,32 @@ with `t3 auth mcp issue --access full-access --token-only --base-dir <home>`.
 These tokens last 30 days and are restricted to MCP. Ordinary bearer sessions
 issued with `auth session issue` cannot access MCP. Revoke either token with
 `auth session revoke <session-id>`.
+
+## Project and thread associations
+
+Require `contextual-associations` for `project-new-thread` and
+`thread-associations` views. Clients supply `{ projectId, threadId? }` on the
+owning environment, including the prospective thread ID before first send.
+A `toggle` block carries a boolean and its mutation action. An `associations`
+block carries selected items, search options, and an optional next cursor.
+Each item has a durable provider-qualified `id`, a `label`, a `select` action
+(select or remove), and an optional `open` action. Search submits
+`associationSearch: { blockId, query, cursor? }` to the same view. Return a
+`document` command result with `title` and `text` to open bounded plain text
+inside the client. Revalidate selected identities and permission-sensitive
+content in the plugin; search results are not an authorization grant.
+
+Require `project-source-reads` for `context.projects.describe(projectId)` and
+`readSource({ projectId, path })`. Describe resolves the project's current host
+source-control selection. API reads are GET-only, relative to that provider's
+API root, use its existing authentication, and keep credentials in the host.
+Check `apiReads` before offering an adapter; currently GitHub implements this
+optional driver boundary. Paths and responses are bounded; no arbitrary origin
+or redirect target is accepted through this boundary.
+
+Require `task-context` for the `taskContext({ projectId, threadId })` contribution.
+It returns refreshed reference text for each user turn, before provider dispatch.
+Each plugin gets 16,384 characters; the combined budget is 32,768. Failure stops
+the turn rather than silently dropping required context. Native goal commands
+remain verbatim. The plugin owns durable associations, consent, source adapters,
+and context selection; the host adds no tracker-specific persistence or logic.

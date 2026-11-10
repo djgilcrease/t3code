@@ -1,3 +1,6 @@
+import { PluginAssociationsView } from "./PluginAssociationsView";
+import { PluginDocumentResult } from "@t3tools/contracts";
+import * as Schema from "effect/Schema";
 import { clientNoticeRoutingConflicted } from "@t3tools/client-runtime/notificationRouting";
 import { pluginCatalogsAtom } from "../../state/plugins";
 import {
@@ -24,11 +27,13 @@ import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { useContext, useEffect, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { Linking, Switch, TextInput, View } from "react-native";
+import { Linking, Modal, ScrollView, Switch, TextInput, View } from "react-native";
 import { AppText as Text } from "../../components/ui/AppText";
 import { Button as MaterialButton } from "../../components/ui/Button";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
+
+const isDocument = Schema.is(PluginDocumentResult);
 
 type Entry = PluginCatalog["plugins"][number];
 
@@ -116,9 +121,20 @@ function PluginPanel({
   onCommandResult?: (result: unknown) => void;
   context?: PluginInput;
 }) {
+  const [search, setSearch] = useState<{ blockId: string; query: string; cursor?: string }>({
+    blockId: "",
+    query: "",
+  });
+  const [document, setDocument] = useState<Schema.Schema.Type<typeof PluginDocumentResult> | null>(
+    null,
+  );
   const query = serverEnvironment.pluginView({
     environmentId,
-    input: { pluginId: plugin.id, viewId: view.id, ...(context ? { context } : {}) },
+    input: {
+      pluginId: plugin.id,
+      viewId: view.id,
+      context: { ...context, associationSearch: search },
+    },
   });
   const result = useAtomValue(query);
   const content = Option.getOrNull(AsyncResult.value(result));
@@ -155,6 +171,7 @@ function PluginPanel({
       .then((outcome) => {
         if (outcome._tag === "Success") {
           setSecret(pluginSecretResult(outcome.value));
+          if (isDocument(outcome.value)) setDocument(outcome.value);
           onCommandResult?.(outcome.value);
         }
         if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
@@ -201,7 +218,40 @@ function PluginPanel({
       {result._tag === "Failure" && (
         <Text accessibilityRole="alert">This plugin view could not be loaded.</Text>
       )}
+      <Modal visible={document !== null} onRequestClose={() => setDocument(null)}>
+        <ScrollView>
+          <Text>{document?.title}</Text>
+          <Text selectable>{document?.text}</Text>
+          <MaterialButton label="Close" onPress={() => setDocument(null)} />
+        </ScrollView>
+      </Modal>
       {content?.blocks.map((block) => {
+        if (block.kind === "toggle")
+          return (
+            <View key={block.id} className="flex-row items-center justify-between">
+              <Text>{block.label}</Text>
+              <Switch
+                accessibilityLabel={block.label}
+                value={block.value}
+                disabled={
+                  busy || !plugin.commands.some((command) => command.id === block.action.command)
+                }
+                onValueChange={() => void run(block.action)}
+              />
+            </View>
+          );
+        if (block.kind === "associations")
+          return (
+            <PluginAssociationsView
+              key={block.id}
+              block={block}
+              busy={busy}
+              run={run}
+              search={(query, cursor) =>
+                setSearch({ blockId: block.id, query, ...(cursor ? { cursor } : {}) })
+              }
+            />
+          );
         if (block.kind === "text")
           return (
             <Text key={block.id} selectable>

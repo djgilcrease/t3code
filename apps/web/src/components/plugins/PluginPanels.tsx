@@ -1,3 +1,8 @@
+import { Switch } from "../ui/switch";
+import { PluginAssociationsView } from "./PluginAssociationsView";
+import { PluginDocumentResult } from "@t3tools/contracts";
+import * as Schema from "effect/Schema";
+import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -29,6 +34,8 @@ import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+
+const isDocument = Schema.is(PluginDocumentResult);
 
 type Entry = PluginCatalog["plugins"][number];
 type Location = PluginViewDescriptor["location"];
@@ -87,6 +94,7 @@ export function PluginPanels({
         plugin.views
           .filter(
             (v) =>
+              plugin.status === "active" &&
               v.location === location &&
               (!pluginId || plugin.id === pluginId) &&
               (!viewId || v.id === viewId),
@@ -119,9 +127,20 @@ function PluginPanel({
   onCommandResult?: (result: unknown) => void;
   context?: PluginInput;
 }) {
+  const [search, setSearch] = useState<{ blockId: string; query: string; cursor?: string }>({
+    blockId: "",
+    query: "",
+  });
+  const [document, setDocument] = useState<Schema.Schema.Type<typeof PluginDocumentResult> | null>(
+    null,
+  );
   const query = serverEnvironment.pluginView({
     environmentId,
-    input: { pluginId: plugin.id, viewId: view.id, ...(context ? { context } : {}) },
+    input: {
+      pluginId: plugin.id,
+      viewId: view.id,
+      context: { ...context, associationSearch: search },
+    },
   });
   const result = useAtomValue(query);
   const content = Option.getOrNull(AsyncResult.value(result));
@@ -158,6 +177,7 @@ function PluginPanel({
       .then((outcome) => {
         if (outcome._tag === "Success") {
           setSecret(pluginSecretResult(outcome.value));
+          if (isDocument(outcome.value)) setDocument(outcome.value);
           onCommandResult?.(outcome.value);
         }
         if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
@@ -216,7 +236,39 @@ function PluginPanel({
         </div>
       )}
       {result._tag === "Failure" && <p role="alert">This plugin view could not be loaded.</p>}
+      <Dialog open={document !== null} onOpenChange={(open) => !open && setDocument(null)}>
+        <DialogPopup>
+          <DialogTitle>{document?.title}</DialogTitle>
+          <p className="whitespace-pre-wrap text-sm">{document?.text}</p>
+        </DialogPopup>
+      </Dialog>
       {content?.blocks.map((block) => {
+        if (block.kind === "toggle")
+          return (
+            <label key={block.id} className="flex items-center justify-between gap-3">
+              {block.label}
+              <Switch
+                aria-label={block.label}
+                checked={block.value}
+                disabled={
+                  busy || !plugin.commands.some((command) => command.id === block.action.command)
+                }
+                onCheckedChange={() => void run(block.action)}
+              />
+            </label>
+          );
+        if (block.kind === "associations")
+          return (
+            <PluginAssociationsView
+              key={block.id}
+              block={block}
+              busy={busy}
+              run={run}
+              search={(query, cursor) =>
+                setSearch({ blockId: block.id, query, ...(cursor ? { cursor } : {}) })
+              }
+            />
+          );
         if (block.kind === "text")
           return (
             <p key={block.id} className="whitespace-pre-wrap text-sm">
