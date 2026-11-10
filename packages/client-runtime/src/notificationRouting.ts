@@ -66,8 +66,9 @@ export function clientNoticeRoutingConflicted(catalogs: Parameters<typeof client
 }
 
 export function clientNotificationRevisionId(id: string, content: string) {
+  const revision = `${id}:${content}`;
   let hash = 0x811c9dc5;
-  for (let index = 0; index < content.length; index++)
-    hash = Math.imul(hash ^ content.charCodeAt(index), 0x01000193);
+  for (let index = 0; index < revision.length; index++)
+    hash = Math.imul(hash ^ revision.charCodeAt(index), 0x01000193);
   return `${id.slice(0, 140)}:${(hash >>> 0).toString(16)}`;
 }
