@@ -26,7 +26,7 @@ import {
   pluginViewResult,
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
-import { AsyncResult } from "effect/reactivity";
+import { AsyncResult, Atom } from "effect/reactivity";
 import * as Option from "effect/Option";
 import { useContext, useEffect, useRef, useState } from "react";
 import { serverEnvironment } from "../../state/server";
@@ -40,6 +40,7 @@ function associationQuery(selection: PluginInput) {
   return search &&
     typeof search === "object" &&
     !Array.isArray(search) &&
+    "query" in search &&
     typeof search.query === "string"
     ? search.query
     : "";
@@ -145,6 +146,24 @@ function PluginPanel({
   const content = page?.view ?? Option.getOrNull(AsyncResult.value(result));
   const registry = useContext(RegistryContext);
   const execute = useAtomCommand(serverEnvironment.executePluginCommand);
+  const commandAccess = Atom.make(
+    (get) =>
+      new Set(
+        plugin.commands
+          .filter((command) =>
+            get(
+              serverEnvironment.executePluginCommand.permissionAtom(environmentId, {
+                pluginId: plugin.id,
+                commandId: command.id,
+                permission: command.permission,
+                input: {},
+              }),
+            ),
+          )
+          .map((command) => command.id),
+      ),
+  );
+  const allowedCommands = useAtomValue(commandAccess);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const running = useRef(false);
@@ -272,9 +291,7 @@ function PluginPanel({
               <Switch
                 aria-label={block.label}
                 checked={block.value}
-                disabled={
-                  busy || !plugin.commands.some((command) => command.id === block.action.command)
-                }
+                disabled={busy || !allowedCommands.has(block.action.command)}
                 onCheckedChange={() => void run(block.action)}
               />
             </label>
@@ -287,7 +304,7 @@ function PluginPanel({
               busy={busy}
               run={run}
               submittedQuery={associationQuery(selection)}
-              canRun={(action) => plugin.commands.some((command) => command.id === action.command)}
+              canRun={(action) => allowedCommands.has(action.command)}
               search={(query, cursor) =>
                 setSelection((current) => ({
                   ...current,
