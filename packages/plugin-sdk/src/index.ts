@@ -201,6 +201,10 @@ export interface PluginContext {
     readonly remove: (key: string) => Effect.Effect<void, PluginError>;
   };
 }
+export const PluginHttpResponseTimeout = Schema.Int.check(
+  Schema.isBetween({ minimum: 1_000, maximum: 3_900_000 }),
+);
+
 export interface PluginContributions {
   /** Emit after background state changes; clients refetch mounted views, without polling. */
   readonly changes?: Stream.Stream<void, PluginError>;
@@ -219,6 +223,8 @@ export interface PluginContributions {
    * Request and response streams stay streaming and carry cancellation.
    */
   readonly handleHttp?: (request: Request) => Effect.Effect<Response, PluginError>;
+  /** Response headers may wait for a long RPC; body streams have no whole-response deadline. */
+  readonly httpResponseTimeoutMs?: number;
 }
 export interface T3Plugin extends PluginManifest {
   /** Acquire resources with Effect scopes; the host closes them on shutdown/failure. */
