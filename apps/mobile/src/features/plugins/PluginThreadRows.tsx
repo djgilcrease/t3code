@@ -108,10 +108,13 @@ export function PluginThreadRows({
         <View key={`${plugin.id}:${view.id}`}>
           <MaterialButton
             label={view.title}
-            onPress={() => setExpanded(expanded === plugin.id ? null : plugin.id)}
+            onPress={() =>
+              setExpanded(expanded === `${plugin.id}:${view.id}` ? null : `${plugin.id}:${view.id}`)
+            }
           />
-          {expanded === plugin.id ? (
+          {expanded === `${plugin.id}:${view.id}` ? (
             <PluginPanels
+              key={threadId}
               environmentId={environmentId}
               pluginId={plugin.id}
               viewId={view.id}

@@ -177,7 +177,10 @@ function PluginPanel({
           );
         }
         registry.refresh(query);
-        return outcome._tag === "Success";
+        return (
+          outcome._tag === "Success" &&
+          !["danger", "warning"].includes(pluginNoticeResult(outcome.value)?.tone ?? "success")
+        );
       })
       .finally(() => {
         running.current = false;
@@ -300,7 +303,7 @@ function PluginPanel({
         if (block.kind === "form")
           return (
             <PluginFormView
-              key={JSON.stringify(block)}
+              key={block.instance ?? JSON.stringify(block)}
               form={block}
               environmentId={environmentId}
               plugin={plugin}
@@ -401,7 +404,7 @@ function PluginActionButton({
   );
 }
 function PluginFormView({
-  form,
+  form: incoming,
   environmentId,
   plugin,
   busy,
@@ -413,6 +416,8 @@ function PluginFormView({
   busy: boolean;
   run: (action: PluginAction) => Promise<boolean>;
 }) {
+  const [snapshot, setSnapshot] = useState<PluginForm | null>(null);
+  const form = snapshot ?? incoming;
   const [draft, setValues] = useState<PluginInput | null>(null);
   const values = { ...pluginFormDefaults(form), ...draft };
   const [invalid, setInvalid] = useState(false);
@@ -433,7 +438,10 @@ function PluginFormView({
         setInvalid(input === null);
         if (input !== null)
           void run({ ...action, input }).then((success) => {
-            if (success) setValues(null);
+            if (success) {
+              setValues(null);
+              setSnapshot(null);
+            }
           });
       }}
     >
@@ -445,7 +453,10 @@ function PluginFormView({
               type="checkbox"
               checked={values[field.name] === true}
               disabled={busy || !allowed}
-              onChange={(e) => setValues({ ...values, [field.name]: e.target.checked })}
+              onChange={(e) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: e.target.checked });
+              }}
             />
           ) : field.kind === "select" ? (
             <select
@@ -453,7 +464,10 @@ function PluginFormView({
               value={String(values[field.name] ?? "")}
               disabled={busy || !allowed}
               required={field.required}
-              onChange={(e) => setValues({ ...values, [field.name]: e.target.value })}
+              onChange={(e) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: e.target.value });
+              }}
             >
               <option value="">Select…</option>
               {field.options?.map((option) => (
@@ -467,7 +481,10 @@ function PluginFormView({
               value={String(values[field.name] ?? "")}
               required={field.required}
               disabled={busy || !allowed}
-              onChange={(e) => setValues({ ...values, [field.name]: e.target.value })}
+              onChange={(e) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: e.target.value });
+              }}
             />
           ) : field.kind === "image" ? (
             <input
@@ -481,7 +498,10 @@ function PluginFormView({
                   return;
                 }
                 const reader = new FileReader();
-                reader.onload = () => setValues({ ...values, [field.name]: String(reader.result) });
+                reader.onload = () => {
+                  setSnapshot((current) => current ?? incoming);
+                  setValues({ ...values, [field.name]: String(reader.result) });
+                };
                 reader.readAsDataURL(file);
               }}
             />
@@ -493,7 +513,10 @@ function PluginFormView({
               autoComplete={field.kind === "password" ? "off" : undefined}
               required={field.required}
               disabled={busy || !allowed}
-              onChange={(e) => setValues({ ...values, [field.name]: e.target.value })}
+              onChange={(e) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: e.target.value });
+              }}
             />
           )}
         </label>
