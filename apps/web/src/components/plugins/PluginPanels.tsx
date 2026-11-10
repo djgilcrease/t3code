@@ -355,7 +355,7 @@ function PluginPanel({
           );
         if (block.kind === "text")
           return (
-            <p key={block.id} className="whitespace-pre-wrap text-sm">
+            <p key={block.id} className="whitespace-pre-wrap wrap-break-word text-sm">
               {block.text}
             </p>
           );
