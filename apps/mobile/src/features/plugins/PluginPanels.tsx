@@ -35,8 +35,12 @@ export function PluginPanels({
   location,
   pluginId,
   viewId,
+  context,
+  onCommandResult,
 }: {
   environmentId: EnvironmentId;
+  onCommandResult?: (result: unknown) => void;
+  context?: PluginInput;
   pluginId?: string;
   viewId?: string;
   location: PluginViewDescriptor["location"];
@@ -51,7 +55,7 @@ export function PluginPanels({
       plugin.id === pluginId &&
       plugin.views.some((view) => view.id === viewId && view.location === location),
   );
-  if (location === "settings-page" && !available)
+  if ((location === "settings-page" || location === "environment-launcher") && !available)
     return (
       <Text>
         This extension page is unavailable. Enable or reinstall its plugin in Plugins settings.
@@ -81,6 +85,8 @@ export function PluginPanels({
               environmentId={environmentId}
               plugin={plugin}
               view={view}
+              {...(context ? { context } : {})}
+              {...(onCommandResult ? { onCommandResult } : {})}
             />
           )),
       )}
@@ -92,14 +98,18 @@ function PluginPanel({
   environmentId,
   plugin,
   view,
+  context,
+  onCommandResult,
 }: {
   environmentId: EnvironmentId;
   plugin: Entry;
   view: PluginViewDescriptor;
+  onCommandResult?: (result: unknown) => void;
+  context?: PluginInput;
 }) {
   const query = serverEnvironment.pluginView({
     environmentId,
-    input: { pluginId: plugin.id, viewId: view.id },
+    input: { pluginId: plugin.id, viewId: view.id, ...(context ? { context } : {}) },
   });
   const result = useAtomValue(query);
   const content = Option.getOrNull(AsyncResult.value(result));
@@ -134,7 +144,10 @@ function PluginPanel({
       },
     })
       .then((outcome) => {
-        if (outcome._tag === "Success") setSecret(pluginSecretResult(outcome.value));
+        if (outcome._tag === "Success") {
+          setSecret(pluginSecretResult(outcome.value));
+          onCommandResult?.(outcome.value);
+        }
         if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
           const failure = squashAtomCommandFailure(outcome);
           setError(
@@ -222,7 +235,7 @@ function PluginPanel({
               ))}
             </View>
           );
-        if (block.kind === "status") return null;
+        if (block.kind === "status" || block.kind === "environment") return null;
         return (
           <View key={block.id} className="gap-3">
             {block.rows.map((row) => (

@@ -10,9 +10,11 @@ import { readLocalApi } from "../localApi";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { ComposerContextLabel } from "./ComposerContextLabel";
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import type { EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
 import { msg, T, useGT, useMessages } from "gt-react";
 import { m as resolveMessage } from "../i18n/messages";
+import { useAtomValue } from "@effect/atom-react";
+import { pluginCatalogsAtom } from "../state/plugins";
+import type { PluginInput, EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
 import { FolderGit2Icon, FolderGitIcon, FolderIcon, PlusIcon, ScaleIcon } from "lucide-react";
 import {
   type Ref,
@@ -74,8 +76,8 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { MiddleTruncate } from "./ui/middle-truncate";
 import { ComposerSurface } from "./chat/ComposerSurface";
 import { useComposerMenuProps } from "./chat/composerEventScope";
-import { cn } from "~/lib/utils";
-
+import { cn, randomUUID } from "~/lib/utils";
+import { PluginEnvironmentLaunchDialog } from "./plugins/PluginEnvironmentLaunchDialog";
 import { observeResize } from "~/lib/observeResize";
 
 const isClipboardApiUnavailableError = Schema.is(ClipboardApiUnavailableError);
@@ -87,6 +89,8 @@ export interface BranchToolbarHandle {
 }
 
 interface BranchToolbarProps {
+  pluginLaunchContext?: () => PluginInput;
+  onPluginLaunchAccepted?: (input: PluginInput) => void;
   layout?: "composer" | "panel";
   panelSection?: "all" | "workspace" | "branch";
   forceNewWorktree?: boolean;
@@ -150,6 +154,8 @@ function showWorkspaceContextMenu(event: ReactMouseEvent, workspacePath: string)
 }
 
 interface RunContextSelectorProps {
+  launcherContext?: () => PluginInput;
+  onLaunchAccepted?: (input: PluginInput) => void;
   displayMode?: "toolbar" | "panel";
   workspaceRoot?: string;
   forceNewWorktree: boolean;
@@ -174,6 +180,8 @@ interface RunContextSelectorProps {
 
 const RunContextSelector = memo(function RunContextSelector({
   displayMode = "toolbar",
+  launcherContext,
+  onLaunchAccepted,
   workspaceRoot,
   forceNewWorktree,
   autoEnvironmentLabel,
@@ -196,6 +204,24 @@ const RunContextSelector = memo(function RunContextSelector({
 }: RunContextSelectorProps) {
   const gt = useGT();
   const m = useMessages();
+  const catalogs = useAtomValue(pluginCatalogsAtom);
+  const launchers =
+    launcherContext && !envLocked
+      ? (
+          catalogs.find((row) => row.environmentId === environmentId)?.catalog?.plugins ?? []
+        ).flatMap((plugin) =>
+          plugin.status === "active"
+            ? plugin.views
+                .filter((view) => view.location === "environment-launcher")
+                .map((view) => ({ pluginId: plugin.id, viewId: view.id, title: view.title }))
+            : [],
+        )
+      : [];
+  const [launch, setLaunch] = useState<{
+    pluginId: string;
+    viewId: string;
+    context: PluginInput;
+  } | null>(null);
   const composerFloatingLayerProps = useComposerMenuProps();
   const activeEnvironment =
     availableEnvironments?.find((env) => env.environmentId === environmentId) ?? null;
@@ -213,7 +239,8 @@ const RunContextSelector = memo(function RunContextSelector({
         ? resolveEnvModeLabel("worktree", m)
         : resolveCurrentWorkspaceLabel(activeWorktreePath, m);
   const isPanel = displayMode === "panel";
-  const isLocked = envLocked || (envModeLocked && (!isPanel || !showEnvironmentPicker));
+  const isLocked =
+    envLocked || (envModeLocked && (!isPanel || !showEnvironmentPicker) && launchers.length === 0);
   const workspacePath =
     forceNewWorktree || (effectiveEnvMode === "worktree" && !activeWorktreePath)
       ? null
@@ -299,6 +326,7 @@ const RunContextSelector = memo(function RunContextSelector({
   }
 
   return (
+    <>
     <Menu>
       <MenuTrigger
         render={isPanel ? <ThreadDetailsControl part="select" /> : <ComposerControl size="xs" />}
@@ -341,7 +369,9 @@ const RunContextSelector = memo(function RunContextSelector({
         {...(!isPanel ? composerFloatingLayerProps : {})}
       >
         {availableEnvironments &&
-        ((showEnvironmentPicker && onEnvironmentChange) || addTargets.length > 0) ? (
+          ((showEnvironmentPicker && onEnvironmentChange) ||
+            addTargets.length > 0 ||
+            launchers.length > 0) ? (
           <>
             <MenuGroup>
               <MenuGroupLabel>
@@ -388,6 +418,21 @@ const RunContextSelector = memo(function RunContextSelector({
                   </MenuRadioItem>
                 ))}
               </MenuRadioGroup>
+                {launchers.map((launcher) => (
+                  <MenuItem
+                    key={`${launcher.pluginId}:${launcher.viewId}`}
+                    onClick={() => {
+                      if (launcherContext)
+                        setLaunch({
+                          ...launcher,
+                          context: { ...launcherContext(), requestId: randomUUID() },
+                        });
+                    }}
+                  >
+                    <PlusIcon className="size-3" />
+                    {launcher.title}
+                  </MenuItem>
+                ))}
               {addTargets.length > 0 ? (
                 <MenuSub>
                   <MenuSubTrigger>
@@ -431,7 +476,11 @@ const RunContextSelector = memo(function RunContextSelector({
               onEnvModeChange(value as EnvMode);
             }}
           >
-            <MenuRadioItem disabled={envModeLocked || forceNewWorktree} value="local" closeOnClick>
+              <MenuRadioItem
+                disabled={envModeLocked || forceNewWorktree}
+                value="local"
+                closeOnClick
+              >
               <span className="flex min-w-0 items-center gap-1.5">
                 {activeWorktreePath ? (
                   <FolderGitIcon className="size-3" />
@@ -456,6 +505,17 @@ const RunContextSelector = memo(function RunContextSelector({
         </MenuGroup>
       </MenuPopup>
     </Menu>
+      {launch && (
+        <PluginEnvironmentLaunchDialog
+          environmentId={environmentId}
+          pluginId={launch.pluginId}
+          viewId={launch.viewId}
+          context={launch.context}
+          onClose={() => setLaunch(null)}
+          {...(onLaunchAccepted ? { onAccepted: onLaunchAccepted } : {})}
+        />
+      )}
+    </>
   );
 });
 
@@ -622,6 +682,8 @@ function useLabelsOverflow(): readonly [
 
 export const BranchToolbar = memo(function BranchToolbar({
   layout = "composer",
+  pluginLaunchContext,
+  onPluginLaunchAccepted,
   panelSection = "all",
   forceNewWorktree = false,
   ref,
@@ -699,6 +761,14 @@ export const BranchToolbar = memo(function BranchToolbar({
     ],
   );
 
+  const catalogs = useAtomValue(pluginCatalogsAtom);
+  const hasLaunchers =
+    !isServerThread &&
+    (catalogs.find((row) => row.environmentId === environmentId)?.catalog?.plugins ?? []).some(
+      (plugin) =>
+        plugin.status === "active" &&
+        plugin.views.some((view) => view.location === "environment-launcher"),
+    );
   const addTargets = useAddProjectTargets(activeProject, availableEnvironments);
   const onAddToMachine = (targetEnvironmentId: EnvironmentId | null) =>
     openAddProjectToMachine({ projectRef: activeProjectRef, targetEnvironmentId });
@@ -709,7 +779,9 @@ export const BranchToolbar = memo(function BranchToolbar({
     availableEnvironments?.find((env) => env.environmentId === environmentId) ?? null;
   // Started threads get no handler but still show which machine they run on,
   // matching the strip visibility ChatView computes from the same inputs.
-  const showEnvironmentIndicator = shouldShowEnvironmentIndicator({
+  const showEnvironmentIndicator =
+    hasLaunchers ||
+    shouldShowEnvironmentIndicator({
     activeEnvironment: activeEnvironmentOption,
     canPickEnvironment: hasMultipleEnvironments,
   });
@@ -722,6 +794,15 @@ export const BranchToolbar = memo(function BranchToolbar({
       <div className="flex w-full flex-col" data-thread-panel-run-context>
         {panelSection !== "branch" ? (
           <RunContextSelector
+            {...(hasLaunchers
+              ? {
+                  launcherContext: () => ({
+                    ...pluginLaunchContext?.(),
+                    projectDirectory: activeProject.workspaceRoot,
+                  }),
+                }
+              : {})}
+            {...(onPluginLaunchAccepted ? { onLaunchAccepted: onPluginLaunchAccepted } : {})}
             displayMode="panel"
             workspaceRoot={activeProject.workspaceRoot}
             forceNewWorktree={forceNewWorktree}
@@ -774,6 +855,15 @@ export const BranchToolbar = memo(function BranchToolbar({
       {showGitControls ? (
         <div className="contents @xl/composer-surface:hidden">
           <RunContextSelector
+            {...(hasLaunchers
+              ? {
+                  launcherContext: () => ({
+                    ...pluginLaunchContext?.(),
+                    projectDirectory: activeProject.workspaceRoot,
+                  }),
+                }
+              : {})}
+            {...(onPluginLaunchAccepted ? { onLaunchAccepted: onPluginLaunchAccepted } : {})}
             forceNewWorktree={forceNewWorktree}
             autoEnvironmentLabel={autoEnvironmentLabel}
             onAutoEnvironment={onAutoEnvironment}
@@ -806,6 +896,15 @@ export const BranchToolbar = memo(function BranchToolbar({
           {showEnvironmentIndicator && availableEnvironments && (
             <>
               <BranchToolbarEnvironmentSelector
+                {...(hasLaunchers
+                  ? {
+                      launchContext: () => ({
+                        ...pluginLaunchContext?.(),
+                        projectDirectory: activeProject.workspaceRoot,
+                      }),
+                    }
+                  : {})}
+                {...(onPluginLaunchAccepted ? { onLaunchAccepted: onPluginLaunchAccepted } : {})}
                 autoEnvironmentLabel={autoEnvironmentLabel}
                 onAutoEnvironment={onAutoEnvironment}
                 envLocked={envLocked}
