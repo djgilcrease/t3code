@@ -290,3 +290,22 @@ with `t3 auth mcp issue --access full-access --token-only --base-dir <home>`.
 These tokens last 30 days and are restricted to MCP. Ordinary bearer sessions
 issued with `auth session issue` cannot access MCP. Revoke either token with
 `auth session revoke <session-id>`.
+
+## Ordered graph views
+
+The `portable-graphs` capability adds bounded `graph` blocks: `label` and up to
+100 ordered `nodes`, each with `id`, later `parents` (or ids beyond this page),
+`label`, `detail`, `annotation`, `badges`, and an ordinary permission-checked
+`action`. Nodes and parent ids are unique, ordered child before parent, and the
+union is limited to 200 ids. The host owns lane layout and static SVG rendering;
+plugins provide data, never SVG or client code. Edges leaving the window continue
+at its bottom. Each page lays out independently.
+
+A `thread-panel` descriptor can request `presentation: "dialog"` for a larger
+view opened from the thread info bar. Other panels keep their default popover
+presentation. Both receive the owning thread as `threadId` in `read` input;
+resolve its directory through `context.threads.describe` on that environment.
+
+Set `requiresRepository: true` on a thread panel to hide its button until the
+owning thread's Git status confirms a repository. Other panels remain visible
+without Git. Both web and mobile use the same contribution selector.

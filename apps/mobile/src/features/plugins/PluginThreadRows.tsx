@@ -4,6 +4,7 @@ import {
   pluginDestinationLabel,
   pluginStatusActionInput,
   pluginThreadDetailsViews,
+  pluginThreadPanels,
   runPluginAction,
   type PluginActionReply,
   type PluginActionStep,
@@ -22,7 +23,8 @@ import {
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { useState } from "react";
-import { View } from "react-native";
+import { Modal, ScrollView, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import * as Dialog from "../../components/ui/Dialog";
 import { ListRow } from "../../components/ui/ListRow";
@@ -74,9 +76,11 @@ interface Run {
 export function PluginThreadRows({
   environmentId,
   threadId,
+  hasRepository,
 }: {
   environmentId: EnvironmentId;
   threadId: ThreadId;
+  hasRepository: boolean;
 }) {
   const catalogs = useAtomValue(pluginCatalogsAtom);
   const views = catalogs.flatMap(({ environmentId: sourceId, catalog }) =>
@@ -86,16 +90,7 @@ export function PluginThreadRows({
   const [expanded, setExpanded] = useState<string | null>(null);
   const panels = catalogs
     .filter((row) => row.environmentId === environmentId)
-    .flatMap(
-      (row) =>
-        row.catalog?.plugins
-          .filter((p) => p.status === "active")
-          .flatMap((plugin) =>
-            plugin.views
-              .filter((v) => v.location === "thread-panel")
-              .map((view) => ({ plugin, view })),
-          ) ?? [],
-    );
+    .flatMap((row) => (row.catalog ? pluginThreadPanels(row.catalog, hasRepository) : []));
   if (views.length === 0 && panels.length === 0) return null;
   return (
     <ListSection
@@ -113,14 +108,32 @@ export function PluginThreadRows({
             }
           />
           {expanded === `${plugin.id}:${view.id}` ? (
-            <PluginPanels
-              key={threadId}
-              environmentId={environmentId}
-              pluginId={plugin.id}
-              viewId={view.id}
-              location="thread-panel"
-              context={{ threadId }}
-            />
+            view.presentation === "dialog" ? (
+              <Modal visible animationType="slide" onRequestClose={() => setExpanded(null)}>
+                <SafeAreaView className="flex-1 bg-background">
+                  <MaterialButton label="Close" onPress={() => setExpanded(null)} />
+                  <ScrollView>
+                    <PluginPanels
+                      key={threadId}
+                      environmentId={environmentId}
+                      pluginId={plugin.id}
+                      viewId={view.id}
+                      location="thread-panel"
+                      context={{ threadId }}
+                    />
+                  </ScrollView>
+                </SafeAreaView>
+              </Modal>
+            ) : (
+              <PluginPanels
+                key={threadId}
+                environmentId={environmentId}
+                pluginId={plugin.id}
+                viewId={view.id}
+                location="thread-panel"
+                context={{ threadId }}
+              />
+            )
           ) : null}
         </View>
       ))}

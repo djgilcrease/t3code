@@ -362,7 +362,11 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
         ) : null}
       </ListSection>
 
-      <PluginThreadRows environmentId={environmentId} threadId={threadId} />
+      <PluginThreadRows
+        environmentId={environmentId}
+        threadId={threadId}
+        hasRepository={gitStatus.data?.isRepo === true}
+      />
 
       {linkedPrLines.length > 0 ? (
         <ListSection title={gt("Linked {terms}", { terms: linkedPrActions.terminology.plural })}>
