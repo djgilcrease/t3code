@@ -155,6 +155,9 @@ export type PluginActionReply =
   | { readonly ok: false; readonly message: string | null };
 
 const decodeNoticeResult = Schema.decodeUnknownOption(PluginNoticeResult);
+export function pluginNoticeResult(value: unknown): PluginNoticeResult | null {
+  return Option.getOrNull(decodeNoticeResult(value));
+}
 const failed = (message: string | null): PluginNoticeResult => ({
   $t3: "notice",
   tone: "danger",
