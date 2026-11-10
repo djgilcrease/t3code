@@ -330,6 +330,8 @@ it.effect("brings a settled thread back when its guest sends a request", () =>
       shareId,
       guestName: "Sam",
     });
+    const notifications = yield* NotificationJournal.NotificationJournal;
+    const beforeSettlement = yield* notifications.read({ after: null });
     yield* orchestrator.dispatch({
       type: "thread.settle",
       commandId: CommandId.make("settle"),
@@ -338,6 +340,12 @@ it.effect("brings a settled thread back when its guest sends a request", () =>
     assert.equal(
       (yield* projections.getThreadProjection(threadId)).thread.settledOverride,
       "settled",
+    );
+    assert.deepEqual(
+      (yield* notifications.read({ after: beforeSettlement.cursor })).events.map(
+        (event) => event.kind,
+      ),
+      ["activity"],
     );
     yield* orchestrator.dispatch({
       type: "thread.guest-message.submit",
