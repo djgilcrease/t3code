@@ -231,20 +231,24 @@ export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activ
     ),
 );
 
-it.effect(
-  "kills an event-loop stall at the handler deadline while other plugins remain usable",
-  () =>
+it.effect.each(["command", "mcp"])(
+  "kills an event-loop stall at the handler deadline while other plugins remain usable (%s)",
+  (operation) =>
     fixture(
       () => `${header}
 export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activate: () => Effect.succeed({
+  mcpServers: () => Effect.sync(() => { for (;;) {} }),
   commands: [{...${JSON.stringify(descriptor("block"))}, run: () => Effect.sync(() => { for (;;) {} })}]
 })};`,
       () =>
         Effect.gen(function* () {
           const host = yield* PluginRegistry.PluginRegistry;
-          const blocked = yield* host
-            .execute(envelope("test", "block"), AuthStandardClientScopes)
-            .pipe(Effect.result, Effect.forkChild);
+          expect((yield* host.list(AuthStandardClientScopes)).plugins[0]?.status).toBe("active");
+          const blocked = yield* (
+            operation === "command"
+              ? host.execute(envelope("test", "block"), AuthStandardClientScopes)
+              : host.mcpServers({ provider: "codex", instanceId: "codex" })
+          ).pipe(Effect.result, Effect.forkChild);
           yield* TestClock.adjust("30 seconds");
           expect((yield* Fiber.join(blocked))._tag).toBe("Failure");
           const stopped = yield* host.changes.pipe(

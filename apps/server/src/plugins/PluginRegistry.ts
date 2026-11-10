@@ -1,6 +1,7 @@
 import {
   PluginCatalog,
   PluginMcpServers,
+  PluginHttpResponseTimeout,
   type PluginMcpContext,
   type PluginMcpServer,
   PluginCommandDescriptor,
@@ -67,6 +68,7 @@ const Launch = Schema.Struct({
   args: Schema.Array(Schema.String),
   environment: Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Undefined])),
 });
+const decodeHttpResponseTimeout = Schema.decodeUnknownEffect(PluginHttpResponseTimeout);
 const decodeLaunch = Schema.decodeUnknownEffect(Launch);
 type RequestError = PluginOperationError | PluginRequestError | EnvironmentAuthorizationError;
 
@@ -211,7 +213,7 @@ const make = Effect.gen(function* () {
       const context: PluginContext = {
         id: item.id,
         dataDirectory,
-        capabilities: ["provider-mcp-servers"],
+        capabilities: ["provider-mcp-servers", "http-response-timeout"],
         httpBasePath: `/api/plugins/${item.id}`,
         httpBaseUrl: Effect.suspend(() =>
           httpOrigin === undefined
@@ -267,7 +269,10 @@ const make = Effect.gen(function* () {
       ) {
         return yield* new PluginError({ operation: "contributions", cause: null });
       }
-      active.set(item.id, contributions);
+      const httpResponseTimeoutMs = yield* decodeHttpResponseTimeout(
+        contributions.httpResponseTimeoutMs ?? 30_000,
+      );
+      active.set(item.id, { ...contributions, httpResponseTimeoutMs });
       if (module.setRestartLimit) restartLimits.set(item.id, module.setRestartLimit);
       entries.set(item.id, { ...manifest, status: "active", commands, views });
       if (module.health) {
@@ -537,12 +542,14 @@ const make = Effect.gen(function* () {
     }),
     handleHttp: Effect.fn("PluginRegistry.handleHttp")(function* (id, request) {
       yield* Deferred.await(initialized);
-      const handler = active.get(id)?.handleHttp;
+      const contributions = active.get(id);
+      const handler = contributions?.handleHttp;
       return yield* handler
         ? guarded(
             id,
             "http",
             Effect.suspend(() => handler(request)),
+            contributions?.httpResponseTimeoutMs ?? 30_000,
           )
         : Effect.succeed(new Response(null, { status: 404 }));
     }),
