@@ -20,6 +20,7 @@ import {
   pluginFormInput,
   pluginLink,
   pluginSecretResult,
+  pluginViewResult,
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
 import { AsyncResult } from "effect/reactivity";
@@ -124,7 +125,8 @@ function PluginPanel({
     input: { pluginId: plugin.id, viewId: view.id, ...(context ? { context } : {}) },
   });
   const result = useAtomValue(query);
-  const content = Option.getOrNull(AsyncResult.value(result));
+  const [page, setPage] = useState<ReturnType<typeof pluginViewResult>>(null);
+  const content = page?.view ?? Option.getOrNull(AsyncResult.value(result));
   const registry = useContext(RegistryContext);
   const execute = useAtomCommand(serverEnvironment.executePluginCommand);
   const [busy, setBusy] = useState(false);
@@ -158,6 +160,8 @@ function PluginPanel({
       .then((outcome) => {
         if (outcome._tag === "Success") {
           setSecret(pluginSecretResult(outcome.value));
+          const nextPage = pluginViewResult(outcome.value);
+          if (nextPage) setPage(nextPage);
           onCommandResult?.(outcome.value);
         }
         if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
@@ -178,7 +182,14 @@ function PluginPanel({
     <section className="space-y-3 rounded-lg border p-4" aria-label={view.title}>
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium">{content?.title ?? view.title}</h3>
-        <Button size="sm" variant="ghost" onClick={() => registry.refresh(query)}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setPage(null);
+            registry.refresh(query);
+          }}
+        >
           Refresh
         </Button>
       </div>
@@ -217,6 +228,16 @@ function PluginPanel({
       )}
       {result._tag === "Failure" && <p role="alert">This plugin view could not be loaded.</p>}
       {content?.blocks.map((block) => {
+        if (block.kind === "code")
+          return (
+            <pre
+              key={block.id}
+              className="max-h-96 overflow-auto whitespace-pre text-xs"
+              tabIndex={0}
+            >
+              <code>{block.text}</code>
+            </pre>
+          );
         if (block.kind === "text")
           return (
             <p key={block.id} className="whitespace-pre-wrap text-sm">
