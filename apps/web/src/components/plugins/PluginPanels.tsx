@@ -241,6 +241,7 @@ function PluginPanel({
               run={run}
             />
           );
+        if (block.kind === "status") return null;
         return (
           <div key={block.id} className="overflow-x-auto">
             <table className="w-full text-left text-sm">
