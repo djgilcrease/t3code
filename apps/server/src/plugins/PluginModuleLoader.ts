@@ -10,6 +10,7 @@ import {
 import {
   PluginManifest,
   PluginMcpServers,
+  PluginHttpResponseTimeout,
   PluginView,
   PluginCommandDescriptor,
   PluginViewDescriptor,
@@ -59,6 +60,7 @@ const Activated = Schema.Struct({
   mcp: Schema.Boolean,
   launch: Schema.Boolean,
   http: Schema.Boolean,
+  httpResponseTimeoutMs: PluginHttpResponseTimeout,
 });
 const decodeActivated = Schema.decodeUnknownSync(Activated);
 const decodeManifest = Schema.decodeUnknownSync(PluginManifest);
@@ -156,7 +158,7 @@ const make = Effect.gen(function* () {
                 return;
               }
               const id = ++nextId;
-              const supervised = ["command", "view", "launch"].includes(method);
+              const supervised = ["command", "view", "launch", "mcp-servers"].includes(method);
               // Client refreshes can be superseded while the worker is still answering.
               // Keep their watchdog until the reply arrives, even after caller cancellation.
               const watchdog = supervised ? new AbortController() : undefined;
@@ -492,6 +494,7 @@ const make = Effect.gen(function* () {
                   : {}),
                 ...(metadata.http
                   ? {
+                      httpResponseTimeoutMs: metadata.httpResponseTimeoutMs,
                       handleHttp: (request: Request) =>
                         Effect.tryPromise({
                           try: async (signal) => {

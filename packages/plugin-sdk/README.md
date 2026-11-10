@@ -145,8 +145,11 @@ activation, when there is no listener yet.
 Acquire resources with Effect scopes in `activate`. T3 closes the worker's scope
 on disable, update, removal, activation failure, or shutdown, and kills a worker
 that does not exit. Cleanup must tolerate abrupt termination. Each load and
-activation attempt has a 15-second deadline; commands, views, launch hooks, and
-HTTP response acquisition have a 30-second deadline. Streaming body lifetimes
+activation attempt has a 15-second deadline; commands, views, MCP resolution, launch hooks, and
+HTTP response acquisition have a 30-second deadline. `httpResponseTimeoutMs` can
+extend response acquisition to at most 65 minutes for long RPCs; check for the
+`http-response-timeout` context capability. Caller cancellation still aborts the
+request, and ordinary commands and views keep their 30-second watchdog. Streaming body lifetimes
 have no whole-response deadline. View, command, and MCP contribution results are limited to
 256 KiB; views also have collection limits. IPC messages are limited to 1 MiB.
 
