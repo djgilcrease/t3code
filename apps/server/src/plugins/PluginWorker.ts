@@ -6,6 +6,7 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import {
   PluginError,
+  PluginActivity,
   PluginManifest,
   PluginMcpContext,
   PluginLifecycleEvent,
@@ -89,6 +90,7 @@ export async function runPluginWorker(): Promise<void> {
     }
   >();
   const controllers = new Map<number, AbortController>();
+  const decodeActivity = Schema.decodeUnknownSync(PluginActivity);
   const decodeManifest = Schema.decodeUnknownSync(PluginManifest);
   const dispatch = async (message: PluginMessage): Promise<Schema.Json> => {
     const payload = message.payload as Record<string, Schema.Json>;
@@ -110,6 +112,7 @@ export async function runPluginWorker(): Promise<void> {
           capabilities: Array.isArray(payload.capabilities)
             ? payload.capabilities.filter((value): value is string => typeof value === "string")
             : [],
+          activity: hostEffect("activity", null).pipe(Effect.map(decodeActivity)),
           runProcess: (input) =>
             hostEffect("process-run", input).pipe(Effect.map(decodeProcessResult)),
           httpBasePath: String(payload.httpBasePath),

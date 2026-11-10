@@ -233,7 +233,17 @@ export const PluginProcessResult = Schema.Struct({
 });
 export type PluginProcessResult = typeof PluginProcessResult.Type;
 
+export const PluginActivity = Schema.Struct({
+  active: Schema.Boolean,
+  waiting: Schema.Boolean,
+  closed: Schema.Boolean,
+  lastActivity: Schema.Number,
+});
+export type PluginActivity = typeof PluginActivity.Type;
+
 export interface PluginContext {
+  /** Committed thread activity, including subagents and background work; connection presence is excluded. */
+  readonly activity?: Effect.Effect<PluginActivity, PluginError> | undefined;
   readonly id: string;
   readonly dataDirectory: string;
   readonly runProcess?: (
