@@ -1,3 +1,4 @@
+import { PluginPanels } from "../plugins/PluginPanels";
 import { useComposerMenuState } from "../chat/useComposerMenuState";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
 import { AuthOrchestrationOperateScope } from "@t3tools/contracts";
@@ -687,6 +688,14 @@ function ProjectDetail({
             }
           />
         </SettingsSection>
+        {group.memberProjects.map((member) => (
+          <PluginPanels
+            key={`${member.environmentId}:${member.id}`}
+            environmentId={member.environmentId}
+            location="project-settings"
+            context={{ projectId: member.id }}
+          />
+        ))}
       </SettingsPageContainer>
 
       <ProjectFaviconPickerDialog

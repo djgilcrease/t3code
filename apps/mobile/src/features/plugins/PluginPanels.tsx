@@ -1,3 +1,4 @@
+import { launchImageLibraryAsync } from "expo-image-picker";
 import { clientNoticeRoutingConflicted } from "@t3tools/client-runtime/notificationRouting";
 import { pluginCatalogsAtom } from "../../state/plugins";
 import {
@@ -18,6 +19,7 @@ import {
   pluginFormInput,
   pluginLink,
   pluginSecretResult,
+  pluginNoticeResult,
   pluginViewResult,
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
@@ -25,7 +27,7 @@ import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { useContext, useEffect, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { Linking, ScrollView, Switch, TextInput, View } from "react-native";
+import { Image, Linking, ScrollView, Switch, TextInput, View } from "react-native";
 import { AppText as Text } from "../../components/ui/AppText";
 import { Button as MaterialButton } from "../../components/ui/Button";
 import { serverEnvironment } from "../../state/server";
@@ -117,9 +119,10 @@ function PluginPanel({
   onCommandResult?: (result: unknown) => void;
   context?: PluginInput;
 }) {
+  const [selection, setSelection] = useState<PluginInput>({});
   const query = serverEnvironment.pluginView({
     environmentId,
-    input: { pluginId: plugin.id, viewId: view.id, ...(context ? { context } : {}) },
+    input: { pluginId: plugin.id, viewId: view.id, context: { ...context, ...selection } },
   });
   const result = useAtomValue(query);
   const [page, setPage] = useState<ReturnType<typeof pluginViewResult>>(null);
@@ -131,6 +134,7 @@ function PluginPanel({
   const running = useRef(false);
   const [secret, setSecret] = useState<ReturnType<typeof pluginSecretResult>>(null);
   const [copied, setCopied] = useState(false);
+  const [notice, setNotice] = useState<ReturnType<typeof pluginNoticeResult>>(null);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Secret expiry owns a timer cancelled on replacement or unmount.
   useEffect(() => {
     if (!secret) return;
@@ -145,6 +149,7 @@ function PluginPanel({
     setCopied(false);
     setBusy(true);
     setError(null);
+    setNotice(null);
     return execute({
       environmentId,
       input: {
@@ -157,6 +162,7 @@ function PluginPanel({
       .then((outcome) => {
         if (outcome._tag === "Success") {
           setSecret(pluginSecretResult(outcome.value));
+          setNotice(pluginNoticeResult(outcome.value));
           const nextPage = pluginViewResult(outcome.value);
           if (nextPage) setPage(nextPage);
           onCommandResult?.(outcome.value);
@@ -168,7 +174,10 @@ function PluginPanel({
           );
         }
         registry.refresh(query);
-        return outcome._tag === "Success";
+        return (
+          outcome._tag === "Success" &&
+          !["danger", "warning"].includes(pluginNoticeResult(outcome.value)?.tone ?? "success")
+        );
       })
       .finally(() => {
         running.current = false;
@@ -185,6 +194,9 @@ function PluginPanel({
           registry.refresh(query);
         }}
       />
+      {notice && (
+        <Text accessibilityRole={notice.tone === "danger" ? "alert" : "text"}>{notice.text}</Text>
+      )}
       {error && <Text accessibilityRole="alert">{error}</Text>}
       {secret && (
         <View className="gap-2 rounded-lg border border-border p-3">
@@ -212,6 +224,24 @@ function PluginPanel({
         <Text accessibilityRole="alert">This plugin view could not be loaded.</Text>
       )}
       {content?.blocks.map((block) => {
+        if (block.kind === "collection")
+          return (
+            <PluginCollection
+              key={block.id}
+              block={block}
+              select={(input) => setSelection((current) => ({ ...current, ...input }))}
+            />
+          );
+        if (block.kind === "image")
+          return (
+            <Image
+              key={block.id}
+              accessibilityLabel={block.label}
+              source={{ uri: block.source }}
+              style={{ width: "100%", height: 300 }}
+              resizeMode="contain"
+            />
+          );
         if (block.kind === "code")
           return (
             <ScrollView key={block.id} horizontal>
@@ -239,7 +269,7 @@ function PluginPanel({
         if (block.kind === "form")
           return (
             <PluginFormView
-              key={block.id}
+              key={block.instance ?? JSON.stringify(block)}
               form={block}
               plugin={plugin}
               environmentId={environmentId}
@@ -328,7 +358,7 @@ function Action({
   );
 }
 function PluginFormView({
-  form,
+  form: incoming,
   plugin,
   environmentId,
   busy,
@@ -340,6 +370,8 @@ function PluginFormView({
   busy: boolean;
   run: (action: PluginAction) => Promise<boolean>;
 }) {
+  const [snapshot, setSnapshot] = useState<PluginForm | null>(null);
+  const form = snapshot ?? incoming;
   const [draft, setValues] = useState<PluginInput | null>(null);
   const values = { ...pluginFormDefaults(form), ...draft };
   const [invalid, setInvalid] = useState(false);
@@ -354,7 +386,10 @@ function PluginFormView({
               accessibilityLabel={field.label}
               value={values[field.name] === true}
               disabled={busy || !allowed}
-              onValueChange={(value) => setValues({ ...values, [field.name]: value })}
+              onValueChange={(value) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: value });
+              }}
             />
           ) : field.kind === "select" ? (
             <View className="gap-1">
@@ -363,21 +398,48 @@ function PluginFormView({
                   key={option.value}
                   label={`${values[field.name] === option.value ? "✓ " : ""}${option.label}`}
                   disabled={busy || !allowed}
-                  onPress={() => setValues({ ...values, [field.name]: option.value })}
+                  onPress={() => {
+                    setSnapshot((current) => current ?? incoming);
+                    setValues({ ...values, [field.name]: option.value });
+                  }}
                 />
               ))}
             </View>
+          ) : field.kind === "image" ? (
+            <MaterialButton
+              label="Choose image (at most 64 KiB)"
+              disabled={busy || !allowed}
+              onPress={() => {
+                void launchImageLibraryAsync({ mediaTypes: ["images"], base64: true })
+                  .then((result) => {
+                    const asset = result.assets?.[0];
+                    if (!asset?.base64 || asset.base64.length > 87384) {
+                      setInvalid(true);
+                      return;
+                    }
+                    setValues({
+                      ...values,
+                      [field.name]: `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}`,
+                    });
+                  })
+                  .catch(() => setInvalid(true));
+              }}
+            />
           ) : (
             <TextInput
               accessibilityLabel={field.label}
               value={String(values[field.name] ?? "")}
               editable={!busy && allowed}
               secureTextEntry={field.kind === "password"}
+              multiline={field.kind === "multiline"}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType={field.kind === "number" ? "numeric" : "default"}
               className="min-h-12 rounded-lg border border-border px-3 text-foreground"
-              onChangeText={(value) => setValues({ ...values, [field.name]: value })}
+              onChangeText={(value) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: value });
+              }}
             />
           )}
         </View>
@@ -394,11 +456,46 @@ function PluginFormView({
           if (input !== null)
             void run({ id: form.id, label: form.label, command: form.command, input }).then(
               (success) => {
-                if (success) setValues(null);
+                if (success) {
+                  setValues(null);
+                  setSnapshot(null);
+                }
               },
             );
         }}
       />
+    </View>
+  );
+}
+
+function PluginCollection({
+  block,
+  select,
+}: {
+  block: Extract<import("@t3tools/contracts").PluginBlock, { kind: "collection" }>;
+  select: (input: PluginInput) => void;
+}) {
+  const [search, setSearch] = useState("");
+  return (
+    <View className="gap-2">
+      <TextInput
+        accessibilityLabel={`Search ${block.label}`}
+        placeholder={`Search ${block.label}`}
+        value={search}
+        onChangeText={(value) => {
+          setSearch(value);
+          if (block.queryField) select({ [block.queryField]: value });
+        }}
+      />
+      {block.items
+        .filter(
+          (item) =>
+            block.queryField !== undefined ||
+            `${item.label} ${item.search}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
+        )
+        .map((item) => (
+          <MaterialButton key={item.id} label={item.label} onPress={() => select(item.input)} />
+        ))}
     </View>
   );
 }

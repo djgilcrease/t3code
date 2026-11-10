@@ -20,6 +20,7 @@ import {
   pluginFormInput,
   pluginLink,
   pluginSecretResult,
+  pluginNoticeResult,
   pluginViewResult,
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
@@ -29,6 +30,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
+import { Textarea } from "../ui/textarea";
 import { Input } from "../ui/input";
 
 type Entry = PluginCatalog["plugins"][number];
@@ -120,9 +122,10 @@ function PluginPanel({
   onCommandResult?: (result: unknown) => void;
   context?: PluginInput;
 }) {
+  const [selection, setSelection] = useState<PluginInput>({});
   const query = serverEnvironment.pluginView({
     environmentId,
-    input: { pluginId: plugin.id, viewId: view.id, ...(context ? { context } : {}) },
+    input: { pluginId: plugin.id, viewId: view.id, context: { ...context, ...selection } },
   });
   const result = useAtomValue(query);
   const [page, setPage] = useState<ReturnType<typeof pluginViewResult>>(null);
@@ -134,6 +137,7 @@ function PluginPanel({
   const running = useRef(false);
   const [secret, setSecret] = useState<ReturnType<typeof pluginSecretResult>>(null);
   const [copied, setCopied] = useState(false);
+  const [notice, setNotice] = useState<ReturnType<typeof pluginNoticeResult>>(null);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Secret expiry owns a timer cancelled on replacement or unmount.
   useEffect(() => {
     if (!secret) return;
@@ -148,6 +152,7 @@ function PluginPanel({
     setCopied(false);
     setBusy(true);
     setError(null);
+    setNotice(null);
     return execute({
       environmentId,
       input: {
@@ -160,6 +165,7 @@ function PluginPanel({
       .then((outcome) => {
         if (outcome._tag === "Success") {
           setSecret(pluginSecretResult(outcome.value));
+          setNotice(pluginNoticeResult(outcome.value));
           const nextPage = pluginViewResult(outcome.value);
           if (nextPage) setPage(nextPage);
           onCommandResult?.(outcome.value);
@@ -171,7 +177,10 @@ function PluginPanel({
           );
         }
         registry.refresh(query);
-        return outcome._tag === "Success";
+        return (
+          outcome._tag === "Success" &&
+          !["danger", "warning"].includes(pluginNoticeResult(outcome.value)?.tone ?? "success")
+        );
       })
       .finally(() => {
         running.current = false;
@@ -193,6 +202,7 @@ function PluginPanel({
           Refresh
         </Button>
       </div>
+      {notice && <p role={notice.tone === "danger" ? "alert" : "status"}>{notice.text}</p>}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
@@ -228,6 +238,23 @@ function PluginPanel({
       )}
       {result._tag === "Failure" && <p role="alert">This plugin view could not be loaded.</p>}
       {content?.blocks.map((block) => {
+        if (block.kind === "collection")
+          return (
+            <PluginCollection
+              key={block.id}
+              block={block}
+              select={(input) => setSelection((current) => ({ ...current, ...input }))}
+            />
+          );
+        if (block.kind === "image")
+          return (
+            <img
+              key={block.id}
+              src={block.source}
+              alt={block.label}
+              className="max-h-96 max-w-full object-contain"
+            />
+          );
         if (block.kind === "code")
           return (
             <pre
@@ -276,7 +303,7 @@ function PluginPanel({
         if (block.kind === "form")
           return (
             <PluginFormView
-              key={block.id}
+              key={block.instance ?? JSON.stringify(block)}
               form={block}
               environmentId={environmentId}
               plugin={plugin}
@@ -377,7 +404,7 @@ function PluginActionButton({
   );
 }
 function PluginFormView({
-  form,
+  form: incoming,
   environmentId,
   plugin,
   busy,
@@ -389,6 +416,8 @@ function PluginFormView({
   busy: boolean;
   run: (action: PluginAction) => Promise<boolean>;
 }) {
+  const [snapshot, setSnapshot] = useState<PluginForm | null>(null);
+  const form = snapshot ?? incoming;
   const [draft, setValues] = useState<PluginInput | null>(null);
   const values = { ...pluginFormDefaults(form), ...draft };
   const [invalid, setInvalid] = useState(false);
@@ -409,7 +438,10 @@ function PluginFormView({
         setInvalid(input === null);
         if (input !== null)
           void run({ ...action, input }).then((success) => {
-            if (success) setValues(null);
+            if (success) {
+              setValues(null);
+              setSnapshot(null);
+            }
           });
       }}
     >
@@ -421,7 +453,10 @@ function PluginFormView({
               type="checkbox"
               checked={values[field.name] === true}
               disabled={busy || !allowed}
-              onChange={(e) => setValues({ ...values, [field.name]: e.target.checked })}
+              onChange={(e) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: e.target.checked });
+              }}
             />
           ) : field.kind === "select" ? (
             <select
@@ -429,7 +464,10 @@ function PluginFormView({
               value={String(values[field.name] ?? "")}
               disabled={busy || !allowed}
               required={field.required}
-              onChange={(e) => setValues({ ...values, [field.name]: e.target.value })}
+              onChange={(e) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: e.target.value });
+              }}
             >
               <option value="">Select…</option>
               {field.options?.map((option) => (
@@ -438,6 +476,35 @@ function PluginFormView({
                 </option>
               ))}
             </select>
+          ) : field.kind === "multiline" ? (
+            <Textarea
+              value={String(values[field.name] ?? "")}
+              required={field.required}
+              disabled={busy || !allowed}
+              onChange={(e) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: e.target.value });
+              }}
+            />
+          ) : field.kind === "image" ? (
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              disabled={busy || !allowed}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file || file.size > 64 * 1024) {
+                  setInvalid(true);
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setSnapshot((current) => current ?? incoming);
+                  setValues({ ...values, [field.name]: String(reader.result) });
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
           ) : (
             <Input
               type={field.kind}
@@ -446,7 +513,10 @@ function PluginFormView({
               autoComplete={field.kind === "password" ? "off" : undefined}
               required={field.required}
               disabled={busy || !allowed}
-              onChange={(e) => setValues({ ...values, [field.name]: e.target.value })}
+              onChange={(e) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: e.target.value });
+              }}
             />
           )}
         </label>
@@ -456,5 +526,45 @@ function PluginFormView({
         {form.label}
       </Button>
     </form>
+  );
+}
+
+function PluginCollection({
+  block,
+  select,
+}: {
+  block: Extract<import("@t3tools/contracts").PluginBlock, { kind: "collection" }>;
+  select: (input: PluginInput) => void;
+}) {
+  const [search, setSearch] = useState("");
+  return (
+    <div className="space-y-2">
+      <Input
+        aria-label={`Search ${block.label}`}
+        placeholder={`Search ${block.label}`}
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          if (block.queryField) select({ [block.queryField]: e.target.value });
+        }}
+      />
+      <div className="max-h-48 space-y-1 overflow-y-auto" role="list" aria-label={block.label}>
+        {block.items
+          .filter(
+            (item) =>
+              block.queryField !== undefined ||
+              `${item.label} ${item.search}`
+                .toLocaleLowerCase()
+                .includes(search.toLocaleLowerCase()),
+          )
+          .map((item) => (
+            <div key={item.id} role="listitem">
+              <Button variant="ghost" size="sm" onClick={() => select(item.input)}>
+                {item.label}
+              </Button>
+            </div>
+          ))}
+      </div>
+    </div>
   );
 }
