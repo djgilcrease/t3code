@@ -52,7 +52,6 @@ export function PluginSettingsLinks({ query }: { query: string }) {
               environmentId: page.environmentId,
               pluginId: page.pluginId,
               viewId: page.viewId,
-              title: page.title,
             })
           }
         />
