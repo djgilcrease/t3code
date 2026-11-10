@@ -20,6 +20,7 @@ import {
   pluginFormInput,
   pluginLink,
   pluginSecretResult,
+  pluginNoticeResult,
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
 import { AsyncResult } from "effect/reactivity";
@@ -28,6 +29,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
+import { Textarea } from "../ui/textarea";
 import { Input } from "../ui/input";
 
 type Entry = PluginCatalog["plugins"][number];
@@ -119,9 +121,10 @@ function PluginPanel({
   onCommandResult?: (result: unknown) => void;
   context?: PluginInput;
 }) {
+  const [selection, setSelection] = useState<PluginInput>({});
   const query = serverEnvironment.pluginView({
     environmentId,
-    input: { pluginId: plugin.id, viewId: view.id, ...(context ? { context } : {}) },
+    input: { pluginId: plugin.id, viewId: view.id, context: { ...context, ...selection } },
   });
   const result = useAtomValue(query);
   const content = Option.getOrNull(AsyncResult.value(result));
@@ -132,6 +135,7 @@ function PluginPanel({
   const running = useRef(false);
   const [secret, setSecret] = useState<ReturnType<typeof pluginSecretResult>>(null);
   const [copied, setCopied] = useState(false);
+  const [notice, setNotice] = useState<ReturnType<typeof pluginNoticeResult>>(null);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Secret expiry owns a timer cancelled on replacement or unmount.
   useEffect(() => {
     if (!secret) return;
@@ -146,6 +150,7 @@ function PluginPanel({
     setCopied(false);
     setBusy(true);
     setError(null);
+    setNotice(null);
     return execute({
       environmentId,
       input: {
@@ -158,6 +163,7 @@ function PluginPanel({
       .then((outcome) => {
         if (outcome._tag === "Success") {
           setSecret(pluginSecretResult(outcome.value));
+          setNotice(pluginNoticeResult(outcome.value));
           onCommandResult?.(outcome.value);
         }
         if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
@@ -182,6 +188,7 @@ function PluginPanel({
           Refresh
         </Button>
       </div>
+      {notice && <p role={notice.tone === "danger" ? "alert" : "status"}>{notice.text}</p>}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
@@ -217,6 +224,23 @@ function PluginPanel({
       )}
       {result._tag === "Failure" && <p role="alert">This plugin view could not be loaded.</p>}
       {content?.blocks.map((block) => {
+        if (block.kind === "collection")
+          return (
+            <PluginCollection
+              key={block.id}
+              block={block}
+              select={(input) => setSelection((current) => ({ ...current, ...input }))}
+            />
+          );
+        if (block.kind === "image")
+          return (
+            <img
+              key={block.id}
+              src={block.source}
+              alt={block.label}
+              className="max-h-96 max-w-full object-contain"
+            />
+          );
         if (block.kind === "text")
           return (
             <p key={block.id} className="whitespace-pre-wrap text-sm">
@@ -255,7 +279,7 @@ function PluginPanel({
         if (block.kind === "form")
           return (
             <PluginFormView
-              key={block.id}
+              key={JSON.stringify(block)}
               form={block}
               environmentId={environmentId}
               plugin={plugin}
@@ -417,6 +441,29 @@ function PluginFormView({
                 </option>
               ))}
             </select>
+          ) : field.kind === "multiline" ? (
+            <Textarea
+              value={String(values[field.name] ?? "")}
+              required={field.required}
+              disabled={busy || !allowed}
+              onChange={(e) => setValues({ ...values, [field.name]: e.target.value })}
+            />
+          ) : field.kind === "image" ? (
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              disabled={busy || !allowed}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file || file.size > 64 * 1024) {
+                  setInvalid(true);
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => setValues({ ...values, [field.name]: String(reader.result) });
+                reader.readAsDataURL(file);
+              }}
+            />
           ) : (
             <Input
               type={field.kind}
@@ -435,5 +482,45 @@ function PluginFormView({
         {form.label}
       </Button>
     </form>
+  );
+}
+
+function PluginCollection({
+  block,
+  select,
+}: {
+  block: Extract<import("@t3tools/contracts").PluginBlock, { kind: "collection" }>;
+  select: (input: PluginInput) => void;
+}) {
+  const [search, setSearch] = useState("");
+  return (
+    <div className="space-y-2">
+      <Input
+        aria-label={`Search ${block.label}`}
+        placeholder={`Search ${block.label}`}
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          if (block.queryField) select({ [block.queryField]: e.target.value });
+        }}
+      />
+      <div className="max-h-48 space-y-1 overflow-y-auto" role="list" aria-label={block.label}>
+        {block.items
+          .filter(
+            (item) =>
+              block.queryField !== undefined ||
+              `${item.label} ${item.search}`
+                .toLocaleLowerCase()
+                .includes(search.toLocaleLowerCase()),
+          )
+          .map((item) => (
+            <div key={item.id} role="listitem">
+              <Button variant="ghost" size="sm" onClick={() => select(item.input)}>
+                {item.label}
+              </Button>
+            </div>
+          ))}
+      </div>
+    </div>
   );
 }
