@@ -1,3 +1,5 @@
+import { PluginProjectContext } from "@t3tools/contracts";
+import { PluginTaskContext } from "@t3tools/contracts";
 // @effect-diagnostics nodeBuiltinImport:off -- isolated executable protocol boundary.
 import * as NodeURL from "node:url";
 import * as Effect from "effect/Effect";
@@ -33,6 +35,8 @@ import {
   MAX_PLUGIN_MESSAGE_BYTES,
   type PluginMessage,
 } from "./pluginProtocol.ts";
+const decodeTaskContext = Schema.decodeUnknownSync(PluginTaskContext);
+const decodeProjectContext = Schema.decodeUnknownSync(PluginProjectContext);
 const decodeInvocationContext = Schema.decodeUnknownSync(PluginInvocationContext);
 const decodeNotificationTargets = Schema.decodeUnknownSync(PluginNotificationTargets);
 const decodeNotificationRoutes = Schema.decodeSync(PluginNotificationRoutes);
@@ -147,6 +151,11 @@ export async function runPluginWorker(): Promise<void> {
             list: () => hostEffect("plugin-list", null).pipe(Effect.map(decodePeers)),
             run: (call) => hostEffect("plugin-run", call),
           },
+          projects: {
+            describe: (projectId) =>
+              hostEffect("project-describe", { projectId }).pipe(Effect.map(decodeProjectContext)),
+            readSource: (input) => hostEffect("project-source", input).pipe(Effect.map(String)),
+          },
           threads: {
             describe: (threadId) =>
               hostEffect("thread-describe", { threadId }).pipe(Effect.map(decodeThreadSummary)),
@@ -195,6 +204,7 @@ export async function runPluginWorker(): Promise<void> {
           lifecycleTimeoutMs: contributions.lifecycleTimeoutMs ?? 30_000,
           mcp: !!contributions.mcpServers,
           launch: !!contributions.prepareLaunch,
+          taskContext: !!contributions.taskContext,
           http: !!contributions.handleHttp,
           httpResponseTimeoutMs: contributions.httpResponseTimeoutMs ?? 30_000,
         };
@@ -242,6 +252,10 @@ export async function runPluginWorker(): Promise<void> {
         if (!view) throw new Error("Unknown view");
         return await Effect.runPromise(view.read(payload.context as PluginInput | undefined));
       }
+      case "task-context":
+        return await Effect.runPromise(
+          contributions.taskContext!(decodeTaskContext(message.payload)),
+        );
       case "launch":
         return encodePluginLaunch(
           await Effect.runPromise(

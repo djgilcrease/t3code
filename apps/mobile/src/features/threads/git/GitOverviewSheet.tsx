@@ -1,3 +1,4 @@
+import { PluginPanels } from "../../plugins/PluginPanels";
 import * as Dialog from "../../../components/ui/Dialog";
 import { useOpenPullRequest } from "../../../native/useOpenPullRequest";
 import {
@@ -367,6 +368,13 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
         threadId={threadId}
         hasRepository={gitStatus.data?.isRepo === true}
       />
+      {selectedThreadProject && (
+        <PluginPanels
+          environmentId={environmentId}
+          location="thread-associations"
+          context={{ projectId: selectedThreadProject.id, threadId }}
+        />
+      )}
 
       {linkedPrLines.length > 0 ? (
         <ListSection title={gt("Linked {terms}", { terms: linkedPrActions.terminology.plural })}>

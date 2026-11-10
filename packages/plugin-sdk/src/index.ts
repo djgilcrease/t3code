@@ -95,7 +95,31 @@ export const PluginManagedEnvironment = Schema.Struct({
 });
 export type PluginManagedEnvironment = typeof PluginManagedEnvironment.Type;
 
+export const PluginAssociationItem = Schema.Struct({
+  id: Text,
+  label: Label,
+  select: PluginAction,
+  open: Schema.optionalKey(PluginAction),
+});
+export const PluginAssociations = Schema.Struct({
+  id: PluginLocalId,
+  kind: Schema.Literal("associations"),
+  label: Label,
+  selected: Schema.Array(PluginAssociationItem).check(Schema.isMaxLength(20)),
+  options: Schema.Array(PluginAssociationItem).check(Schema.isMaxLength(50)),
+  nextCursor: Schema.optionalKey(Text),
+  clear: Schema.optionalKey(PluginAction),
+});
+export type PluginAssociations = typeof PluginAssociations.Type;
 export const PluginBlock = Schema.Union([
+  PluginAssociations,
+  Schema.Struct({
+    id: PluginLocalId,
+    kind: Schema.Literal("toggle"),
+    label: Label,
+    value: Schema.Boolean,
+    action: PluginAction,
+  }),
   Schema.Struct({
     id: PluginLocalId,
     kind: Schema.Literal("graph"),
@@ -180,6 +204,11 @@ export const PluginView = Schema.Struct({
     (view) =>
       unique(view.blocks.map((block) => block.id)) &&
       view.blocks.every((block) => {
+        if (block.kind === "associations")
+          return (
+            unique(block.selected.map((item) => item.id)) &&
+            unique(block.options.map((item) => item.id))
+          );
         if (block.kind === "graph") {
           const positions = new Map(block.nodes.map((node, i) => [node.id, i]));
           return (
@@ -232,6 +261,8 @@ export const PluginViewDescriptor = Schema.Struct({
   location: Schema.Literals([
     "settings",
     "settings-page",
+    "project-new-thread",
+    "thread-associations",
     "usage",
     "thread-details",
     "thread-panel",
@@ -534,6 +565,23 @@ export const PluginNotificationTargets = Schema.Struct({
 });
 export type PluginNotificationTargets = typeof PluginNotificationTargets.Type;
 
+export const PluginProjectContext = Schema.Struct({
+  projectId: Text,
+  directory: Text,
+  provider: Label,
+  remoteUrl: Schema.NullOr(Text),
+  baseUrl: Schema.NullOr(Text),
+  apiReads: Schema.Boolean,
+});
+export type PluginProjectContext = typeof PluginProjectContext.Type;
+export const PluginSourceRead = Schema.Struct({ projectId: Text, path: Text });
+export type PluginSourceRead = typeof PluginSourceRead.Type;
+export interface PluginProjects {
+  readonly describe: (projectId: string) => Effect.Effect<PluginProjectContext, PluginError>;
+  /** GET relative to the selected provider's API; credentials remain on the host. */
+  readonly readSource: (input: PluginSourceRead) => Effect.Effect<string, PluginError>;
+}
+
 export interface PluginContext {
   /** Null starts at the current tail; persist the returned cursor with the delivery outbox. */
   readonly notifications?: {
@@ -550,6 +598,7 @@ export interface PluginContext {
   readonly dataDirectory: string;
   readonly environmentId?: Effect.Effect<string, PluginError> | undefined;
   readonly threads?: PluginThreads;
+  readonly projects?: PluginProjects;
   readonly plugins?: PluginPeers;
   readonly runProcess?: (
     input: PluginProcessInput,
@@ -587,7 +636,12 @@ export const PluginLifecycleTimeout = Schema.Int.check(
   Schema.isBetween({ minimum: 1_000, maximum: 1_800_000 }),
 );
 
+export const PluginTaskContext = Schema.Struct({ projectId: Text, threadId: Text });
+export type PluginTaskContext = typeof PluginTaskContext.Type;
 export interface PluginContributions {
+  /** Bounded reference material, refreshed before each user turn. */
+  readonly taskContext?: (input: PluginTaskContext) => Effect.Effect<string, PluginError>;
+
   /** Called before disable/removal. Refuse while externally owned resources need cleanup. */
   readonly beforeRemove?: () => Effect.Effect<void, PluginError>;
   /** Explicit client routing policy; no contribution leaves builtin preferences in control. */
