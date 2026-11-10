@@ -1,3 +1,4 @@
+import { PluginSettingsLinks, usePluginSettingsPages } from "../plugins/PluginSettingsLinks";
 import {
   navigationCustomizationAvailable,
   overflowNavigationTabs,
@@ -191,6 +192,10 @@ function SettingsList(props: { readonly connections: readonly SettingsListRow[] 
   const bottomSafeArea = useNativeColumnLayoutMetrics()?.safeArea.bottom ?? insets.bottom;
   const workspace = useWorkspaceTabs();
   const query = workspace?.state.tabs.settings.query ?? "";
+  const pluginPages = usePluginSettingsPages();
+  const hasPluginResults = pluginPages.some((page) =>
+    page.title.toLowerCase().includes(query.trim().toLowerCase()),
+  );
   const overflowRows = useOverflowRows();
   const indexSections = useSettingsIndexSections();
   const sections = filterSettingsSections(
@@ -219,6 +224,7 @@ function SettingsList(props: { readonly connections: readonly SettingsListRow[] 
               : Math.max(Math.max(insets.bottom, 18) + 18, workspace?.bottomClearance ?? 0),
         }}
       >
+        <PluginSettingsLinks query={query} />
         {sections.length ? (
           sections.map((section, index) => (
             <SettingsSection key={section.title ?? `untitled-${index}`} title={section.title}>
@@ -227,13 +233,13 @@ function SettingsList(props: { readonly connections: readonly SettingsListRow[] 
               ))}
             </SettingsSection>
           ))
-        ) : (
+        ) : !hasPluginResults ? (
           <EmptyState
             variant="plain"
             title={gt("No results")}
             detail={gt("No settings match “{query}”.", { query: query.trim() })}
           />
-        )}
+        ) : null}
       </ScrollView>
     </View>
   );

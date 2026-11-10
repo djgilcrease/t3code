@@ -2610,3 +2610,80 @@ it.effect("a running provider-turn update reads only the thread's queued and run
     );
   }),
 );
+
+it.effect(
+  "restores and unsettles a thread with a visible cleanup failure without starting a provider",
+  () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const outbox = yield* EffectOutbox.EffectOutboxV2;
+      const threadId = ThreadId.make("thread:worktree-cleanup");
+      const worktreePath = "/repo/worktrees/cleanup";
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make("create:worktree-cleanup"),
+        threadId,
+        projectId: ProjectId.make("project:worktree-cleanup"),
+        title: "Cleanup failure",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: "cleanup",
+        worktreePath,
+        createdBy: "user",
+        creationSource: "web",
+      });
+      const now = yield* DateTime.now;
+      const thread = yield* projections.getThread(threadId);
+      yield* projections.apply({
+        id: EventId.make("settle:worktree-cleanup"),
+        type: "thread.metadata-updated",
+        threadId,
+        occurredAt: now,
+        payload: {
+          ...thread,
+          settledOverride: "settled",
+          settledAt: now,
+          archivedAt: now,
+          deletedAt: now,
+          snoozedAt: now,
+          snoozedUntil: DateTime.add(now, { days: 1 }),
+        },
+      });
+      const command = {
+        type: "thread.worktree-cleanup.fail" as const,
+        commandId: CommandId.make("fail:worktree-cleanup"),
+        threadId,
+        worktreePath,
+        message: "Stop containers failed (exit 1). Fix the command, then retry removal.",
+      };
+      yield* orchestrator.dispatch(command);
+      yield* orchestrator.dispatch(command);
+      const projection = yield* projections.getThreadProjection(threadId);
+      assert.equal(projection.thread.settledOverride, "active");
+      assert.isNull(projection.thread.settledAt);
+      assert.isNotNull(projection.thread.unsettledAt);
+      assert.isNull(projection.thread.archivedAt);
+      assert.isNull(projection.thread.deletedAt);
+      assert.isNull(projection.thread.snoozedUntil);
+      assert.equal(projection.thread.worktreePath, worktreePath);
+      assert.equal(projection.runs.length, 0);
+      const history = yield* projections.getTimelinePage(threadId, { limit: 20, view: "activity" });
+      const failures = history.items.filter(
+        ({ item }) => item.type === "notification" && item.outcome === "failed",
+      );
+      assert.equal(failures.length, 1);
+      assert.equal(
+        failures[0]?.item.type === "notification" && failures[0].item.detail,
+        command.message,
+      );
+      assert.deepEqual(yield* outbox.listByCommandId(command.commandId), []);
+      const stale = yield* orchestrator.dispatch({
+        ...command,
+        commandId: CommandId.make("fail:stale-cleanup"),
+        worktreePath: "/old/path",
+      });
+      assert.equal(stale.storedEvents.length, 0);
+    }).pipe(Effect.provide(layerTest)),
+);

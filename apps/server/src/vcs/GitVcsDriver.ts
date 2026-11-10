@@ -45,6 +45,7 @@ import {
 import * as CheckoutCloner from "./CheckoutCloner.ts";
 import * as VcsDriver from "./VcsDriver.ts";
 import * as VcsProcess from "./VcsProcess.ts";
+import { WorktreeLifecycle } from "./WorktreeLifecycle.ts";
 
 export interface ExecuteGitInput {
   readonly operation: string;
@@ -1660,7 +1661,30 @@ export const makeVcsDriver = Effect.gen(function* () {
 
 export const make = Effect.gen(function* () {
   const git = yield* makeGitVcsDriverCore();
-  return GitVcsDriver.of(git);
+  const lifecycle = yield* WorktreeLifecycle;
+  const path = yield* Path.Path;
+  return GitVcsDriver.of({
+    ...git,
+    createWorktree: Effect.fn("GitVcsDriver.createManagedWorktree")(function* (input, options) {
+      const result = yield* git.createWorktree(input, options);
+      yield* lifecycle({
+        type: "worktree.created",
+        repositoryDirectory: input.cwd,
+        worktreePath: result.worktree.path,
+        ...(result.worktree.refName ? { refName: result.worktree.refName } : {}),
+      }).pipe(Effect.ignore({ log: true }));
+      return result;
+    }),
+    removeWorktree: Effect.fn("GitVcsDriver.removeManagedWorktree")(function* (input) {
+      const event = {
+        repositoryDirectory: input.cwd,
+        worktreePath: path.resolve(input.cwd, input.path),
+      };
+      yield* lifecycle({ ...event, type: "worktree.removing" });
+      yield* git.removeWorktree(input);
+      yield* lifecycle({ ...event, type: "worktree.removed" }).pipe(Effect.ignore({ log: true }));
+    }),
+  });
 });
 
 export const layerVcs = Layer.effect(VcsDriver.VcsDriver, makeVcsDriver);

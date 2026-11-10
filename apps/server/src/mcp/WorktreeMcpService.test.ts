@@ -22,6 +22,7 @@ import * as Option from "effect/Option";
 import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 
+import * as WorktreeRemovalService from "../workspace/WorktreeRemovalService.ts";
 import * as GitWorkflowService from "../git/GitWorkflowService.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as ServerConfig from "../config.ts";
@@ -325,6 +326,7 @@ const makeHarness = (options: HarnessOptions = {}) => {
           deleteLocalBranch,
           ...options.git,
         } satisfies Partial<GitWorkflowService.GitWorkflowService["Service"]>),
+        Layer.mock(WorktreeRemovalService.WorktreeRemovalService)({ remove: removeWorktree }),
         Layer.mock(ProjectSetupScriptRunner.ProjectSetupScriptRunner)({
           runForThread,
         } satisfies Partial<ProjectSetupScriptRunner.ProjectSetupScriptRunner["Service"]>),

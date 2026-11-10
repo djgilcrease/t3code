@@ -30,7 +30,7 @@ export default {
         {
           id: "settings",
           title: "Example",
-          location: "settings",
+          location: "settings-page",
           permission: "orchestration:read",
           read: () =>
             Effect.succeed({
@@ -104,8 +104,10 @@ folder in place but clears their T3-managed data and credentials.
   view or catalog; agent calls and read commands cannot use this disclosure. The server checks the actual
   descriptor permission, regardless of what the invocation envelope claims.
 - **Views** return data rendered by host components on web, desktop, and mobile.
-  Version 1 provides text, HTTP links, actions, forms, and tables at `settings`
-  and `usage`. Use stable block, action, row, and field IDs. Never put
+  Version 1 provides text, HTTP links, actions, forms, and tables. Use
+  `settings-page` for a standalone Extensions page and `usage` for a Usage panel.
+  The Extensions navigation group disappears when its last active contributor
+  is disabled or removed. Use stable block, action, row, and field IDs. Never put
   credentials in views, defaults, labels, or results. Password fields never
   prefill server values.
 - **Launch hooks** transform a provider's purpose, arguments, and environment in
@@ -130,6 +132,21 @@ folder in place but clears their T3-managed data and credentials.
   signatures yourself. This route has no T3 browser session. Use
   `request.signal` to cancel upstream I/O. The bridge pulls request and response
   bodies in bounded chunks and propagates cancellation.
+- **Worktree lifecycle** uses `onLifecycle` for `worktree.created`,
+  `worktree.removing`, and `worktree.removed` on the owning environment.
+  Return `{ error: "safe user-facing detail" }` to block removal; it is posted
+  in the owning thread and unsettles it without launching a provider. Cleanup
+  precedes Git's destructive clean/removal. Created/removed callbacks are
+  observers: failures retain the creation result or cannot undo deletion.
+  A setup plugin must also reject `prepareLaunch` while its managed checkout
+  is not ready. Keep cleanup state outside the worktree and make scripts
+  idempotent across interruption. `lifecycleTimeoutMs` defaults to 30 seconds,
+  with a 30-minute maximum. Require the `worktree-lifecycle` capability.
+- **Supervised processes** use `context.runProcess` with command/args, cwd,
+  environment overrides, and a bounded timeout. The host cancels owned process
+  trees on worker exit and limits buffered output and concurrent jobs. Require
+  `supervised-processes`; direct unmanaged child processes cannot receive these
+  guarantees. Never return raw secret-bearing script output in lifecycle errors.
 - **Changes** is an optional Effect stream. Emit after background state changes;
   T3 refreshes mounted plugin views. Commands also invalidate them. Nothing
   mounts in the chat transcript, and clients do not poll plugin views.

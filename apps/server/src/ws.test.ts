@@ -1,3 +1,4 @@
+import * as WorktreeRemovalService from "./workspace/WorktreeRemovalService.ts";
 import * as SecretResolver from "@t3tools/secret-provider-core/server/SecretResolver";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as PluginRegistry from "./plugins/PluginRegistry.ts";
@@ -870,6 +871,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ThreadManagement.ThreadManagementService)({}),
   Layer.mock(ThreadSearch.ThreadSearch)({}),
   Layer.mock(UsageService.UsageService)({}),
+  Layer.mock(WorktreeRemovalService.WorktreeRemovalService)({}),
   Layer.mock(PluginRegistry.PluginRegistry)({}),
   Layer.mock(PluginManager.PluginManager)({}),
   Layer.mock(VcsProvisioningService.VcsProvisioningService)({}),

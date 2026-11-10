@@ -22,9 +22,15 @@ Disabling keeps its settings and data. **Remove clears the plugin's saved data
 and credentials**, along with its installed package. A manually registered
 source folder is kept. There is no marketplace or central plugin account.
 
-Plugin settings appear on the Plugins page. Plugins can also contribute panels
-to **Usage → Limits**. The selected environment determines which machine owns
-the plugin, its credentials, and its data.
+Plugins can contribute their own pages under **Settings → Extensions**, separate
+from installation and update controls. Extensions appears only while an active
+plugin contributes a page. Plugins can also contribute panels to **Usage → Limits**.
+The selected environment owns the plugin, its credentials, and its data.
+
+A plugin that manages worktree resources can run cleanup before deletion. If
+cleanup fails, T3 keeps the checkout, unsettles its owning thread, and posts the
+failure there without starting an agent turn. Fix the script, then retry removal.
+Disabling or removing the plugin stops its hooks; clean up external resources first.
 
 ## Failures and recovery
 

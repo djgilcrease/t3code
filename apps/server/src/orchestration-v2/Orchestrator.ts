@@ -666,6 +666,7 @@ function commandThreadId(command: OrchestrationV2ServerCommand): ThreadId {
     case "runtime-request.delivery.fail":
     case "thread.user-input.dismiss":
     case "checkpoint.rollback":
+    case "thread.worktree-cleanup.fail":
     case "checkpoint.rollback.fail":
     case "thread.background-work.settle":
     case "thread.interrupt.unresponsive":
@@ -13630,6 +13631,71 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     },
   );
 
+  const dispatchWorktreeCleanupFail = Effect.fn("Orchestrator.dispatchWorktreeCleanupFail")(
+    function* (
+      command: Extract<
+        OrchestrationV2InternalCommand,
+        { readonly type: "thread.worktree-cleanup.fail" }
+      >,
+      events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
+    ) {
+      const projection = yield* projectionStore
+        .getThreadRecords(command.threadId, ["runs"])
+        .pipe(mapDispatchError(command));
+      const thread = projection.thread;
+      if (thread.worktreePath !== command.worktreePath) return;
+      const now = yield* DateTime.now;
+      const emitEvent = emit(events, command);
+      yield* emitEvent({
+        type: "thread.metadata-updated",
+        threadId: command.threadId,
+        providerInstanceId: thread.providerInstanceId,
+        occurredAt: now,
+        payload: {
+          ...thread,
+          settledOverride: "active",
+          settledAt: null,
+          unsettledAt: now,
+          snoozedAt: null,
+          snoozedUntil: null,
+          archivedAt: null,
+          deletedAt: null,
+          updatedAt: now,
+        },
+      });
+      const latestRun = projection.runs
+        .filter((run) => run.status !== "rolled_back")
+        .sort((a, b) => b.ordinal - a.ordinal)[0];
+      yield* emitEvent({
+        type: "turn-item.updated",
+        threadId: command.threadId,
+        providerInstanceId: thread.providerInstanceId,
+        occurredAt: now,
+        payload: {
+          id: TurnItemId.make(`item:worktree-cleanup:${command.commandId}`),
+          threadId: command.threadId,
+          runId: latestRun?.id ?? null,
+          nodeId: null,
+          providerThreadId: null,
+          providerTurnId: null,
+          nativeItemRef: null,
+          parentItemId: null,
+          ordinal: 0,
+          type: "notification",
+          source: { kind: "system" },
+          outcome: "failed",
+          summary: "Worktree removal failed. The checkout was kept.",
+          detail: command.message,
+          status: "completed",
+          title: "Worktree cleanup",
+          startedAt: now,
+          completedAt: now,
+          updatedAt: now,
+        },
+      });
+    },
+  );
+
   const dispatchCheckpointRollbackFail = Effect.fn("Orchestrator.dispatchCheckpointRollbackFail")(
     function* (
       command: Extract<
@@ -14877,6 +14943,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       case "checkpoint.rollback":
         yield* dispatchCheckpointRollback(command, events, effects);
         break;
+      case "thread.worktree-cleanup.fail":
+        yield* dispatchWorktreeCleanupFail(command, events);
+        break;
       case "checkpoint.rollback.fail":
         yield* dispatchCheckpointRollbackFail(command, events);
         break;
@@ -15037,6 +15106,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           command.type === "thread.visit" ||
           // A read can answer a watch again before a push's reopen lands; nothing is left to clear.
           command.type === "thread.pull-request-watch.checks-reopen" ||
+          command.type === "thread.worktree-cleanup.fail" ||
           command.type === "thread.interrupt.unresponsive" ||
           command.type === "thread.stop" ||
           command.type === "subagent.stop" ||
