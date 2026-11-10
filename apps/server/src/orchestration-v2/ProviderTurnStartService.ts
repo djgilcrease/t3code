@@ -160,6 +160,7 @@ export const layer: Layer.Layer<
     const providerAuth = yield* ProviderAuthService.ProviderAuthService;
     const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
     const providerSessions = yield* ProviderSessionManager.ProviderSessionManagerV2;
+    const plugins = yield* Effect.serviceOption(PluginRegistry.PluginRegistry);
     const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
     const runtimePolicy = yield* RuntimePolicy.RuntimePolicyV2;
     const isManagedWorktreePath = yield* makeIsManagedWorktreePath;
@@ -849,7 +850,6 @@ export const layer: Layer.Layer<
         (session.driver === "opencode" &&
           session.providerSession.capabilities.turns.supportsNativeGoals === true);
       const goalCommand = goalDriver && parseGoalCommand(message) !== null;
-      const plugins = yield* Effect.serviceOption(PluginRegistry.PluginRegistry);
       if (!goalCommand && Option.isSome(plugins)) {
         const reference = yield* plugins.value
           .taskContext({ projectId: projection.thread.projectId, threadId: projection.thread.id })

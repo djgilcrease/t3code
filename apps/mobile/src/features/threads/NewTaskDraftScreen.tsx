@@ -159,9 +159,13 @@ export function NewTaskDraftScreen(props: {
   readonly draftId?: string;
   readonly incomingShareId?: string;
 }) {
-  const [creationMetadata] = useState(makeTurnCommandMetadata);
+  const [initialCreationMetadata] = useState(makeTurnCommandMetadata);
   const projects = useProjects();
   const flow = useNewTaskFlow();
+  const creationMetadata = {
+    ...initialCreationMetadata,
+    threadId: flow.draftKey ? `draft:${flow.draftKey}` : initialCreationMetadata.threadId,
+  };
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const goBack = useWorkspaceBackNavigation("threads");

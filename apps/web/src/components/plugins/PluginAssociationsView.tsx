@@ -8,31 +8,39 @@ export function PluginAssociationsView({
   busy,
   run,
   search,
+  canRun,
 }: {
   block: PluginAssociations;
   busy: boolean;
   run: (action: PluginAction) => Promise<boolean>;
   search: (query: string, cursor?: string) => void;
+  canRun: (action: PluginAction) => boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [submitted, setSubmitted] = useState("");
+  const submit = () => {
+    setSubmitted(query);
+    search(query);
+  };
   const [expanded, setExpanded] = useState(false);
   const selected = expanded ? block.selected : block.selected.slice(0, 1);
   return (
     <div className="space-y-2">
       {selected.map((item) => (
-        <div key={item.id} className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={busy || !item.open}
+        <div key={item.id} className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            className="min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm hover:bg-accent disabled:opacity-50"
+            aria-label={item.label}
+            disabled={busy || !item.open || !canRun(item.open)}
             onClick={() => item.open && void run(item.open)}
           >
             {item.label}
-          </Button>
+          </button>
           <Button
             variant="ghost"
             size="sm"
-            disabled={busy}
+            disabled={busy || !canRun(item.select)}
             onClick={() => void run(item.select)}
             aria-label={`Remove ${item.label}`}
           >
@@ -40,6 +48,16 @@ export function PluginAssociationsView({
           </Button>
         </div>
       ))}
+      {block.clear && block.selected.length > 0 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={busy || !canRun(block.clear)}
+          onClick={() => block.clear && void run(block.clear)}
+        >
+          Clear issues
+        </Button>
+      )}
       {block.selected.length > 1 && (
         <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)}>
           {expanded ? "Show less" : `Show ${block.selected.length - 1} more`}
@@ -51,7 +69,7 @@ export function PluginAssociationsView({
           className="flex gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            search(query);
+            submit();
           }}
         >
           <Input
@@ -66,24 +84,25 @@ export function PluginAssociationsView({
         </form>
         <div role="group" aria-label={block.label} className="flex max-h-64 flex-col overflow-auto">
           {block.options.map((item) => (
-            <Button
+            <button
               key={item.id}
-              variant="ghost"
-              size="sm"
-              disabled={busy}
+              type="button"
+              className="w-full truncate rounded px-2 py-1 text-left text-sm hover:bg-accent disabled:opacity-50"
+              aria-label={item.label}
+              disabled={busy || !canRun(item.select)}
               onClick={() => void run(item.select)}
               aria-pressed={block.selected.some((selected) => selected.id === item.id)}
             >
               {item.label}
-            </Button>
+            </button>
           ))}
         </div>
         {block.nextCursor && (
           <Button
             variant="outline"
             size="sm"
-            disabled={busy}
-            onClick={() => search(query, block.nextCursor)}
+            disabled={busy || query !== submitted}
+            onClick={() => search(submitted, block.nextCursor)}
           >
             Next page
           </Button>

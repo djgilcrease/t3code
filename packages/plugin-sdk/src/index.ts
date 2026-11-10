@@ -10,6 +10,14 @@ const Label = Schema.String.check(Schema.isMaxLength(200));
 const Text = Schema.String.check(Schema.isMaxLength(16_384));
 export const PluginInput = Schema.Record(Schema.String, Schema.Json);
 export type PluginInput = typeof PluginInput.Type;
+export const PluginInvocationContext = Schema.Struct({
+  audience: Schema.Literals(["client", "agent"]),
+  environmentId: Schema.optionalKey(Label),
+  projectId: Schema.optionalKey(Label),
+  threadId: Schema.optionalKey(Label),
+});
+export type PluginInvocationContext = typeof PluginInvocationContext.Type;
+
 export const PluginPermission = Schema.Literals([
   "orchestration:read",
   "orchestration:operate",
@@ -59,7 +67,7 @@ export type PluginStatusAction = typeof PluginStatusAction.Type;
 export const PluginField = Schema.Struct({
   name: PluginLocalId,
   label: Label,
-  kind: Schema.Literals(["text", "password", "number", "boolean", "select"]),
+  kind: Schema.Literals(["text", "password", "number", "boolean", "select", "multiline", "image"]),
   value: Schema.optionalKey(Schema.Union([Schema.String, Schema.Number, Schema.Boolean])),
   options: Schema.optionalKey(
     Schema.Array(Schema.Struct({ label: Label, value: Label })).check(Schema.isMaxLength(100)),
@@ -100,15 +108,9 @@ export const PluginAssociations = Schema.Struct({
   selected: Schema.Array(PluginAssociationItem).check(Schema.isMaxLength(20)),
   options: Schema.Array(PluginAssociationItem).check(Schema.isMaxLength(50)),
   nextCursor: Schema.optionalKey(Text),
+  clear: Schema.optionalKey(PluginAction),
 });
 export type PluginAssociations = typeof PluginAssociations.Type;
-export const PluginDocumentResult = Schema.Struct({
-  $t3: Schema.Literal("document"),
-  title: Label,
-  text: Text,
-});
-export type PluginDocumentResult = typeof PluginDocumentResult.Type;
-
 export const PluginBlock = Schema.Union([
   PluginAssociations,
   Schema.Struct({
@@ -118,7 +120,26 @@ export const PluginBlock = Schema.Union([
     value: Schema.Boolean,
     action: PluginAction,
   }),
+  Schema.Struct({
+    id: PluginLocalId,
+    kind: Schema.Literal("collection"),
+    queryField: Schema.optionalKey(PluginLocalId),
+    label: Label,
+    items: Schema.Array(
+      Schema.Struct({ id: Label, label: Label, search: Text, input: PluginInput }),
+    ).check(Schema.isMaxLength(500)),
+  }),
+  Schema.Struct({
+    id: PluginLocalId,
+    kind: Schema.Literal("image"),
+    label: Label,
+    source: Schema.String.check(
+      Schema.isMaxLength(200_000),
+      Schema.isPattern(/^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/),
+    ),
+  }),
   PluginManagedEnvironment,
+  Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("code"), text: Text }),
   Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("text"), text: Text }),
   Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("link"), label: Label, url: Text }),
   Schema.Struct({
@@ -129,6 +150,7 @@ export const PluginBlock = Schema.Union([
   Schema.Struct({
     id: PluginLocalId,
     kind: Schema.Literal("form"),
+    instance: Schema.optionalKey(Label),
     label: Label,
     command: PluginLocalId,
     fields: Schema.Array(PluginField).check(Schema.isMaxLength(40)),
@@ -171,6 +193,7 @@ export const PluginView = Schema.Struct({
             unique(block.selected.map((item) => item.id)) &&
             unique(block.options.map((item) => item.id))
           );
+        if (block.kind === "collection") return unique(block.items.map((item) => item.id));
         if (block.kind === "form")
           return (
             unique(block.fields.map((field) => field.name)) &&
@@ -195,6 +218,13 @@ export const PluginView = Schema.Struct({
   ),
 );
 export type PluginView = typeof PluginView.Type;
+
+/** Replaces only the calling panel; navigation state belongs to the client. */
+export const PluginViewResult = Schema.Struct({
+  $t3: Schema.Literal("view"),
+  view: PluginView,
+});
+export type PluginViewResult = typeof PluginViewResult.Type;
 export const PluginViewDescriptor = Schema.Struct({
   id: PluginLocalId,
   title: Label,
@@ -205,6 +235,8 @@ export const PluginViewDescriptor = Schema.Struct({
     "thread-associations",
     "usage",
     "thread-details",
+    "thread-panel",
+    "project-settings",
     "managed-environments",
     "environment-launcher",
   ]),
@@ -575,7 +607,7 @@ export const PluginLifecycleTimeout = Schema.Int.check(
 export const PluginTaskContext = Schema.Struct({ projectId: Text, threadId: Text });
 export type PluginTaskContext = typeof PluginTaskContext.Type;
 export interface PluginContributions {
-  /** Bounded reference material, refreshed for each user turn; never interpreted as instructions. */
+  /** Bounded reference material, refreshed before each user turn. */
   readonly taskContext?: (input: PluginTaskContext) => Effect.Effect<string, PluginError>;
 
   /** Called before disable/removal. Refuse while externally owned resources need cleanup. */
@@ -590,7 +622,10 @@ export interface PluginContributions {
   readonly lifecycleTimeoutMs?: number;
   readonly commands?: readonly (PluginCommandDescriptor & {
     /** Decode and validate feature-specific input inside the handler. */
-    readonly run: (input: PluginInput) => Effect.Effect<Schema.Json, PluginError>;
+    readonly run: (
+      input: PluginInput,
+      context?: PluginInvocationContext,
+    ) => Effect.Effect<Schema.Json, PluginError>;
   })[];
   readonly views?: readonly (PluginViewDescriptor & {
     readonly read: (input?: PluginInput) => Effect.Effect<PluginView, PluginError>;

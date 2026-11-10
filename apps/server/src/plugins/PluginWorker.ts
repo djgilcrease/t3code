@@ -8,6 +8,7 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import {
   PluginError,
+  PluginInvocationContext,
   PluginNotificationTargets,
   PluginNotificationRoutes,
   PluginActivity,
@@ -36,6 +37,7 @@ import {
 } from "./pluginProtocol.ts";
 const decodeTaskContext = Schema.decodeUnknownSync(PluginTaskContext);
 const decodeProjectContext = Schema.decodeUnknownSync(PluginProjectContext);
+const decodeInvocationContext = Schema.decodeUnknownSync(PluginInvocationContext);
 const decodeNotificationTargets = Schema.decodeUnknownSync(PluginNotificationTargets);
 const decodeNotificationRoutes = Schema.decodeSync(PluginNotificationRoutes);
 const decodeNotificationBatch = Schema.decodeUnknownSync(PluginNotificationBatch);
@@ -238,7 +240,12 @@ export async function runPluginWorker(): Promise<void> {
       case "command": {
         const command = contributions.commands?.find((command) => command.id === payload.id);
         if (!command) throw new Error("Unknown command");
-        return await Effect.runPromise(command.run(payload.input as PluginInput));
+        return await Effect.runPromise(
+          command.run(
+            payload.input as PluginInput,
+            payload.context == null ? undefined : decodeInvocationContext(payload.context),
+          ),
+        );
       }
       case "view": {
         const view = contributions.views?.find((view) => view.id === payload.id);

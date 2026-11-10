@@ -1,3 +1,4 @@
+import * as PluginRegistry from "../plugins/PluginRegistry.ts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it, vi } from "vite-plus/test";
@@ -269,6 +270,7 @@ it.each([
 
 function makeLocalCommandHarness(input: {
   readonly text: string;
+  readonly pluginReference?: string;
   readonly nativeGoals?: boolean;
   readonly worktreePath?: string;
   readonly worktreesDir?: string;
@@ -922,6 +924,9 @@ function makeLocalCommandHarness(input: {
   const layer = ProviderTurnStart.layer.pipe(
     Layer.provide(
       Layer.mergeAll(
+        Layer.mock(PluginRegistry.PluginRegistry)({
+          taskContext: () => Effect.succeed(input.pluginReference ?? ""),
+        }),
         Layer.mock(ContextHandoffService.ContextHandoffServiceV2)({
           prepareProviderHandoff: (handoff) =>
             input.sideChat?.nativeForkFrom === undefined
@@ -1351,6 +1356,7 @@ effectIt.effect.each([false, true])(
     Effect.gen(function* () {
       const harness = makeLocalCommandHarness({
         text: "/goal all tests pass",
+        pluginReference: "plugin-goal-reference",
         nativeGoals,
         sideChat: { contextRun: "failed", switchedProvider: true },
       });
@@ -1359,6 +1365,9 @@ effectIt.effect.each([false, true])(
       expect(harness.startTurn.mock.calls[0]?.[0].message.text.includes("SIDE_CHAT_CONTEXT")).toBe(
         !nativeGoals,
       );
+      expect(
+        harness.startTurn.mock.calls[0]?.[0].message.text.includes("plugin-goal-reference"),
+      ).toBe(!nativeGoals);
     }),
 );
 
@@ -1873,3 +1882,19 @@ for (const previousMessages of [[], ["/compact", " /COMPACT "]]) {
       }),
   );
 }
+
+effectIt.effect(
+  "passes plugin reference material from the service layer into the provider turn",
+  () =>
+    Effect.gen(function* () {
+      const harness = makeLocalCommandHarness({
+        text: "Read linked issues",
+        sideChat: { contextRun: "delivered" },
+        pluginReference: "github:example.test:acme/app:123",
+      });
+      yield* harness.start;
+      expect(harness.startTurn.mock.calls[0]?.[0].message.text).toContain(
+        "github:example.test:acme/app:123",
+      );
+    }),
+);
