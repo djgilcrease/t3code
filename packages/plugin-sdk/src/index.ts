@@ -126,6 +126,7 @@ export const PluginBlock = Schema.Union([
   Schema.Struct({
     id: PluginLocalId,
     kind: Schema.Literal("form"),
+    instance: Schema.optionalKey(Label),
     label: Label,
     command: PluginLocalId,
     fields: Schema.Array(PluginField).check(Schema.isMaxLength(40)),
