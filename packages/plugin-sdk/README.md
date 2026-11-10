@@ -129,6 +129,16 @@ folder in place but clears their T3-managed data and credentials.
   and, with `thread`, an **Open thread** button. A failed command shows only a
   generic error, so report user-facing failures as a `danger` notice. Require
   the `thread-details` capability.
+- **Portable collections** require `portable-collections`. `thread-panel` views open
+  from thread information with `{ threadId }`; `project-settings` views receive
+  `{ projectId }` on the owning environment. A `collection` block contains stable
+  item IDs, labels, search text and context input; selecting an item rereads its
+  view with that input. Optional `queryField` delegates search to the plugin by
+  sending the query under that context field. Keep the whole view below 256 KiB.
+  Forms support `multiline` and `image` fields. Image selection carries a raster
+  data URL, bounded to 64 KiB of bytes, and `image` blocks render bounded raster
+  data URLs without fetching a remote origin. Feature serialization, persistence,
+  identity, and sync policy remain the plugin's responsibility.
 - **Relayed steps** let a `thread-details` action continue on another
   environment. Return `{ $t3: "relay", environmentId?, command, input, status? }`
   and the client calls that command of the same plugin next, on the named

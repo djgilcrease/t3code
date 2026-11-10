@@ -43,6 +43,9 @@ import { PLUGIN_TONE_DOT_CLASS } from "./PluginStatusDots";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
+import { PluginPanels } from "./PluginPanels";
+import { Popover, PopoverTrigger, PopoverPopup } from "../ui/popover";
+
 type Entry = PluginCatalog["plugins"][number];
 
 /** Plugin status items and actions for the thread details machine row. */
@@ -57,12 +60,43 @@ export function PluginThreadItems({
   const views = catalogs.flatMap(({ environmentId: sourceId, catalog }) =>
     catalog ? pluginThreadDetailsViews(catalog).map((view) => ({ ...view, sourceId })) : [],
   );
-  if (views.length === 0) return null;
+  const panels = catalogs
+    .filter((row) => row.environmentId === environmentId)
+    .flatMap(
+      (row) =>
+        row.catalog?.plugins
+          .filter((p) => p.status === "active")
+          .flatMap((plugin) =>
+            plugin.views
+              .filter((v) => v.location === "thread-panel")
+              .map((view) => ({ plugin, view })),
+          ) ?? [],
+    );
+  if (views.length === 0 && panels.length === 0) return null;
   return (
     <div
       className="flex min-w-0 flex-wrap items-center gap-1 px-2.5 pb-1 empty:hidden"
       data-plugin-thread-items
     >
+      {panels.map(({ plugin, view }) => (
+        <Popover key={`${plugin.id}:${view.id}`}>
+          <PopoverTrigger render={<Button variant="ghost" size="sm" />}>
+            {view.title}
+          </PopoverTrigger>
+          <PopoverPopup>
+            <div className="max-h-[75vh] w-96 max-w-[85vw] overflow-auto">
+              <PluginPanels
+                key={threadId}
+                environmentId={environmentId}
+                pluginId={plugin.id}
+                viewId={view.id}
+                location="thread-panel"
+                context={{ threadId }}
+              />
+            </div>
+          </PopoverPopup>
+        </Popover>
+      ))}
       {views.map(({ plugin, viewId, sourceId }) => (
         <PluginThreadView
           key={`${sourceId}:${plugin.id}:${viewId}`}
