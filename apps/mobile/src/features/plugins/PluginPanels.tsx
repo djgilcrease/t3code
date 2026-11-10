@@ -25,14 +25,25 @@ import {
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
 import * as Option from "effect/Option";
-import { AsyncResult } from "effect/reactivity";
-import { useContext, useEffect, useRef, useState } from "react";
+import { AsyncResult, Atom } from "effect/reactivity";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { Image, Linking, ScrollView, Switch, TextInput, View } from "react-native";
 import { AppText as Text } from "../../components/ui/AppText";
 import { Button as MaterialButton } from "../../components/ui/Button";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
+
+function associationQuery(selection: PluginInput) {
+  const search = selection.associationSearch;
+  return search &&
+    typeof search === "object" &&
+    !Array.isArray(search) &&
+    "query" in search &&
+    typeof search.query === "string"
+    ? search.query
+    : "";
+}
 
 type Entry = PluginCatalog["plugins"][number];
 
@@ -131,6 +142,29 @@ function PluginPanel({
   const content = page?.view ?? Option.getOrNull(AsyncResult.value(result));
   const registry = useContext(RegistryContext);
   const execute = useAtomCommand(serverEnvironment.executePluginCommand);
+  const allowedCommands = useAtomValue(
+    useMemo(
+      () =>
+        Atom.make(
+          (get) =>
+            new Set(
+              plugin.commands
+                .filter((command) =>
+                  get(
+                    serverEnvironment.executePluginCommand.permissionAtom(environmentId, {
+                      pluginId: plugin.id,
+                      commandId: command.id,
+                      permission: command.permission,
+                      input: {},
+                    }),
+                  ),
+                )
+                .map((command) => command.id),
+            ),
+        ),
+      [environmentId, plugin],
+    ),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const running = useRef(false);
@@ -234,9 +268,7 @@ function PluginPanel({
               <Switch
                 accessibilityLabel={block.label}
                 value={block.value}
-                disabled={
-                  busy || !plugin.commands.some((command) => command.id === block.action.command)
-                }
+                disabled={busy || !allowedCommands.has(block.action.command)}
                 onValueChange={() => void run(block.action)}
               />
             </View>
@@ -248,7 +280,8 @@ function PluginPanel({
               block={block}
               busy={busy}
               run={run}
-              canRun={(action) => plugin.commands.some((command) => command.id === action.command)}
+              submittedQuery={associationQuery(selection)}
+              canRun={(action) => allowedCommands.has(action.command)}
               search={(query, cursor) =>
                 setSelection((current) => ({
                   ...current,

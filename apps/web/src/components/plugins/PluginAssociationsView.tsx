@@ -77,6 +77,11 @@ export function PluginAssociationsView({
               {item.label}
             </Button>
           ))}
+          {block.options.length === 0 && (
+            <p role="status" className="px-2 py-1 text-sm text-muted-foreground">
+              No matching items.
+            </p>
+          )}
         </div>
         {block.nextCursor && (
           <Button
