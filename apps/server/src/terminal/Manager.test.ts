@@ -920,7 +920,7 @@ it.layer(
 
   it.effect("supports multiple terminals per thread independently", () =>
     Effect.gen(function* () {
-      const { manager, ptyAdapter } = yield* createManager();
+      const { manager, ptyAdapter } = yield* createManager(5, { processKillGraceMs: 0 });
       yield* manager.open(openInput({ terminalId: "default" }));
       yield* manager.open(openInput({ terminalId: "term-2" }));
 
@@ -930,6 +930,8 @@ it.layer(
       expect(second).toBeDefined();
       if (!first || !second) return;
 
+      expect((yield* manager.inputActivity).size).toBe(0);
+      yield* TestClock.adjust("5 seconds");
       yield* manager.write({ threadId: "thread-1", terminalId: "default", data: "pwd\n" });
       yield* manager.write({ threadId: "thread-1", terminalId: "term-2", data: "ls\n" });
       yield* manager.write({
@@ -939,10 +941,11 @@ it.layer(
         binary: true,
       });
 
+      expect((yield* manager.inputActivity).get("thread-1")).toBe(yield* Clock.currentTimeMillis);
       expect(first.writes).toEqual(["pwd\n"]);
       expect(second.writes).toEqual(["ls\n", Buffer.from([0x1b, 0x5b, 0x4d, 0x20, 0x80, 0x28])]);
       expect(ptyAdapter.spawnInputs).toHaveLength(2);
-    }),
+    }).pipe(Effect.provide(TestClock.layer())),
   );
 
   it.effect(

@@ -300,6 +300,27 @@ it.effect("filters and authorizes views and rejects malformed view output", () =
                   blocks: [{ id: "private", kind: "text", text: "x".repeat(20_000) }],
                 }),
             },
+            ...(["managed-environments", "environment-launcher"] as const).map((location) => ({
+              id: location,
+              title: "Machines",
+              location,
+              permission: "environment:maintain" as const,
+              read: (input?: Record<string, Schema.Json>) =>
+                Effect.succeed({
+                  title: String(input?.requestId ?? "Machines"),
+                  blocks: [
+                    {
+                      id: "guest",
+                      kind: "environment" as const,
+                      environmentId: "guest",
+                      label: "Guest",
+                      url: "https://guest.test",
+                      state: "running" as const,
+                      connect: { id: "pair", label: "Connect", command: "pair", input: {} },
+                    },
+                  ],
+                }),
+            })),
             ...(["thread-details", "usage"] as const).map((location) => ({
               id: location,
               title: "Row",
@@ -316,6 +337,22 @@ it.effect("filters and authorizes views and rejects malformed view output", () =
       const input = { pluginId: "test", viewId: "private" };
       const row = { pluginId: "test", viewId: "thread-details" };
       expect((yield* host.readView(row, ["orchestration:read"])).blocks).toEqual([status]);
+      expect(
+        (yield* host.readView(
+          { ...row, viewId: "managed-environments", context: { requestId: "request" } },
+          AuthStandardClientScopes,
+        )).title,
+      ).toBe("request");
+      expect(
+        (yield* host
+          .readView({ ...row, viewId: "managed-environments" }, ["orchestration:read"])
+          .pipe(Effect.flip))._tag,
+      ).toBe("EnvironmentAuthorizationError");
+      expect(
+        (yield* host
+          .readView({ ...row, viewId: "environment-launcher" }, AuthStandardClientScopes)
+          .pipe(Effect.flip))._tag,
+      ).toBe("PluginOperationError");
       // A status block is only drawn by the thread details row.
       expect(
         (yield* host
