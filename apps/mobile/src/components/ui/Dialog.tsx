@@ -1,4 +1,5 @@
 import { msg } from "gt-react-native";
+import { clientNoticeInApp, deliverClientNotice, nextClientNoticeId } from "./clientNoticeRouter";
 import { Alert } from "react-native";
 
 import { m } from "../../i18n/messages";
@@ -7,7 +8,15 @@ import type { ConfirmDialogRequest, TextInputDialogRequest } from "./Dialog.type
 export type { ConfirmDialogRequest, TextInputDialogRequest } from "./Dialog.types";
 
 export function alert(...args: Parameters<typeof Alert.alert>): void {
-  Alert.alert(...args);
+  const [title, message] = args;
+  const notice = {
+    id: nextClientNoticeId(),
+    title: title ?? "T3 Code",
+    ...(message ? { description: message } : {}),
+    interactive: true,
+  };
+  deliverClientNotice(notice);
+  if (clientNoticeInApp(notice)) Alert.alert(...args);
 }
 
 export function confirm(request: ConfirmDialogRequest): void {

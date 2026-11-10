@@ -4,6 +4,7 @@ import type { OrchestrationV2ThreadShell } from "@t3tools/contracts";
 import { notificationTransition } from "./notificationTransition.ts";
 
 const thread = {
+  title: "Test",
   lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: "thread-1" },
   archivedAt: null,
   pendingRuntimeRequest: null,
@@ -27,11 +28,12 @@ describe("notificationTransition", () => {
     ).toBeNull();
     expect(notificationTransition(null, completed)).toBeNull();
     expect(
-      notificationTransition(thread, { ...completed, archivedAt: thread.latestRunCompletedAt! }),
-    ).toBeNull();
+      notificationTransition(thread, { ...completed, archivedAt: thread.latestRunCompletedAt! })
+        ?.kind,
+    ).toBe("clear");
     expect(
-      notificationTransition(thread, { ...completed, latestRunStopRequested: true }),
-    ).toBeNull();
+      notificationTransition(thread, { ...completed, latestRunStopRequested: true })?.kind,
+    ).toBe("clear");
   });
   it("distinguishes usage limits from failures and retains request identity", () => {
     expect(notificationTransition(thread, { ...thread, status: "failed" })?.kind).toBe("failure");

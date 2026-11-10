@@ -2,6 +2,8 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
+import { clientNoticeRoutingConflicted } from "@t3tools/client-runtime/notificationRouting";
+import { pluginCatalogsAtom } from "../../state/plugins";
 import { PluginManagement } from "./PluginManagement";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import type {
@@ -47,6 +49,7 @@ export function PluginPanels({
   viewId?: string;
   location: Location;
 }) {
+  const routingConflict = clientNoticeRoutingConflicted(useAtomValue(pluginCatalogsAtom));
   const query = serverEnvironment.pluginCatalog({ environmentId, input: {} });
   const result = useAtomValue(query);
   const catalog = Option.getOrNull(AsyncResult.value(result));
@@ -66,6 +69,12 @@ export function PluginPanels({
     );
   return (
     <div className="space-y-4">
+      {location === "settings-page" && routingConflict && (
+        <p role="status">
+          Multiple extensions or environments claim client notices. Keep notice routing enabled in
+          one place; builtin presentation remains in control.
+        </p>
+      )}
       {catalog.configurationError && (
         <p role="status">
           Plugin configuration could not be loaded. Check plugins.json on this environment.
