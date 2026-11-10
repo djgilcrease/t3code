@@ -177,4 +177,38 @@ describe("thread details actions", () => {
       await runPluginAction({ start, execute: async () => ({ ok: true, value: { any: 1 } }) }),
     ).toBeNull();
   });
+  it("carries relayed steps between environments until the plugin ends or the user cancels", async () => {
+    const start = { environmentId: "source", commandId: "move", input: {} };
+    const steps: Array<string> = [];
+    const statuses: Array<string> = [];
+    const execute = async (step: typeof start) => {
+      steps.push(`${step.environmentId}:${step.commandId}`);
+      const value =
+        step.commandId === "move"
+          ? { $t3: "relay", environmentId: "destination", command: "accept", input: { n: 1 } }
+          : step.commandId === "accept"
+            ? { $t3: "relay", command: "import", input: {}, status: "Copying work" }
+            : { $t3: "notice", tone: "success", text: "Moved." };
+      return { ok: true as const, value };
+    };
+    expect(
+      await runPluginAction({ start, execute, onStatus: (status) => statuses.push(status) }),
+    ).toMatchObject({ text: "Moved." });
+    // A step without an environment stays where the previous one ran.
+    expect(steps).toEqual(["source:move", "destination:accept", "destination:import"]);
+    expect(statuses).toEqual(["Copying work"]);
+
+    const controller = new AbortController();
+    steps.length = 0;
+    const cancelled = await runPluginAction({
+      start,
+      signal: controller.signal,
+      execute: async (step) => {
+        controller.abort();
+        return execute(step);
+      },
+    });
+    expect(cancelled).toBeNull();
+    expect(steps).toEqual(["source:move"]);
+  });
 });

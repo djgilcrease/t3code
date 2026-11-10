@@ -171,6 +171,22 @@ export const PluginNoticeResult = Schema.Struct({
 });
 export type PluginNoticeResult = typeof PluginNoticeResult.Type;
 
+/**
+ * Continues a `thread-details` action with another command of the same plugin, here or on
+ * another connected environment. The client carries each step, so two environments that
+ * cannot reach each other can still exchange data, one bounded command at a time.
+ */
+export const PluginRelayResult = Schema.Struct({
+  $t3: Schema.Literal("relay"),
+  /** Omitted: the environment that returned this result. */
+  environmentId: Schema.optionalKey(Label),
+  command: PluginLocalId,
+  input: PluginInput,
+  /** Progress shown while the next step runs. */
+  status: Schema.optionalKey(Label),
+});
+export type PluginRelayResult = typeof PluginRelayResult.Type;
+
 export class PluginError extends Schema.TaggedError<PluginError>()("PluginError", {
   operation: Schema.String,
   cause: Schema.Defect(),

@@ -4,7 +4,7 @@ import type {
   PluginCatalog,
   PluginStatusAction,
 } from "@t3tools/contracts";
-import { PluginNoticeResult, PluginSecretResult } from "@t3tools/contracts";
+import { PluginNoticeResult, PluginRelayResult, PluginSecretResult } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import * as Option from "effect/Option";
 
@@ -132,12 +132,33 @@ const failed = (message: string | null): PluginNoticeResult => ({
   text: message ?? "The plugin command failed. Try again.",
 });
 
-/** Runs a status action to its end. Null means it finished with nothing to show. */
+const decodeRelayResult = Schema.decodeUnknownOption(PluginRelayResult);
+/** Enough for a large carried transfer; a plugin that never finishes still stops. */
+const MAX_PLUGIN_RELAY_STEPS = 5_000;
+
+/**
+ * Runs a status action to its end, carrying each relayed step to the environment it names.
+ * Null means it finished with nothing to show, or was cancelled.
+ */
 export async function runPluginAction(options: {
   readonly start: PluginActionStep;
   readonly execute: (step: PluginActionStep) => Promise<PluginActionReply>;
+  readonly onStatus?: (status: string) => void;
+  readonly signal?: AbortSignal;
 }): Promise<PluginNoticeResult | null> {
-  const reply = await options.execute(options.start);
-  if (!reply.ok) return failed(reply.message);
-  return Option.getOrNull(decodeNoticeResult(reply.value));
+  let step = options.start;
+  for (let count = 0; count < MAX_PLUGIN_RELAY_STEPS; count++) {
+    if (options.signal?.aborted) return null;
+    const reply = await options.execute(step);
+    if (!reply.ok) return failed(reply.message);
+    const relay = Option.getOrNull(decodeRelayResult(reply.value));
+    if (relay === null) return Option.getOrNull(decodeNoticeResult(reply.value));
+    if (relay.status !== undefined) options.onStatus?.(relay.status);
+    step = {
+      environmentId: relay.environmentId ?? step.environmentId,
+      commandId: relay.command,
+      input: relay.input,
+    };
+  }
+  return failed("The plugin did not finish. Try again.");
 }
