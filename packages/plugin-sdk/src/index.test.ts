@@ -16,6 +16,27 @@ it("rejects ambiguous form and table identities before clients render them", () 
     ],
   };
   expect(valid({ title: "Test", blocks: [form] })).toBe(false);
+  const collection = {
+    id: "items",
+    kind: "collection",
+    label: "Items",
+    items: [{ id: "one", label: "One", search: "", input: { selected: "one" } }],
+  };
+  expect(valid({ title: "Test", blocks: [collection] })).toBe(true);
+  expect(
+    valid({
+      title: "Test",
+      blocks: [{ ...collection, items: [...collection.items, ...collection.items] }],
+    }),
+  ).toBe(false);
+  expect(
+    valid({
+      title: "Test",
+      blocks: [
+        { id: "image", kind: "image", label: "Image", source: "https://example.com/tracking.png" },
+      ],
+    }),
+  ).toBe(false);
   const table = {
     id: "accounts",
     kind: "table",
