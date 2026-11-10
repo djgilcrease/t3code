@@ -1,3 +1,5 @@
+// @effect-diagnostics nodeBuiltinImport:off -- A local socket observes subprocess lifetime without polling.
+import * as NodeNet from "node:net";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -231,24 +233,32 @@ export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activ
     ),
 );
 
-it.effect.each(["command", "mcp"])(
+it.effect.each(["command", "mcp", "lifecycle"])(
   "kills an event-loop stall at the handler deadline while other plugins remain usable (%s)",
   (operation) =>
     fixture(
       () => `${header}
 export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activate: () => Effect.succeed({
   mcpServers: () => Effect.sync(() => { for (;;) {} }),
+  onLifecycle: () => Effect.sync(() => { for (;;) {} }),
   commands: [{...${JSON.stringify(descriptor("block"))}, run: () => Effect.sync(() => { for (;;) {} })}]
 })};`,
       () =>
         Effect.gen(function* () {
           const host = yield* PluginRegistry.PluginRegistry;
           expect((yield* host.list(AuthStandardClientScopes)).plugins[0]?.status).toBe("active");
-          const blocked = yield* (
-            operation === "command"
-              ? host.execute(envelope("test", "block"), AuthStandardClientScopes)
-              : host.mcpServers({ provider: "codex", instanceId: "codex" })
-          ).pipe(Effect.result, Effect.forkChild);
+          const blocked = yield* Effect.gen(function* () {
+            if (operation === "command")
+              yield* host.execute(envelope("test", "block"), AuthStandardClientScopes);
+            else if (operation === "mcp")
+              yield* host.mcpServers({ provider: "codex", instanceId: "codex" });
+            else
+              yield* host.lifecycle({
+                type: "worktree.removing",
+                repositoryDirectory: "/project",
+                worktreePath: "/project-worktree",
+              });
+          }).pipe(Effect.result, Effect.forkChild);
           yield* TestClock.adjust("30 seconds");
           expect((yield* Fiber.join(blocked))._tag).toBe("Failure");
           const stopped = yield* host.changes.pipe(
@@ -331,4 +341,92 @@ export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activ
       expect(yield* view.read()).toEqual({ title: "View", blocks: [] });
     }).pipe(Effect.provide(PluginModuleLoader.layer)),
   ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
+);
+
+it.live("returns a deliberate lifecycle failure across IPC and keeps other plugins usable", () =>
+  fixture(
+    () => `${header}
+export default {apiVersion:1,id:"test",name:"Test",version:"1.0.0",activate:()=>Effect.succeed({
+  onLifecycle:event=>Effect.succeed(event.type==="worktree.removing"?{error:"Stop containers: exit 7. Retry removal after fixing the script."}:null)
+})};`,
+    () =>
+      Effect.gen(function* () {
+        const host = yield* PluginRegistry.PluginRegistry;
+        const event = {
+          type: "worktree.removing" as const,
+          repositoryDirectory: "/project",
+          worktreePath: "/project-worktree",
+        };
+        const error = yield* Effect.flip(host.lifecycle(event));
+        expect(error).toMatchObject({
+          _tag: "PluginLifecycleBlocked",
+          pluginId: "test",
+          message: "Stop containers: exit 7. Retry removal after fixing the script.",
+        });
+        yield* host.lifecycle({ ...event, type: "worktree.created" });
+        expect(yield* host.execute(envelope("healthy", "ping"), AuthStandardClientScopes)).toBe(
+          "pong",
+        );
+      }),
+  ),
+);
+
+it.live(
+  "supervises plugin subprocess output and stops an owned process when its worker is disabled",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const connected = Promise.withResolvers<void>(),
+          disconnected = Promise.withResolvers<void>();
+        const server = yield* Effect.acquireRelease(
+          Effect.sync(() =>
+            NodeNet.createServer((socket) => {
+              connected.resolve();
+              socket.on("close", () => disconnected.resolve());
+            }),
+          ),
+          (server) =>
+            Effect.promise(() => new Promise<void>((resolve) => server.close(() => resolve()))),
+        );
+        yield* Effect.promise(
+          () => new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve)),
+        );
+        const address = server.address();
+        if (!address || typeof address === "string") throw Error("Expected a TCP address");
+        const script = `require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(`require('node:net').connect(${address.port},'127.0.0.1');setInterval(()=>{},1000);`)}]);setInterval(()=>{},1000);`;
+        yield* fixture(
+          (temp) => `${header}
+export default {apiVersion:1,id:"test",name:"Test",version:"1.0.0",activate:context=>Effect.succeed({commands:[
+ {...${JSON.stringify(descriptor("run"))},run:()=>context.runProcess({command:${JSON.stringify(process.execPath)},args:["-e",${JSON.stringify(script)}],cwd:${JSON.stringify(temp)},environment:{},timeoutMs:60000})},
+ {...${JSON.stringify(descriptor("output"))},run:()=>context.runProcess({command:${JSON.stringify(process.execPath)},args:["-e","process.stdout.write('x'.repeat(12000));process.stderr.write(process.env.PLUGIN_VALUE)"],cwd:${JSON.stringify(temp)},environment:{PLUGIN_VALUE:"owned"},timeoutMs:10000})}
+]})};`,
+          () =>
+            Effect.gen(function* () {
+              const host = yield* PluginRegistry.PluginRegistry;
+              const output = yield* host.execute(
+                envelope("test", "output"),
+                AuthStandardClientScopes,
+              );
+              expect(output).toMatchObject({
+                code: 0,
+                timedOut: false,
+                stdoutTruncated: true,
+                stderr: "owned",
+              });
+              const pending = yield* host
+                .execute(envelope("test", "run"), AuthStandardClientScopes)
+                .pipe(Effect.result, Effect.forkChild);
+              yield* Effect.promise(() => connected.promise);
+              const configuration = yield* host.configuration;
+              yield* host.reconcile({
+                plugins: configuration.plugins.map((plugin) =>
+                  plugin.id === "test" ? { ...plugin, enabled: false } : plugin,
+                ),
+              });
+              yield* Effect.promise(() => disconnected.promise);
+              expect((yield* Fiber.join(pending))._tag).toBe("Failure");
+            }),
+        );
+      }),
+    ),
 );

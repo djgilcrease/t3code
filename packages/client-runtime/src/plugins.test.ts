@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   pluginFormDefaults,
+  pluginSettingsPages,
   pluginFormInput,
   pluginLink,
   pluginSecretResult,
@@ -89,4 +90,38 @@ it("recognizes only bounded explicit secret feedback", () => {
   expect(
     pluginSecretResult({ $t3: "secret", label: "API key", value: "x".repeat(20_000) }),
   ).toBeNull();
+});
+
+it("removes extension navigation when the last contributing page is disabled, removed, or withdrawn", () => {
+  const plugin = {
+    id: "example",
+    name: "Example",
+    version: "1.0.0",
+    status: "active" as const,
+    commands: [],
+    views: [
+      {
+        id: "settings",
+        title: "Example settings",
+        location: "settings-page" as const,
+        permission: "settings:write" as const,
+      },
+    ],
+  };
+  expect(pluginSettingsPages({ configurationError: false, plugins: [plugin] })).toEqual([
+    { pluginId: "example", viewId: "settings", title: "Example settings" },
+  ]);
+  expect(
+    pluginSettingsPages({
+      configurationError: false,
+      plugins: [{ ...plugin, status: "disabled" }],
+    }),
+  ).toEqual([]);
+  expect(pluginSettingsPages({ configurationError: false, plugins: [] })).toEqual([]);
+  expect(
+    pluginSettingsPages({
+      configurationError: false,
+      plugins: [{ ...plugin, views: [{ ...plugin.views[0]!, location: "usage" }] }],
+    }),
+  ).toEqual([]);
 });

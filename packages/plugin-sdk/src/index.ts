@@ -121,7 +121,7 @@ export type PluginView = typeof PluginView.Type;
 export const PluginViewDescriptor = Schema.Struct({
   id: PluginLocalId,
   title: Label,
-  location: Schema.Literals(["settings", "usage"]),
+  location: Schema.Literals(["settings", "settings-page", "usage"]),
   permission: PluginPermission,
 });
 export type PluginViewDescriptor = typeof PluginViewDescriptor.Type;
@@ -187,9 +187,30 @@ export interface PluginLaunch {
   readonly args: readonly string[];
   readonly environment: Readonly<Record<string, string | undefined>>;
 }
+export const PluginProcessInput = Schema.Struct({
+  command: Text,
+  args: Schema.Array(Text).check(Schema.isMaxLength(100)),
+  cwd: Text,
+  environment: Schema.Record(Label, Text),
+  timeoutMs: Schema.Int.check(Schema.isBetween({ minimum: 1_000, maximum: 1_500_000 })),
+});
+export type PluginProcessInput = typeof PluginProcessInput.Type;
+export const PluginProcessResult = Schema.Struct({
+  code: Schema.NullOr(Schema.Int),
+  timedOut: Schema.Boolean,
+  stdout: Text,
+  stderr: Text,
+  stdoutTruncated: Schema.Boolean,
+  stderrTruncated: Schema.Boolean,
+});
+export type PluginProcessResult = typeof PluginProcessResult.Type;
+
 export interface PluginContext {
   readonly id: string;
   readonly dataDirectory: string;
+  readonly runProcess?: (
+    input: PluginProcessInput,
+  ) => Effect.Effect<PluginProcessResult, PluginError>;
   readonly capabilities?: readonly string[];
   /** Relative URL on the owning environment; never a baked-in localhost origin. */
   readonly httpBasePath: string;
@@ -205,9 +226,31 @@ export const PluginHttpResponseTimeout = Schema.Int.check(
   Schema.isBetween({ minimum: 1_000, maximum: 3_900_000 }),
 );
 
+export const PluginLifecycleEvent = Schema.Struct({
+  type: Schema.Literals(["worktree.created", "worktree.removing", "worktree.removed"]),
+  repositoryDirectory: Text,
+  worktreePath: Text,
+  refName: Schema.optionalKey(Text),
+});
+export type PluginLifecycleEvent = typeof PluginLifecycleEvent.Type;
+export const PluginLifecycleResult = Schema.NullOr(Schema.Struct({ error: Text }));
+export type PluginLifecycleResult = typeof PluginLifecycleResult.Type;
+export class PluginLifecycleBlocked extends Schema.TaggedError<PluginLifecycleBlocked>()(
+  "PluginLifecycleBlocked",
+  { pluginId: PluginId, message: Text },
+) {}
+
+export const PluginLifecycleTimeout = Schema.Int.check(
+  Schema.isBetween({ minimum: 1_000, maximum: 1_800_000 }),
+);
+
 export interface PluginContributions {
   /** Emit after background state changes; clients refetch mounted views, without polling. */
   readonly changes?: Stream.Stream<void, PluginError>;
+  readonly onLifecycle?: (
+    event: PluginLifecycleEvent,
+  ) => Effect.Effect<PluginLifecycleResult | void, PluginError>;
+  readonly lifecycleTimeoutMs?: number;
   readonly commands?: readonly (PluginCommandDescriptor & {
     /** Decode and validate feature-specific input inside the handler. */
     readonly run: (input: PluginInput) => Effect.Effect<Schema.Json, PluginError>;

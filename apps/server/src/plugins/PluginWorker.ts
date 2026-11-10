@@ -8,6 +8,8 @@ import {
   PluginError,
   PluginManifest,
   PluginMcpContext,
+  PluginLifecycleEvent,
+  PluginProcessResult,
   type PluginContext,
   type PluginContributions,
   type T3Plugin,
@@ -21,6 +23,8 @@ import {
   MAX_PLUGIN_MESSAGE_BYTES,
   type PluginMessage,
 } from "./pluginProtocol.ts";
+const decodeProcessResult = Schema.decodeUnknownSync(PluginProcessResult);
+const decodeLifecycleEvent = Schema.decodeUnknownSync(PluginLifecycleEvent);
 const decodeMcpContext = Schema.decodeUnknownSync(PluginMcpContext);
 
 /** Runs only in the isolated plugin process, including in single-executable installs. */
@@ -36,15 +40,41 @@ export async function runPluginWorker(): Promise<void> {
     number,
     { resolve: (value: Schema.Json) => void; reject: (error: Error) => void }
   >();
-  const hostCall = (method: string, payload: Schema.Json) =>
+  const hostCall = (method: string, payload: Schema.Json, signal?: AbortSignal) =>
     new Promise<Schema.Json>((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error("Host call cancelled"));
+        return;
+      }
       const id = ++nextId;
-      pending.set(id, { resolve, reject });
+      const cancel = () => {
+        pending.delete(id);
+        if (method === "process-run")
+          send({
+            kind: "host-call",
+            id: ++nextId,
+            method: "process-cancel",
+            payload: { id },
+            ok: true,
+          });
+        reject(new Error("Host call cancelled"));
+      };
+      pending.set(id, {
+        resolve: (value) => {
+          signal?.removeEventListener("abort", cancel);
+          resolve(value);
+        },
+        reject: (error) => {
+          signal?.removeEventListener("abort", cancel);
+          reject(error);
+        },
+      });
+      signal?.addEventListener("abort", cancel, { once: true });
       send({ kind: "host-call", id, method, payload, ok: true });
     });
   const hostEffect = (method: string, payload: Schema.Json) =>
     Effect.tryPromise({
-      try: () => hostCall(method, payload),
+      try: (signal) => hostCall(method, payload, signal),
       catch: (cause) => new PluginError({ operation: method, cause }),
     });
   const scope = await Effect.runPromise(Scope.make());
@@ -80,6 +110,8 @@ export async function runPluginWorker(): Promise<void> {
           capabilities: Array.isArray(payload.capabilities)
             ? payload.capabilities.filter((value): value is string => typeof value === "string")
             : [],
+          runProcess: (input) =>
+            hostEffect("process-run", input).pipe(Effect.map(decodeProcessResult)),
           httpBasePath: String(payload.httpBasePath),
           httpBaseUrl: hostEffect("http-url", null).pipe(Effect.map(String)),
           secrets: {
@@ -111,11 +143,27 @@ export async function runPluginWorker(): Promise<void> {
             ({ run: _run, ...descriptor }) => descriptor,
           ),
           views: (contributions.views ?? []).map(({ read: _read, ...descriptor }) => descriptor),
+          lifecycle: !!contributions.onLifecycle,
+          lifecycleTimeoutMs: contributions.lifecycleTimeoutMs ?? 30_000,
           mcp: !!contributions.mcpServers,
           launch: !!contributions.prepareLaunch,
           http: !!contributions.handleHttp,
           httpResponseTimeoutMs: contributions.httpResponseTimeoutMs ?? 30_000,
         };
+      }
+      case "lifecycle": {
+        const controller = new AbortController();
+        controllers.set(message.id, controller);
+        try {
+          return (
+            (await Effect.runPromise(
+              contributions.onLifecycle!(decodeLifecycleEvent(message.payload)),
+              { signal: controller.signal },
+            )) ?? null
+          );
+        } finally {
+          controllers.delete(message.id);
+        }
       }
       case "mcp-servers": {
         return await Effect.runPromise(

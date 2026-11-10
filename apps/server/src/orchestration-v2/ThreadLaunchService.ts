@@ -4,6 +4,7 @@ import * as TerminalManager from "../terminal/Manager.ts";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import {
   CommandId,
+  GitCommandError,
   type ChatAttachment,
   type MessageId,
   type ModelSelection,
@@ -190,6 +191,7 @@ export class ThreadLaunchService extends Context.Service<
   }
 >()("t3/orchestration-v2/ThreadLaunchService") {}
 
+const isGitCommandError = Schema.is(GitCommandError);
 const isThreadLaunchError = Schema.is(ThreadLaunchError);
 
 function failureDetail(error: unknown): string {
@@ -721,11 +723,23 @@ const make = Effect.gen(function* () {
                     .pipe(Effect.ignore),
                 ),
                 Effect.catchCause((removeCause) =>
-                  Effect.logWarning("Failed to remove an abandoned thread worktree", {
-                    commandId: input.commandId,
-                    threadId,
-                    path: removedPath,
-                    cause: removeCause,
+                  Effect.gen(function* () {
+                    const failure = Cause.squash(removeCause);
+                    yield* threads
+                      .dispatch({
+                        type: "thread.worktree-cleanup.fail",
+                        commandId: CommandId.make(`${input.commandId}:cleanup-failed`),
+                        threadId,
+                        worktreePath: removedPath,
+                        message: `Worktree removal failed. The checkout was kept.\n\n${isGitCommandError(failure) ? failure.detail.slice(0, 4000) : "The cleanup handler could not complete."}\n\nFix the cleanup command, then retry removal.`,
+                      })
+                      .pipe(Effect.ignoreCause({ log: true }));
+                    yield* Effect.logWarning("Failed to remove an abandoned thread worktree", {
+                      commandId: input.commandId,
+                      threadId,
+                      path: removedPath,
+                      cause: removeCause,
+                    });
                   }),
                 ),
               );

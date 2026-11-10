@@ -47,6 +47,7 @@ import * as Settings from "./serverSettings.ts";
 import * as TerminalManager from "./terminal/Manager.ts";
 import { isFilesystemRoot, managedWorktreesDirectories } from "./worktreesDirectory.ts";
 import * as GitVcsDriver from "./vcs/GitVcsDriver.ts";
+import * as WorktreeRemovalService from "./workspace/WorktreeRemovalService.ts";
 import { removeLinkedWorktree } from "./vcs/worktreeRemoval.ts";
 import { withWorkspaceLease } from "./workspace/workspaceLease.ts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
@@ -297,6 +298,7 @@ const make = Effect.gen(function* () {
   const settingsService = yield* Settings.ServerSettingsService;
   const projectStore = yield* ProjectStore.ProjectStoreV2;
   const engine = yield* Orchestrator.OrchestratorV2;
+  const removal = yield* WorktreeRemovalService.WorktreeRemovalService;
   const projections = yield* ProjectionStore.ProjectionStoreV2;
   const providerSessions = yield* ProviderSessionManager.ProviderSessionManagerV2;
   const sql = yield* SqlClient.SqlClient;
@@ -915,6 +917,7 @@ const make = Effect.gen(function* () {
         bytes: null,
         files: null,
       };
+      let removing = false;
       const keep = (reason: string) => {
         if (deleted && settings.worktreeOnDelete) kept.push(worktreePath);
         entries.push({ ...entry, reason: sentence(reason) });
@@ -1206,6 +1209,10 @@ const make = Effect.gen(function* () {
               )
             )
               return keep("settings changed since check");
+            removing = true;
+            yield* removal.beforeRemove({ cwd: project.workspaceRoot, path: worktreePath });
+            const changedDuringCleanup = yield* blockedSinceCheck();
+            if (changedDuringCleanup !== null) return keep(changedDuringCleanup);
             // Clean only untracked files. Ordinary worktrees retain Git's final tracked-edit check.
             if (settings.worktreeKeepWhen === "tracked-changes")
               yield* cleanupGit(worktreePath, ["clean", "-ffdx"], "git clean");
@@ -1224,6 +1231,7 @@ const make = Effect.gen(function* () {
               execute: git.execute,
               run: (args) => cleanupGit(project.workspaceRoot, [...args], "git worktree remove"),
             });
+            yield* removal.afterRemove({ cwd: project.workspaceRoot, path: worktreePath });
             entries.push({ ...entry, outcome: "removed", reason: sentence(removalReason), bytes });
             yield* gitManager.invalidateStatus(project.workspaceRoot);
             // Preserve branch/path so ProviderTurnStartService can recreate the checkout on resume.
@@ -1238,6 +1246,13 @@ const make = Effect.gen(function* () {
               outcome: "failed",
               reason: cleanupFailureReason(error),
             });
+            if (removing && project)
+              yield* removal.reportFailure({
+                cwd: project.workspaceRoot,
+                path: worktreePath,
+                threadId: thread.id,
+                message: cleanupFailureReason(error),
+              });
             if (deleted && settings.worktreeOnDelete) kept.push(worktreePath);
             yield* Effect.logWarning("storage cleanup failed for worktree", {
               threadId: thread.id,

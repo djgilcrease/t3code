@@ -1,3 +1,4 @@
+import * as WorktreeRemovalService from "./workspace/WorktreeRemovalService.ts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
@@ -16,6 +17,7 @@ import { TestClock } from "effect/testing";
 import * as SqlClient from "effect/sql/SqlClient";
 import {
   DEFAULT_SERVER_SETTINGS,
+  GitCommandError,
   type WorktreeKeepWhen,
   type StorageCleanupSettings,
   type TerminalMetadataStreamEvent,
@@ -355,8 +357,25 @@ const cleanupFixture = (
     let snapshotReads = 0;
     let terminalListener: ((event: TerminalMetadataStreamEvent) => Effect.Effect<void>) | undefined;
     let events: Stream.Stream<OrchestrationV2DomainEvent> = Stream.empty;
+    let cleanupHook: Effect.Effect<void, GitCommandError> = Effect.void;
+    const failureReports: Array<
+      Parameters<WorktreeRemovalService.WorktreeRemovalService["Service"]["reportFailure"]>[0]
+    > = [];
+    let completedHooks = 0;
     const activated = yield* Deferred.make<void>();
     const context = yield* Layer.build(StorageCleanup.layer).pipe(
+      Effect.provideService(WorktreeRemovalService.WorktreeRemovalService, {
+        beforeRemove: () => cleanupHook,
+        afterRemove: () =>
+          Effect.sync(() => {
+            completedHooks++;
+          }),
+        reportFailure: (input) =>
+          Effect.sync(() => {
+            failureReports.push(input);
+          }),
+        remove: (input) => git.removeWorktree(input),
+      }),
       Effect.provideService(GitVcsDriver.GitVcsDriver, {
         ...git,
         execute: (input) =>
@@ -478,6 +497,11 @@ const cleanupFixture = (
     );
     return {
       service: Context.get(context, StorageCleanup.StorageCleanup),
+      setCleanupHook: (hook: Effect.Effect<void, GitCommandError>) => {
+        cleanupHook = hook;
+      },
+      failureReports,
+      completedHooks: () => completedHooks,
       repo,
       setTerminals: (terminals: TerminalSummary[]) =>
         terminalListener?.({ type: "snapshot", terminals }) ?? Effect.void,
@@ -2854,4 +2878,39 @@ it.live("keeps saved usage data when removing a settled checkout", () =>
       expect(yield* fixture.fs.readFileString(cachePath)).toBe(savedUsage);
     }),
   ),
+);
+
+it.live(
+  "keeps ignored files when a cleanup hook fails and reports the owning thread before deletion",
+  () =>
+    runCleanupTest(
+      Effect.gen(function* () {
+        const fixture = yield* cleanupFixture();
+        fixture.setPolicy("tracked-changes");
+        yield* fixture.fs.writeFileString(`${fixture.worktree}/.env`, "KEEP=cleanup-needs-this\n");
+        fixture.setCleanupHook(
+          Effect.fail(
+            new GitCommandError({
+              operation: "worktree.removing",
+              command: "plugin-lifecycle",
+              cwd: fixture.repo,
+              detail: "Stop containers failed (exit 1).",
+            }),
+          ),
+        );
+        const report = yield* fixture.service.runNow;
+        expect(report.entries.some((entry) => entry.outcome === "failed")).toBe(true);
+        expect(yield* fixture.fs.readFileString(`${fixture.worktree}/.env`)).toBe(
+          "KEEP=cleanup-needs-this\n",
+        );
+        expect(fixture.completedHooks()).toBe(0);
+        expect(fixture.failureReports).toEqual([
+          expect.objectContaining({
+            threadId: ThreadId.make("thread-1"),
+            path: fixture.worktree,
+            message: "plugin-lifecycle: Stop containers failed (exit 1).",
+          }),
+        ]);
+      }),
+    ),
 );

@@ -153,7 +153,8 @@ function SettingsRouteLayout() {
       singleEnvironment={
         pathname === "/settings/providers" ||
         pathname === "/settings/secrets" ||
-        pathname === "/settings/plugins"
+        pathname === "/settings/plugins" ||
+        pathname.startsWith("/settings/extensions/")
       }
       onChange={(next) => {
         // Send every axis so retain middleware recognizes "all" as an explicit target.
