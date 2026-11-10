@@ -11,6 +11,7 @@ import {
   pluginSecretResult,
   pluginViewResult,
   pluginGraphLayout,
+  pluginThreadPanels,
   type PluginForm,
 } from "./plugins.ts";
 
@@ -264,4 +265,38 @@ it("keeps branch colors through merges, joins parents once, and ends independent
   expect(graph.rows[3]!.paths).toHaveLength(1);
   expect(graph.rows[4]!.paths).toEqual([]);
   expect(graph.width).toBe(36);
+});
+
+it("hides repository-required thread panels until a Git repository is confirmed", () => {
+  const plugin = {
+    id: "example",
+    name: "Example",
+    version: "1.0.0",
+    status: "active" as const,
+    commands: [],
+    views: [
+      {
+        id: "history",
+        title: "History",
+        location: "thread-panel" as const,
+        permission: "filesystem:read" as const,
+        requiresRepository: true,
+      },
+      {
+        id: "notes",
+        title: "Notes",
+        location: "thread-panel" as const,
+        permission: "filesystem:read" as const,
+      },
+    ],
+  };
+  const catalog = { configurationError: false, plugins: [plugin] };
+  expect(pluginThreadPanels(catalog, false).map(({ view }) => view.id)).toEqual(["notes"]);
+  expect(pluginThreadPanels(catalog, true).map(({ view }) => view.id)).toEqual([
+    "history",
+    "notes",
+  ]);
+  expect(
+    pluginThreadPanels({ ...catalog, plugins: [{ ...plugin, status: "disabled" }] }, true),
+  ).toEqual([]);
 });

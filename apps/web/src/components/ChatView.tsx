@@ -3877,6 +3877,7 @@ export default function ChatView(props: ChatViewProps) {
                   }
                   gitCwd={gitCwd}
                   isGitRepo={isGitRepo}
+                  hasRepository={liveIsGitRepo === true}
                   envLocked={envLocked}
                   availableEnvironments={logicalProjectEnvironments}
                   autoEnvironmentLabel={autoEnvironmentLabel}

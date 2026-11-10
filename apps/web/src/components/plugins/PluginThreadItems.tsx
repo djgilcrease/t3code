@@ -3,6 +3,7 @@ import {
   pluginActionDestinations,
   pluginDestinationLabel,
   pluginThreadDetailsViews,
+  pluginThreadPanels,
   type PluginStatus,
 } from "@t3tools/client-runtime/plugins";
 import {
@@ -53,9 +54,11 @@ type Entry = PluginCatalog["plugins"][number];
 export function PluginThreadItems({
   environmentId,
   threadId,
+  hasRepository,
 }: {
   environmentId: EnvironmentId;
   threadId: ThreadId;
+  hasRepository: boolean;
 }) {
   const catalogs = useAtomValue(pluginCatalogsAtom);
   const views = catalogs.flatMap(({ environmentId: sourceId, catalog }) =>
@@ -63,16 +66,7 @@ export function PluginThreadItems({
   );
   const panels = catalogs
     .filter((row) => row.environmentId === environmentId)
-    .flatMap(
-      (row) =>
-        row.catalog?.plugins
-          .filter((p) => p.status === "active")
-          .flatMap((plugin) =>
-            plugin.views
-              .filter((v) => v.location === "thread-panel")
-              .map((view) => ({ plugin, view })),
-          ) ?? [],
-    );
+    .flatMap((row) => (row.catalog ? pluginThreadPanels(row.catalog, hasRepository) : []));
   if (views.length === 0 && panels.length === 0) return null;
   return (
     <div

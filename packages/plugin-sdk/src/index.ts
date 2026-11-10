@@ -240,6 +240,7 @@ export const PluginViewDescriptor = Schema.Struct({
     "environment-launcher",
   ]),
   presentation: Schema.optionalKey(Schema.Literals(["popover", "dialog"])),
+  requiresRepository: Schema.optionalKey(Schema.Boolean),
   permission: PluginPermission,
 });
 export type PluginViewDescriptor = typeof PluginViewDescriptor.Type;
