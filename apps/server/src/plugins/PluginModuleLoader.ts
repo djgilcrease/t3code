@@ -1,3 +1,4 @@
+import * as ProcessRunner from "../processRunner.ts";
 // @effect-diagnostics nodeBuiltinImport:off -- Node IPC is the plugin process boundary.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeURL from "node:url";
@@ -10,6 +11,10 @@ import {
 import {
   PluginManifest,
   PluginMcpServers,
+  PluginLifecycleTimeout,
+  PluginLifecycleResult,
+  PluginProcessInput,
+  type PluginLifecycleEvent,
   PluginHttpResponseTimeout,
   PluginView,
   PluginCommandDescriptor,
@@ -57,11 +62,14 @@ export class PluginModuleLoader extends Context.Service<
 const Activated = Schema.Struct({
   commands: Schema.Array(PluginCommandDescriptor),
   views: Schema.Array(PluginViewDescriptor),
+  lifecycle: Schema.Boolean,
+  lifecycleTimeoutMs: PluginLifecycleTimeout,
   mcp: Schema.Boolean,
   launch: Schema.Boolean,
   http: Schema.Boolean,
   httpResponseTimeoutMs: PluginHttpResponseTimeout,
 });
+const decodeProcessInput = Schema.decodeUnknownSync(PluginProcessInput);
 const decodeActivated = Schema.decodeUnknownSync(Activated);
 const decodeManifest = Schema.decodeUnknownSync(PluginManifest);
 const decodeView = Schema.decodeUnknownSync(PluginView);
@@ -73,6 +81,7 @@ const pluginFailure = (operation: string) => (cause: unknown) =>
   new PluginError({ operation, cause });
 
 const make = Effect.gen(function* () {
+  const processRunner = yield* ProcessRunner.ProcessRunner;
   const executable = yield* HostProcessExecutablePath;
   const environment = yield* HostProcessEnvironment;
   const standalone = yield* HostProcessIsExecutable;
@@ -100,6 +109,7 @@ const make = Effect.gen(function* () {
         let lastStartupFailure: unknown;
         let startedAt = yield* Clock.currentTimeMillis;
 
+        let lifecycleTimeoutMs = 30_000;
         const openSession = () => {
           const ownGeneration = ++generation;
           const workerUrl = import.meta.url.endsWith(".ts")
@@ -134,6 +144,7 @@ const make = Effect.gen(function* () {
               cleanup: () => void;
             }
           >();
+          const jobs = new Map<number, AbortController>();
           const requests = new Map<
             number,
             { reader: ReadableStreamDefaultReader<Uint8Array>; remainder?: Uint8Array | undefined }
@@ -158,14 +169,19 @@ const make = Effect.gen(function* () {
                 return;
               }
               const id = ++nextId;
-              const supervised = ["command", "view", "launch", "mcp-servers"].includes(method);
+              const supervised = ["command", "view", "launch", "mcp-servers", "lifecycle"].includes(
+                method,
+              );
               // Client refreshes can be superseded while the worker is still answering.
               // Keep their watchdog until the reply arrives, even after caller cancellation.
               const watchdog = supervised ? new AbortController() : undefined;
               if (watchdog)
-                void Effect.runPromiseWith(runtimeContext)(Effect.sleep("30 seconds"), {
-                  signal: watchdog.signal,
-                }).then(
+                void Effect.runPromiseWith(runtimeContext)(
+                  Effect.sleep(method === "lifecycle" ? lifecycleTimeoutMs : 30_000),
+                  {
+                    signal: watchdog.signal,
+                  },
+                ).then(
                   () => {
                     pending.delete(id);
                     cleanup();
@@ -181,6 +197,14 @@ const make = Effect.gen(function* () {
                   cleanup();
                   if (["load", "activate"].includes(method)) child.kill("SIGKILL");
                 }
+                if (method === "lifecycle" && child.connected)
+                  send({
+                    kind: "call",
+                    id: ++nextId,
+                    method: "http-cancel",
+                    payload: { id },
+                    ok: true,
+                  });
                 reject(new Error("Plugin call cancelled"));
               };
               const cleanup = () => {
@@ -198,13 +222,52 @@ const make = Effect.gen(function* () {
                 reject(new Error("Plugin send failed"));
               }
             });
-          const hostCall = async (method: string, value: Schema.Json): Promise<Schema.Json> => {
+          const hostCall = async (
+            method: string,
+            value: Schema.Json,
+            requestId: number,
+          ): Promise<Schema.Json> => {
             if (!hostContext || closed || expected || exited || ownGeneration !== generation)
               throw new Error("Plugin not activated");
             const payload = value as Record<string, Schema.Json>;
             // Native IPC callbacks are a framework boundary, reusing the captured
             // application context rather than making per-plugin Effect runtimes.
             const run = Effect.runPromiseWith(runtimeContext);
+            if (method === "process-cancel") {
+              jobs.get(Number(payload.id))?.abort();
+              return null;
+            }
+            if (method === "process-run") {
+              if (jobs.size >= 4) throw new Error("Plugin process limit reached");
+              const input = decodeProcessInput(value);
+              const controller = new AbortController();
+              jobs.set(requestId, controller);
+              try {
+                const result = await run(
+                  processRunner.run({
+                    command: input.command,
+                    args: input.args,
+                    cwd: input.cwd,
+                    env: input.environment,
+                    timeout: input.timeoutMs,
+                    maxOutputBytes: 8192,
+                    outputMode: "truncate",
+                    timeoutBehavior: "timedOutResult",
+                  }),
+                  { signal: controller.signal },
+                );
+                return {
+                  code: result.code,
+                  timedOut: result.timedOut,
+                  stdout: result.stdout,
+                  stderr: result.stderr,
+                  stdoutTruncated: result.stdoutTruncated,
+                  stderrTruncated: result.stderrTruncated,
+                };
+              } finally {
+                jobs.delete(requestId);
+              }
+            }
             if (method === "secret-get")
               return await run(hostContext.secrets.get(String(payload.key)));
             if (method === "secret-set") {
@@ -235,6 +298,8 @@ const make = Effect.gen(function* () {
           const ended = () => {
             if (exited) return;
             exited = true;
+            for (const job of jobs.values()) job.abort();
+            jobs.clear();
             for (const reply of pending.values()) {
               reply.cleanup();
               reply.reject(new Error("Plugin process exited"));
@@ -275,7 +340,7 @@ const make = Effect.gen(function* () {
                 child.kill("SIGKILL");
                 return;
               }
-              void hostCall(message.method, message.payload)
+              void hostCall(message.method, message.payload, message.id)
                 .then(
                   (payload) =>
                     send({ kind: "host-reply", id: message.id, method: "", payload, ok: true }),
@@ -305,6 +370,7 @@ const make = Effect.gen(function* () {
             },
             close: async () => {
               expected = true;
+              for (const job of jobs.values()) job.abort();
               if (exited) return;
               await invoke("shutdown", null, AbortSignal.timeout(1000)).catch(() => {});
               if (exited) return;
@@ -378,7 +444,11 @@ const make = Effect.gen(function* () {
               },
               AbortSignal.timeout(15_000),
             )
-            .then(decodeActivated);
+            .then(decodeActivated)
+            .then((metadata) => {
+              lifecycleTimeoutMs = metadata.lifecycleTimeoutMs;
+              return metadata;
+            });
         const supervise = Effect.gen(function* () {
           for (;;) {
             const exitedGeneration = yield* Queue.take(exits);
@@ -476,6 +546,15 @@ const make = Effect.gen(function* () {
                   ...view,
                   read: () => call("view", { id: view.id }).pipe(Effect.map(decodeView)),
                 })),
+                ...(metadata.lifecycle
+                  ? {
+                      lifecycleTimeoutMs: metadata.lifecycleTimeoutMs,
+                      onLifecycle: (event: PluginLifecycleEvent) =>
+                        call("lifecycle", event).pipe(
+                          Effect.map(Schema.decodeUnknownSync(PluginLifecycleResult)),
+                        ),
+                    }
+                  : {}),
                 ...(metadata.mcp
                   ? {
                       mcpServers: (context) =>
@@ -619,4 +698,6 @@ const make = Effect.gen(function* () {
     ),
   });
 });
-export const layer = Layer.effect(PluginModuleLoader, make);
+export const layer = Layer.effect(PluginModuleLoader, make).pipe(
+  Layer.provide(ProcessRunner.layer),
+);

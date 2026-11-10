@@ -1,5 +1,9 @@
 import {
   PluginCatalog,
+  PluginLifecycleEvent,
+  PluginLifecycleTimeout,
+  PluginLifecycleResult,
+  PluginLifecycleBlocked,
   PluginMcpServers,
   PluginHttpResponseTimeout,
   type PluginMcpContext,
@@ -68,6 +72,9 @@ const Launch = Schema.Struct({
   args: Schema.Array(Schema.String),
   environment: Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Undefined])),
 });
+const decodeLifecycleTimeout = Schema.decodeEffect(PluginLifecycleTimeout);
+const decodeLifecycleEvent = Schema.decodeEffect(PluginLifecycleEvent);
+const decodeLifecycleResult = Schema.decodeEffect(PluginLifecycleResult);
 const decodeHttpResponseTimeout = Schema.decodeUnknownEffect(PluginHttpResponseTimeout);
 const decodeLaunch = Schema.decodeUnknownEffect(Launch);
 type RequestError = PluginOperationError | PluginRequestError | EnvironmentAuthorizationError;
@@ -96,6 +103,9 @@ export class PluginRegistry extends Context.Service<
     readonly prepareLaunch: (
       launch: PluginLaunch,
     ) => Effect.Effect<PluginLaunch, PluginOperationError>;
+    readonly lifecycle: (
+      event: PluginLifecycleEvent,
+    ) => Effect.Effect<void, PluginOperationError | PluginLifecycleBlocked>;
     readonly handleHttp: (
       pluginId: string,
       request: Request,
@@ -213,7 +223,13 @@ const make = Effect.gen(function* () {
       const context: PluginContext = {
         id: item.id,
         dataDirectory,
-        capabilities: ["provider-mcp-servers", "http-response-timeout"],
+        capabilities: [
+          "provider-mcp-servers",
+          "http-response-timeout",
+          "settings-pages",
+          "worktree-lifecycle",
+          "supervised-processes",
+        ],
         httpBasePath: `/api/plugins/${item.id}`,
         httpBaseUrl: Effect.suspend(() =>
           httpOrigin === undefined
@@ -265,14 +281,19 @@ const make = Effect.gen(function* () {
           typeof contributions.mcpServers !== "function") ||
         (contributions.prepareLaunch !== undefined &&
           typeof contributions.prepareLaunch !== "function") ||
-        (contributions.handleHttp !== undefined && typeof contributions.handleHttp !== "function")
+        (contributions.handleHttp !== undefined &&
+          typeof contributions.handleHttp !== "function") ||
+        (contributions.onLifecycle !== undefined && typeof contributions.onLifecycle !== "function")
       ) {
         return yield* new PluginError({ operation: "contributions", cause: null });
       }
       const httpResponseTimeoutMs = yield* decodeHttpResponseTimeout(
         contributions.httpResponseTimeoutMs ?? 30_000,
       );
-      active.set(item.id, { ...contributions, httpResponseTimeoutMs });
+      const lifecycleTimeoutMs = yield* decodeLifecycleTimeout(
+        contributions.lifecycleTimeoutMs ?? 30_000,
+      );
+      active.set(item.id, { ...contributions, httpResponseTimeoutMs, lifecycleTimeoutMs });
       if (module.setRestartLimit) restartLimits.set(item.id, module.setRestartLimit);
       entries.set(item.id, { ...manifest, status: "active", commands, views });
       if (module.health) {
@@ -539,6 +560,36 @@ const make = Effect.gen(function* () {
         );
       }
       return current;
+    }),
+    lifecycle: Effect.fn("PluginRegistry.lifecycle")(function* (event) {
+      yield* Deferred.await(initialized);
+      const decoded = yield* decodeLifecycleEvent(event).pipe(
+        Effect.mapError(
+          (cause) =>
+            new PluginOperationError({ pluginId: "lifecycle", operation: "decode", cause }),
+        ),
+      );
+      for (const item of configuration.plugins) {
+        if (item.enabled && !active.has(item.id))
+          return yield* new PluginOperationError({
+            pluginId: item.id,
+            operation: "lifecycle-plugin-unavailable",
+            cause: null,
+          });
+      }
+      for (const [id, contributions] of active) {
+        if (!contributions.onLifecycle) continue;
+        const result = yield* guarded(
+          id,
+          "lifecycle",
+          Effect.suspend(() => contributions.onLifecycle!(decoded)).pipe(
+            Effect.flatMap((value) => decodeLifecycleResult(value ?? null)),
+          ),
+          contributions.lifecycleTimeoutMs,
+        );
+        if (result)
+          return yield* new PluginLifecycleBlocked({ pluginId: id, message: result.error });
+      }
     }),
     handleHttp: Effect.fn("PluginRegistry.handleHttp")(function* (id, request) {
       yield* Deferred.await(initialized);

@@ -258,6 +258,15 @@ it.effect("isolates activation failure and finalizes resources before reporting 
       const catalog = yield* host.list(AuthStandardClientScopes);
       expect(finalized).toBe(true);
       expect(catalog.plugins.map((p) => p.status)).toEqual(["failed", "active"]);
+      expect(
+        yield* Effect.flip(
+          host.lifecycle({
+            type: "worktree.removing",
+            repositoryDirectory: "/repo",
+            worktreePath: "/worktrees/feature",
+          }),
+        ),
+      ).toMatchObject({ pluginId: "test", operation: "lifecycle-plugin-unavailable" });
     }),
   );
 });
