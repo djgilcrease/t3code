@@ -7,6 +7,7 @@ import * as EnvironmentKeys from "./cloud/environmentKeys.ts";
 import * as AssetSigner from "./assets/AssetSigner.ts";
 import * as WorkspacePreviewRevisions from "./assets/WorkspacePreviewRevisions.ts";
 import * as DatabaseStorage from "./persistence/DatabaseStorage.ts";
+import * as WorktreeRemovalService from "./workspace/WorktreeRemovalService.ts";
 import * as StorageCleanup from "./storageCleanup.ts";
 import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReactor.ts";
 import * as PullRequestWatchReactor from "./orchestration-v2/PullRequestWatchReactor.ts";
@@ -20,7 +21,7 @@ import * as NodeHttp from "node:http";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { EnvironmentHttpApi, type RepositoryIdentity } from "@t3tools/contracts";
+import { EnvironmentHttpApi, GitCommandError, type RepositoryIdentity } from "@t3tools/contracts";
 import * as FeatureFlags from "@t3tools/shared/FeatureFlags";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Cause from "effect/Cause";
@@ -233,6 +234,7 @@ import * as CursorUsageAccounts from "@t3tools/provider-cursor/server/CursorUsag
 import * as UsageService from "./usage/UsageService.ts";
 import * as CodexUsageHistory from "./usage/CodexUsageHistory.ts";
 import * as PluginRegistry from "./plugins/PluginRegistry.ts";
+import { WorktreeLifecycle } from "./vcs/WorktreeLifecycle.ts";
 import * as PluginModuleLoader from "./plugins/PluginModuleLoader.ts";
 import * as PluginHttp from "./plugins/http.ts";
 import * as PluginPackages from "./plugins/PluginPackages.ts";
@@ -351,6 +353,34 @@ const layerPlugins = PluginManager.layer.pipe(
   Layer.provide(ServerSecretStore.layer),
 );
 
+const layerPluginGitDriver = GitVcsDriver.layer.pipe(
+  Layer.provide(
+    Layer.effect(
+      WorktreeLifecycle,
+      Effect.gen(function* () {
+        const plugins = yield* PluginRegistry.PluginRegistry;
+        return Effect.fn("WorktreeLifecycle.dispatch")(function (event) {
+          return plugins.lifecycle(event).pipe(
+            Effect.mapError(
+              (cause) =>
+                new GitCommandError({
+                  operation: event.type,
+                  command: "plugin-lifecycle",
+                  cwd: event.repositoryDirectory,
+                  detail:
+                    cause._tag === "PluginLifecycleBlocked"
+                      ? cause.message
+                      : `Plugin ${cause.pluginId} could not complete its worktree handler. Retry after checking the worker and project recipe.`,
+                  cause,
+                }),
+            ),
+          );
+        });
+      }),
+    ).pipe(Layer.provide(layerPlugins)),
+  ),
+);
+
 const layerResourceDiagnostics = Layer.mergeAll(
   HostResources.layer,
   layerResourceTelemetry,
@@ -443,7 +473,7 @@ const layerVcsDriverRegistry = VcsDriverRegistry.layer.pipe(Layer.provide(VcsPro
 
 const layerSourceControlProviderRegistry = SourceControlProviderRegistry.layer.pipe(
   Layer.provideMerge(SourceControlBuiltInDrivers.layer),
-  Layer.provideMerge(GitVcsDriver.layer),
+  Layer.provideMerge(layerPluginGitDriver),
   Layer.provideMerge(layerVcsDriverRegistry),
 );
 
@@ -491,14 +521,14 @@ const layerGitManager = GitManager.layer.pipe(
   Layer.provide(layerPullRequestService.pipe(Layer.provide(RuntimeLayer.layerProjectService))),
   Layer.provideMerge(RuntimeLayer.layerProjectSetupScriptRunner),
   Layer.provideMerge(WorktreeSetupTracker.layer),
-  Layer.provideMerge(GitVcsDriver.layer),
+  Layer.provideMerge(layerPluginGitDriver),
   Layer.provideMerge(layerSourceControlProviderRegistry),
   Layer.provideMerge(TextGeneration.layer.pipe(Layer.provide(layerSourceControlProviderRegistry))),
 );
 
 const layerGit = Layer.empty.pipe(
   Layer.provideMerge(layerGitManager),
-  Layer.provideMerge(GitVcsDriver.layer),
+  Layer.provideMerge(layerPluginGitDriver),
 );
 
 const layerGitWorkflow = GitWorkflowService.layer.pipe(
@@ -506,8 +536,14 @@ const layerGitWorkflow = GitWorkflowService.layer.pipe(
   Layer.provideMerge(layerGit),
 );
 
+const layerWorktreeRemoval = WorktreeRemovalService.layer.pipe(
+  Layer.provide(layerGitWorkflow),
+  Layer.provide(layerPlugins),
+  Layer.provide(ProjectionStoreV2.layer),
+);
+
 const layerSourceControlRepositoryService = SourceControlRepositoryService.layer.pipe(
-  Layer.provideMerge(GitVcsDriver.layer),
+  Layer.provideMerge(layerPluginGitDriver),
   Layer.provideMerge(layerSourceControlProviderRegistry),
 );
 
@@ -517,12 +553,12 @@ const layerProjectCloneTracker = ProjectCloneTracker.layer.pipe(
 
 const layerKnownWorkspaces = KnownWorkspaces.layer.pipe(
   Layer.provide(ProjectStore.layer),
-  Layer.provide(GitVcsDriver.layer),
+  Layer.provide(layerPluginGitDriver),
 );
 
 const layerReview = ReviewService.layer.pipe(
   Layer.provideMerge(layerKnownWorkspaces),
-  Layer.provideMerge(GitVcsDriver.layer),
+  Layer.provideMerge(layerPluginGitDriver),
   Layer.provideMerge(layerVcsDriverRegistry),
 );
 
@@ -752,7 +788,11 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   HeldHooksWaker.layer,
   layerThreadSettlementWorker,
   layerIdleCompactionWorker,
-  StorageCleanup.layer.pipe(Layer.provide(ProjectionStoreV2.layer)),
+  layerWorktreeRemoval,
+  StorageCleanup.layer.pipe(
+    Layer.provide(ProjectionStoreV2.layer),
+    Layer.provide(layerWorktreeRemoval),
+  ),
   DatabaseStorage.layer.pipe(
     Layer.provide(ProjectionMaintenance.layer),
     Layer.provide(layerServerRestart),
@@ -899,7 +939,7 @@ const layerRuntimeDependencies = layerRuntimeCoreDependencies.pipe(
   Layer.provideMerge(ThreadViewers.layer),
   Layer.provideMerge(layerResourceDiagnostics),
   Layer.provideMerge(TraceDiagnostics.layer),
-  Layer.provideMerge(TriageService.layer.pipe(Layer.provide(GitVcsDriver.layer))),
+  Layer.provideMerge(TriageService.layer.pipe(Layer.provide(layerPluginGitDriver))),
   // Layers memoize by reference, so this is the same policy the settings layer reads.
   Layer.provideMerge(AnalyticsService.layer.pipe(Layer.provide(ManagedPolicy.layer))),
   Layer.provideMerge(ExternalLauncher.layer),

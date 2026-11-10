@@ -3859,6 +3859,13 @@ const OrchestrationV2InternalCommand = Schema.Union([
     runId: RunId,
     value: Schema.Json,
   }),
+  Schema.Struct({
+    type: Schema.Literal("thread.worktree-cleanup.fail"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    worktreePath: TrimmedNonEmptyString,
+    message: TrimmedNonEmptyString,
+  }),
   // Guest share commands the server issues after checking T3 Connect and the guest token.
   Schema.Struct({
     type: Schema.Literal("thread.guest-share.open"),
