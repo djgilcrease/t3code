@@ -118,7 +118,8 @@ folder in place but clears their T3-managed data and credentials.
   thread as `threadId` in its input. An action can ask first: `confirm` shows
   text before it runs, and `environment: { name, label }` asks for another
   connected environment that runs the same plugin and sends its id under
-  `name`. Return `{ $t3: "notice", tone, text, thread? }` to end with a message
+  `name`. Such an action is hidden while no other connected environment runs
+  the plugin. Return `{ $t3: "notice", tone, text, thread? }` to end with a message
   and, with `thread`, an **Open thread** button. A failed command shows only a
   generic error, so report user-facing failures as a `danger` notice. Require
   the `thread-details` capability.
