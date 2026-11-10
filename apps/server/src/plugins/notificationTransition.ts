@@ -1,5 +1,8 @@
 import type { OrchestrationV2ThreadShell, PluginNotificationKind } from "@t3tools/contracts";
-import { backgroundWorkHoldsCompletion } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
+import {
+  backgroundWorkHoldsCompletion,
+  monitorHoldsWakeCompletion,
+} from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
 import * as DateTime from "effect/DateTime";
 
 type Thread = Pick<
@@ -12,6 +15,7 @@ type Thread = Pick<
   | "status"
   | "activityRunStatus"
   | "pendingBackgroundTasks"
+  | "latestRunBackgroundWake"
   | "latestRunStopRequested"
   | "latestRunId"
   | "latestRunCompletedAt"
@@ -33,6 +37,7 @@ function observation(thread: Thread): { kind: PluginNotificationKind; identity: 
   if (
     thread.activityRunStatus != null ||
     backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? []) ||
+    monitorHoldsWakeCompletion(thread) ||
     ["preparing", "starting", "running", "waiting"].includes(thread.status)
   ) {
     return {

@@ -20,6 +20,18 @@ describe("notificationTransition", () => {
     const completed = { ...thread, status: "completed" as const };
     expect(notificationTransition(thread, completed)?.kind).toBe("completion");
     expect(notificationTransition(completed, completed)).toBeNull();
+    const monitorWake = {
+      ...completed,
+      latestRunBackgroundWake: true,
+      pendingBackgroundTasks: [{ taskId: "watch", kind: "monitor" as const }],
+    };
+    expect(notificationTransition(thread, monitorWake)?.kind).not.toBe("completion");
+    expect(
+      notificationTransition(monitorWake, { ...monitorWake, pendingBackgroundTasks: [] })?.kind,
+    ).toBe("completion");
+    expect(
+      notificationTransition(thread, { ...monitorWake, latestRunBackgroundWake: false })?.kind,
+    ).toBe("completion");
     expect(
       notificationTransition(thread, {
         ...completed,
