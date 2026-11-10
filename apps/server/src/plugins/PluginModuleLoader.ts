@@ -9,6 +9,7 @@ import {
   IsExecutable as HostProcessIsExecutable,
 } from "@t3tools/shared/HostProcess";
 import {
+  PluginActivity,
   PluginManifest,
   PluginMcpServers,
   PluginLifecycleTimeout,
@@ -71,6 +72,7 @@ const Activated = Schema.Struct({
 });
 const decodeProcessInput = Schema.decodeUnknownSync(PluginProcessInput);
 const decodeActivated = Schema.decodeUnknownSync(Activated);
+const decodeActivity = Schema.decodeUnknownSync(PluginActivity);
 const decodeManifest = Schema.decodeUnknownSync(PluginManifest);
 const decodeView = Schema.decodeUnknownSync(PluginView);
 const metadataIdentity = Schema.encodeSync(Schema.fromJsonString(Activated));
@@ -278,6 +280,8 @@ const make = Effect.gen(function* () {
               await run(hostContext.secrets.remove(String(payload.key)));
               return null;
             }
+            if (method === "activity" && hostContext.activity)
+              return decodeActivity(await run(hostContext.activity));
             if (method === "http-url") return await run(hostContext.httpBaseUrl);
             if (method === "request-chunk") {
               const request = requests.get(Number(payload.id));
