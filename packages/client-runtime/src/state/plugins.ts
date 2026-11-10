@@ -1,4 +1,9 @@
-import type { EnvironmentId, PluginCatalog, PluginTone, PluginView } from "@t3tools/contracts";
+import {
+  EnvironmentId,
+  type PluginCatalog,
+  type PluginTone,
+  type PluginView,
+} from "@t3tools/contracts";
 import * as Option from "effect/Option";
 import { type Atom as AtomType, Atom, AsyncResult } from "effect/reactivity";
 
@@ -41,25 +46,26 @@ export function createPluginSummaryAtoms(input: {
     const next = new Map<EnvironmentId, readonly PluginEnvironmentStatus[]>();
     for (const { environmentId, catalog } of get(pluginCatalogsAtom)) {
       if (catalog === null) continue;
-      const statuses = pluginThreadDetailsViews(catalog).flatMap(({ plugin, viewId }) => {
+      for (const { plugin, viewId } of pluginThreadDetailsViews(catalog)) {
         const view = AsyncResult.getOrElse(
           get(input.pluginView({ environmentId, input: { pluginId: plugin.id, viewId } })),
           () => null,
         );
-        return (view?.blocks ?? []).flatMap((block) =>
-          block.kind === "status" && block.tone !== undefined && block.label !== undefined
-            ? [
-                {
-                  key: `${plugin.id}:${viewId}:${block.id}`,
-                  tone: block.tone,
-                  label: block.label,
-                  detail: block.detail ?? null,
-                },
-              ]
-            : [],
-        );
-      });
-      if (statuses.length > 0) next.set(environmentId, statuses);
+        for (const block of view?.blocks ?? []) {
+          if (block.kind !== "status" || block.tone === undefined || block.label === undefined)
+            continue;
+          const target = block.environmentId
+            ? EnvironmentId.make(block.environmentId)
+            : environmentId;
+          const status = {
+            key: `${environmentId}:${plugin.id}:${viewId}:${block.id}`,
+            tone: block.tone,
+            label: block.label,
+            detail: block.detail ?? null,
+          };
+          next.set(target, [...(next.get(target) ?? []), status]);
+        }
+      }
     }
     const previous = Option.getOrNull(get.self<StatusByEnvironment>());
     return previous !== null && JSON.stringify([...previous]) === JSON.stringify([...next])

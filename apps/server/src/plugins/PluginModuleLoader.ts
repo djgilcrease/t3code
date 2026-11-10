@@ -64,6 +64,7 @@ export class PluginModuleLoader extends Context.Service<
 const Activated = Schema.Struct({
   commands: Schema.Array(PluginCommandDescriptor),
   views: Schema.Array(PluginViewDescriptor),
+  beforeRemove: Schema.Boolean,
   lifecycle: Schema.Boolean,
   lifecycleTimeoutMs: PluginLifecycleTimeout,
   mcp: Schema.Boolean,
@@ -187,9 +188,14 @@ const make = Effect.gen(function* () {
                 return;
               }
               const id = ++nextId;
-              const supervised = ["command", "view", "launch", "mcp-servers", "lifecycle"].includes(
-                method,
-              );
+              const supervised = [
+                "command",
+                "view",
+                "launch",
+                "mcp-servers",
+                "lifecycle",
+                "before-remove",
+              ].includes(method);
               // Client refreshes can be superseded while the worker is still answering.
               // Keep their watchdog until the reply arrives, even after caller cancellation.
               const watchdog = supervised ? new AbortController() : undefined;
@@ -298,6 +304,8 @@ const make = Effect.gen(function* () {
             }
             if (method === "activity" && hostContext.activity)
               return decodeActivity(await run(hostContext.activity));
+            if (method === "environment-id" && hostContext.environmentId)
+              return await run(hostContext.environmentId);
             if (method === "http-url") return await run(hostContext.httpBaseUrl);
             if (method === "plugin-list" || method === "plugin-run") {
               const plugins = hostContext.plugins;
@@ -617,6 +625,9 @@ const make = Effect.gen(function* () {
                   ...view,
                   read: () => call("view", { id: view.id }).pipe(Effect.map(decodeView)),
                 })),
+                ...(metadata.beforeRemove
+                  ? { beforeRemove: () => call("before-remove", null).pipe(Effect.asVoid) }
+                  : {}),
                 ...(metadata.lifecycle
                   ? {
                       lifecycleTimeoutMs: metadata.lifecycleTimeoutMs,

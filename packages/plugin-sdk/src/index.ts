@@ -85,6 +85,7 @@ export const PluginBlock = Schema.Union([
   Schema.Struct({
     id: PluginLocalId,
     kind: Schema.Literal("status"),
+    environmentId: Schema.optionalKey(Label),
     tone: Schema.optionalKey(PluginTone),
     label: Schema.optionalKey(Label),
     detail: Schema.optionalKey(Text),
@@ -362,6 +363,7 @@ export interface PluginContext {
   readonly activity?: Effect.Effect<PluginActivity, PluginError> | undefined;
   readonly id: string;
   readonly dataDirectory: string;
+  readonly environmentId?: Effect.Effect<string, PluginError> | undefined;
   readonly threads?: PluginThreads;
   readonly plugins?: PluginPeers;
   readonly runProcess?: (
@@ -401,6 +403,8 @@ export const PluginLifecycleTimeout = Schema.Int.check(
 );
 
 export interface PluginContributions {
+  /** Called before disable/removal. Refuse while externally owned resources need cleanup. */
+  readonly beforeRemove?: () => Effect.Effect<void, PluginError>;
   /** Emit after background state changes; clients refetch mounted views, without polling. */
   readonly changes?: Stream.Stream<void, PluginError>;
   readonly onLifecycle?: (

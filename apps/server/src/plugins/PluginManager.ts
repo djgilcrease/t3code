@@ -198,6 +198,12 @@ const make = Effect.gen(function* () {
                 pluginId: input.pluginId,
                 reason: "unavailable",
               });
+            if (
+              input.operation === "remove" ||
+              (input.operation === "set-enabled" && !input.enabled)
+            ) {
+              yield* registry.beforeRemove(entry.id);
+            }
             if (input.operation === "remove") {
               yield* commit({ plugins: current.plugins.filter((item) => item.id !== entry.id) });
               yield* removeData(entry);
