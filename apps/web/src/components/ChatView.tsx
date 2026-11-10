@@ -3730,6 +3730,30 @@ export default function ChatView(props: ChatViewProps) {
                             {showComposerContextStrip && (
                               <div className="pointer-events-auto">
                                 <BranchToolbar
+                                  pluginLaunchContext={() => {
+                                    const draft = useComposerDraftStore
+                                      .getState()
+                                      .getComposerDraft(composerDraftTarget);
+                                    return {
+                                      message: draft?.prompt ?? "",
+                                      hasAttachments: draft
+                                        ? composerDraftHasUserContent({ ...draft, prompt: "" })
+                                        : false,
+                                      modelSelection: JSON.stringify(
+                                        composerRef.current?.getSendContext()
+                                          .selectedModelSelection ?? composerSelectedModelSelection,
+                                      ),
+                                      runtimeMode,
+                                    };
+                                  }}
+                                  onPluginLaunchAccepted={(input) => {
+                                    const store = useComposerDraftStore.getState();
+                                    if (
+                                      store.getComposerDraft(composerDraftTarget)?.prompt ===
+                                      input.message
+                                    )
+                                      store.setPrompt(composerDraftTarget, "");
+                                  }}
                                   forceNewWorktree={multipleModelSelections !== null}
                                   ref={branchToolbarRef}
                                   environmentId={activeThread.environmentId}

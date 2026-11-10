@@ -1,3 +1,4 @@
+import { PluginManagedEnvironments } from "./features/plugins/PluginManagedEnvironments";
 import { isDraftThreadRoute } from "./features/threads/thread-route-state";
 import { ComponentCatalogScreen } from "./features/development/ComponentCatalogScreen";
 import { PullRequestGuideStopScreen } from "./features/pull-requests/guide/PullRequestGuideScreen";
@@ -420,6 +421,7 @@ function RootStackLayout(props: {
     >
       <HardwareKeyboardCommandProvider pathname={pathname}>
         <ShowcaseReadyMarker />
+        <PluginManagedEnvironments />
         <SettingsEnvironmentFilterProvider open={settingsOpen}>
           <WorkspaceConnectionStatusProvider>
             <AndroidWorkspaceTabsProvider state={props.state}>

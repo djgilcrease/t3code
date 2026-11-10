@@ -305,6 +305,26 @@ describe("connection onboarding", () => {
     }).pipe(Effect.provide(layerPairingOnboarding())),
   );
 
+  it.effect("automatic pairing retains plugin ownership and honors the local off switch", () =>
+    Effect.gen(function* () {
+      const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+      const onboarding = yield* Onboarding.ConnectionOnboarding;
+      const managedBy = { environmentId: EnvironmentId.make("controller"), pluginId: "sandboxes" };
+      const input = { ...PAIRING_INPUT, expectedEnvironmentId: PAIRED_ENVIRONMENT_ID, managedBy };
+      yield* onboarding.registerPairing(input);
+      expect(
+        Option.getOrNull(
+          (yield* SubscriptionRef.get(registry.entries)).get(PAIRED_ENVIRONMENT_ID)!.profile,
+        ),
+      ).toMatchObject({ managedBy });
+      yield* registry.setEnabled(PAIRED_ENVIRONMENT_ID, false);
+      yield* onboarding.registerPairing(input);
+      expect(
+        (yield* SubscriptionRef.get(registry.entries)).get(PAIRED_ENVIRONMENT_ID)?.enabled,
+      ).toBe(false);
+    }).pipe(Effect.provide(layerPairingOnboarding())),
+  );
+
   it.effect("refuses a pairing link that claims a saved environment from a new address", () => {
     const calls: Array<{ readonly url: string; readonly init: RequestInit }> = [];
     return Effect.gen(function* () {

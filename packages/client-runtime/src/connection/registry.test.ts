@@ -1376,6 +1376,49 @@ describe("EnvironmentRegistry", () => {
     }),
   );
 
+  it.effect("plugin registrations and deletions respect the saved connection owner", () =>
+    Effect.gen(function* () {
+      const owner = { environmentId: TARGET.environmentId, pluginId: "sandboxes" };
+      const other = { ...owner, pluginId: "other" };
+      const harness = yield* makeHarness(
+        [BEARER_TARGET],
+        [BEARER_PROFILE],
+        [[BEARER_TARGET.connectionId, BEARER_CREDENTIAL]],
+      );
+      yield* Effect.gen(function* () {
+        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+        const managed = new BearerConnectionRegistration({
+          target: BEARER_TARGET,
+          profile: new BearerConnectionProfile({ ...BEARER_PROFILE, managedBy: owner }),
+          credential: BEARER_CREDENTIAL,
+        });
+        expect(yield* registry.register(managed)).toBe(false);
+        yield* registry.remove(BEARER_TARGET.environmentId, owner);
+        expect(
+          (yield* SubscriptionRef.get(registry.entries)).has(BEARER_TARGET.environmentId),
+        ).toBe(true);
+        yield* registry.remove(BEARER_TARGET.environmentId);
+        expect(yield* registry.register(managed)).toBe(true);
+        expect(
+          yield* registry.register(
+            new BearerConnectionRegistration({
+              ...managed,
+              profile: new BearerConnectionProfile({ ...managed.profile, managedBy: other }),
+            }),
+          ),
+        ).toBe(false);
+        yield* registry.remove(BEARER_TARGET.environmentId, other);
+        expect(
+          (yield* SubscriptionRef.get(registry.entries)).has(BEARER_TARGET.environmentId),
+        ).toBe(true);
+        yield* registry.remove(BEARER_TARGET.environmentId, owner);
+        expect(
+          (yield* SubscriptionRef.get(registry.entries)).has(BEARER_TARGET.environmentId),
+        ).toBe(false);
+      }).pipe(Effect.provide(harness.layer), Effect.scoped);
+    }),
+  );
+
   it.effect("keeps the runtime registered when durable removal fails", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness([RELAY_TARGET], [], [], {

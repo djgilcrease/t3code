@@ -1,3 +1,12 @@
+import { useAtomValue } from "@effect/atom-react";
+import { useEffect } from "react";
+import { uuidv4 } from "../../lib/uuid";
+import { pluginEnvironmentLaunchResult } from "@t3tools/client-runtime/plugins";
+import { pluginCatalogsAtom, managedPluginEnvironmentsAtom } from "../../state/plugins";
+import { environmentCatalog } from "../../connection/catalog";
+import { PluginPanels } from "../plugins/PluginPanels";
+import { useOpenLinkedThread } from "./useOpenLinkedThread";
+import type { PluginInput } from "@t3tools/contracts";
 import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
@@ -9,7 +18,7 @@ import type { VcsRef } from "@t3tools/client-runtime/state/vcs";
 import {
   AuthSourceControlWriteScope,
   resolveEnvironmentMachineKind,
-  type EnvironmentId,
+  EnvironmentId,
 } from "@t3tools/contracts";
 import { LegendList } from "@legendapp/list/react-native";
 import {
@@ -180,6 +189,49 @@ export function NewTaskEnvironmentPickerRouteScreen() {
   const flow = useNewTaskFlow();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const catalogs = useAtomValue(pluginCatalogsAtom);
+  const managed = useAtomValue(managedPluginEnvironmentsAtom);
+  const connections = useAtomValue(environmentCatalog.catalogValueAtom);
+  const openThread = useOpenLinkedThread();
+  const [launch, setLaunch] = useState<{
+    environmentId: EnvironmentId;
+    pluginId: string;
+    viewId: string;
+    context: PluginInput;
+  } | null>(null);
+  const opened = useRef(false);
+  const owner = flow.selectedProject?.environmentId ?? flow.selectedEnvironmentId;
+  const launchers = (
+    catalogs.find((row) => row.environmentId === owner)?.catalog?.plugins ?? []
+  ).flatMap((plugin) =>
+    plugin.status === "active"
+      ? plugin.views
+          .filter((view) => view.location === "environment-launcher")
+          .map((view) => ({ pluginId: plugin.id, viewId: view.id, title: view.title }))
+      : [],
+  );
+  const destination =
+    launch &&
+    managed.find(
+      (resource) =>
+        resource.owner.environmentId === launch.environmentId &&
+        resource.owner.pluginId === launch.pluginId &&
+        resource.launchRequestId === launch.context.requestId &&
+        resource.state === "running" &&
+        resource.threadId,
+    );
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Opens the controller-created thread after discovery registers its connection on this device.
+  useEffect(() => {
+    if (
+      opened.current ||
+      !destination?.threadId ||
+      !connections.entries.has(EnvironmentId.make(destination.environmentId))
+    )
+      return;
+    opened.current = true;
+    setLaunch(null);
+    openThread({ environmentId: destination.environmentId, threadId: destination.threadId });
+  }, [destination, connections, openThread]);
   return (
     <View className="flex-1 bg-sheet" collapsable={false}>
       <AppBar title="Environment" hideBottomBorder onBack={() => navigation.goBack()} />
@@ -211,6 +263,47 @@ export function NewTaskEnvironmentPickerRouteScreen() {
               />
             ))}
           </PickerSurface>
+          {launchers.map((launcher) => (
+            <SelectionRow
+              key={`${launcher.pluginId}:${launcher.viewId}`}
+              title={launcher.title}
+              selected={launch?.viewId === launcher.viewId && launch.pluginId === launcher.pluginId}
+              onPress={() => {
+                if (!owner) return;
+                opened.current = false;
+                setLaunch({
+                  ...launcher,
+                  environmentId: owner,
+                  context: {
+                    requestId: uuidv4(),
+                    projectDirectory: flow.selectedProject?.workspaceRoot ?? "",
+                    message: flow.prompt,
+                    hasAttachments: flow.attachments.length > 0,
+                    modelSelection: JSON.stringify(flow.selectedModel),
+                    runtimeMode: flow.runtimeMode,
+                    draftKey: flow.draftKey ?? "",
+                  },
+                });
+              }}
+            />
+          ))}
+          {launch && (
+            <PluginPanels
+              environmentId={launch.environmentId}
+              pluginId={launch.pluginId}
+              viewId={launch.viewId}
+              location="environment-launcher"
+              context={launch.context}
+              onCommandResult={(value) => {
+                if (
+                  pluginEnvironmentLaunchResult(value)?.requestId === launch.context.requestId &&
+                  flow.draftKey === launch.context.draftKey &&
+                  flow.prompt === launch.context.message
+                )
+                  flow.setPrompt("");
+              }}
+            />
+          )}
         </ScrollView>
       </ScreenContent>
     </View>
