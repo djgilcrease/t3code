@@ -174,7 +174,10 @@ function PluginPanel({
           );
         }
         registry.refresh(query);
-        return outcome._tag === "Success";
+        return (
+          outcome._tag === "Success" &&
+          !["danger", "warning"].includes(pluginNoticeResult(outcome.value)?.tone ?? "success")
+        );
       })
       .finally(() => {
         running.current = false;
@@ -266,7 +269,7 @@ function PluginPanel({
         if (block.kind === "form")
           return (
             <PluginFormView
-              key={JSON.stringify(block)}
+              key={block.instance ?? JSON.stringify(block)}
               form={block}
               plugin={plugin}
               environmentId={environmentId}
@@ -355,7 +358,7 @@ function Action({
   );
 }
 function PluginFormView({
-  form,
+  form: incoming,
   plugin,
   environmentId,
   busy,
@@ -367,6 +370,8 @@ function PluginFormView({
   busy: boolean;
   run: (action: PluginAction) => Promise<boolean>;
 }) {
+  const [snapshot, setSnapshot] = useState<PluginForm | null>(null);
+  const form = snapshot ?? incoming;
   const [draft, setValues] = useState<PluginInput | null>(null);
   const values = { ...pluginFormDefaults(form), ...draft };
   const [invalid, setInvalid] = useState(false);
@@ -381,7 +386,10 @@ function PluginFormView({
               accessibilityLabel={field.label}
               value={values[field.name] === true}
               disabled={busy || !allowed}
-              onValueChange={(value) => setValues({ ...values, [field.name]: value })}
+              onValueChange={(value) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: value });
+              }}
             />
           ) : field.kind === "select" ? (
             <View className="gap-1">
@@ -390,7 +398,10 @@ function PluginFormView({
                   key={option.value}
                   label={`${values[field.name] === option.value ? "✓ " : ""}${option.label}`}
                   disabled={busy || !allowed}
-                  onPress={() => setValues({ ...values, [field.name]: option.value })}
+                  onPress={() => {
+                    setSnapshot((current) => current ?? incoming);
+                    setValues({ ...values, [field.name]: option.value });
+                  }}
                 />
               ))}
             </View>
@@ -425,7 +436,10 @@ function PluginFormView({
               autoCorrect={false}
               keyboardType={field.kind === "number" ? "numeric" : "default"}
               className="min-h-12 rounded-lg border border-border px-3 text-foreground"
-              onChangeText={(value) => setValues({ ...values, [field.name]: value })}
+              onChangeText={(value) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: value });
+              }}
             />
           )}
         </View>
@@ -442,7 +456,10 @@ function PluginFormView({
           if (input !== null)
             void run({ id: form.id, label: form.label, command: form.command, input }).then(
               (success) => {
-                if (success) setValues(null);
+                if (success) {
+                  setValues(null);
+                  setSnapshot(null);
+                }
               },
             );
         }}
