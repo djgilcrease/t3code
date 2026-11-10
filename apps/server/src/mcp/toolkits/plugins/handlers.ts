@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as PluginRegistry from "../../../plugins/PluginRegistry.ts";
 import * as ServerEnvironment from "../../../environment/ServerEnvironment.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
-import { readCaller, unavailable } from "../../threadAccess.ts";
+import { assertLiveCaller, readCaller, unavailable } from "../../threadAccess.ts";
 import { PluginsToolkit } from "./tools.ts";
 
 const readScopes: readonly AuthEnvironmentScope[] = AuthStandardClientScopes.filter((scope) =>
@@ -15,6 +15,7 @@ const readScopes: readonly AuthEnvironmentScope[] = AuthStandardClientScopes.fil
 );
 const access = Effect.gen(function* () {
   const caller = yield* readCaller();
+  yield* assertLiveCaller(caller);
   const environment = yield* ServerEnvironment.ServerEnvironment;
   const environmentId = yield* environment.getEnvironmentId;
   if (environmentId !== caller.scope.environmentId)
@@ -22,12 +23,19 @@ const access = Effect.gen(function* () {
       code: "capability_denied",
       message: "This credential belongs to another environment.",
     });
-  return yield* PluginRegistry.PluginRegistry;
+  const plugins = yield* PluginRegistry.PluginRegistry;
+  return {
+    plugins,
+    context: {
+      environmentId,
+      ...(caller.caller ? { projectId: caller.caller.projectId, threadId: caller.caller.id } : {}),
+    },
+  };
 });
 export const layer = McpToolAccess.toLayer(PluginsToolkit, {
   t3_plugins_list: McpToolAccess.reads(() =>
     Effect.gen(function* () {
-      const plugins = yield* access;
+      const { plugins } = yield* access;
       const catalog = yield* plugins.list(AuthStandardClientScopes);
       return {
         ...catalog,
@@ -40,18 +48,18 @@ export const layer = McpToolAccess.toLayer(PluginsToolkit, {
   ),
   t3_plugin_read: McpToolAccess.reads((input) =>
     Effect.gen(function* () {
-      const plugins = yield* access;
+      const { plugins, context } = yield* access;
       return yield* plugins
-        .execute(input, readScopes, "agent-read")
+        .execute(input, readScopes, "agent-read", context)
         .pipe(Effect.mapError(unavailable));
     }),
   ),
   t3_plugin_run: McpToolAccess.writesEnvironment((input, check) =>
     Effect.gen(function* () {
-      const plugins = yield* access;
+      const { plugins, context } = yield* access;
       yield* check;
       return yield* plugins
-        .execute(input, AuthStandardClientScopes, "agent")
+        .execute(input, AuthStandardClientScopes, "agent", context)
         .pipe(Effect.mapError(unavailable));
     }),
   ),

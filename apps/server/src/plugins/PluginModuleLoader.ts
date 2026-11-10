@@ -643,7 +643,8 @@ const make = Effect.gen(function* () {
                 changes: Stream.map(SubscriptionRef.changes(revision), () => undefined),
                 commands: metadata.commands.map((command) => ({
                   ...command,
-                  run: (input) => call("command", { id: command.id, input }),
+                  run: (input, context) =>
+                    call("command", { id: command.id, input, context: context ?? null }),
                 })),
                 views: metadata.views.map((view) => ({
                   ...view,
