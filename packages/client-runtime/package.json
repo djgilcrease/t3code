@@ -678,6 +678,10 @@
     "./pull-request-references": {
       "types": "./src/pullRequestReferences.ts",
       "default": "./src/pullRequestReferences.ts"
+    },
+    "./notificationRouting": {
+      "types": "./src/notificationRouting.ts",
+      "default": "./src/notificationRouting.ts"
     }
   },
   "scripts": {
