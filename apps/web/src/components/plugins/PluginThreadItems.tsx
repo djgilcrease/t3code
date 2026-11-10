@@ -1,34 +1,24 @@
-import { RegistryContext, useAtomValue } from "@effect/atom-react";
+import { useAtomValue } from "@effect/atom-react";
 import {
   pluginActionDestinations,
-  pluginStatusActionInput,
   pluginThreadDetailsViews,
-  runPluginAction,
-  type PluginActionReply,
-  type PluginActionStep,
   type PluginStatus,
 } from "@t3tools/client-runtime/plugins";
-import {
-  isAtomCommandInterrupted,
-  squashAtomCommandFailure,
-} from "@t3tools/client-runtime/state/runtime";
 import {
   EnvironmentId,
   ThreadId,
   type PluginCatalog,
-  type PluginNoticeResult,
   type PluginStatusAction,
 } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
-import { useContext, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 
 import { cn } from "../../lib/utils";
 import { useEnvironmentMachines, useEnvironments } from "../../state/environments";
 import { pluginCatalogsAtom } from "../../state/plugins";
 import { serverEnvironment } from "../../state/server";
-import { useAtomCommand } from "../../state/use-atom-command";
 import { ThreadDetailsControl } from "../chat/ThreadDetailsControl";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { Button } from "../ui/button";
@@ -41,21 +31,18 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Label } from "../ui/label";
+import {
+  closePluginAction,
+  openPluginAction,
+  startPluginAction,
+  usePluginActionRun,
+  type PluginActionRun,
+} from "./pluginActionRun";
 import { PLUGIN_TONE_DOT_CLASS } from "./PluginStatusDots";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 type Entry = PluginCatalog["plugins"][number];
-
-interface Run {
-  readonly action: PluginStatusAction;
-  readonly phase: "ask" | "running" | "done";
-  readonly notice: PluginNoticeResult | null;
-  /** Progress reported by a relayed step. */
-  readonly status: string | null;
-  /** A plain action runs in place; its dialog opens only if it has something to say. */
-  readonly dialog: boolean;
-}
 
 /** Plugin status items and actions for the thread details machine row. */
 export function PluginThreadItems({
@@ -106,96 +93,18 @@ function PluginThreadView({
     serverEnvironment.pluginView({ environmentId, input: { pluginId: plugin.id, viewId } }),
   );
   const view = Option.getOrNull(AsyncResult.value(result));
-  const registry = useContext(RegistryContext);
-  const execute = useAtomCommand(serverEnvironment.executePluginCommand, { reportFailure: false });
-  const [run, setRun] = useState<Run | null>(null);
-  const cancel = useRef<AbortController | null>(null);
-
-  const executeStep = async (step: PluginActionStep): Promise<PluginActionReply> => {
-    const target = EnvironmentId.make(step.environmentId);
-    const entry =
-      target === environmentId
-        ? plugin
-        : registry
-            .get(pluginCatalogsAtom)
-            .find((row) => row.environmentId === target)
-            ?.catalog?.plugins.find((candidate) => candidate.id === plugin.id);
-    const command = entry?.commands.find((candidate) => candidate.id === step.commandId);
-    if (!command)
-      return { ok: false, message: `${plugin.name} cannot run this step on that environment.` };
-    const outcome = await execute({
-      environmentId: target,
-      input: {
-        pluginId: plugin.id,
-        commandId: command.id,
-        permission: command.permission,
-        input: step.input,
-      },
-    });
-    if (outcome._tag === "Success") return { ok: true, value: outcome.value };
-    if (isAtomCommandInterrupted(outcome)) return { ok: false, message: "Cancelled." };
-    const failure = squashAtomCommandFailure(outcome);
-    return { ok: false, message: failure instanceof Error ? failure.message : null };
-  };
-  const start = (
-    action: PluginStatusAction,
-    destination: EnvironmentId | null,
-    dialog: boolean,
-  ) => {
-    setRun({ action, phase: "running", notice: null, status: null, dialog });
-    const controller = new AbortController();
-    cancel.current = controller;
-    void runPluginAction({
-      start: {
-        environmentId,
-        commandId: action.command,
-        input: pluginStatusActionInput(action, threadId, destination),
-      },
-      execute: executeStep,
-      signal: controller.signal,
-      onStatus: (status) =>
-        setRun((current) => (current?.phase === "running" ? { ...current, status } : current)),
-    }).then((notice) =>
-      setRun(
-        notice === null ? null : { action, phase: "done", notice, status: null, dialog: true },
-      ),
-    );
-  };
-  const press = (action: PluginStatusAction) => {
-    if (action.confirm !== undefined || action.environment !== undefined)
-      setRun({ action, phase: "ask", notice: null, status: null, dialog: true });
-    else start(action, null, false);
-  };
-
-  return (
-    <>
-      {view?.blocks.map((block) =>
-        block.kind === "status" &&
-        (block.environmentId ?? environmentId) === targetEnvironmentId ? (
-          <PluginStatusItem
-            key={block.id}
-            block={block}
-            environmentId={environmentId}
-            plugin={plugin}
-            busy={run?.phase === "running"}
-            onPress={press}
-          />
-        ) : null,
-      )}
-      {run?.dialog ? (
-        <PluginStatusActionDialog
-          environmentId={environmentId}
-          plugin={plugin}
-          run={run}
-          onStart={(destination) => start(run.action, destination, true)}
-          onClose={() => {
-            // Stops carrying further steps; a plugin leaves its source untouched until the end.
-            cancel.current?.abort();
-            setRun(null);
-          }}
-        />
-      ) : null}
-    </>
+  const busy = usePluginActionRun((state) => state.run?.phase === "running");
+  return view?.blocks.map((block) =>
+    block.kind === "status" && (block.environmentId ?? environmentId) === targetEnvironmentId ? (
+      <PluginStatusItem
+        key={block.id}
+        block={block}
+        environmentId={environmentId}
+        plugin={plugin}
+        busy={busy}
+        onPress={(action) => openPluginAction({ environmentId, threadId, plugin, action })}
+      />
+    ) : null,
   );
 }
 
@@ -283,19 +192,16 @@ function PluginStatusActionButton({
   );
 }
 
-function PluginStatusActionDialog({
-  environmentId,
-  plugin,
-  run,
-  onStart,
-  onClose,
-}: {
-  environmentId: EnvironmentId;
-  plugin: Entry;
-  run: Run;
-  onStart: (destination: EnvironmentId | null) => void;
-  onClose: () => void;
-}) {
+/** Mounted once at the app root, so a result outlives the thread view that started it. */
+export function PluginActionDialogHost() {
+  const run = usePluginActionRun((state) => state.run);
+  return run?.dialog ? <PluginStatusActionDialog run={run} /> : null;
+}
+
+function PluginStatusActionDialog({ run }: { run: PluginActionRun }) {
+  const { environmentId, plugin } = run;
+  const onClose = closePluginAction;
+  const onStart = startPluginAction;
   const id = useId();
   const navigate = useNavigate();
   const catalogs = useAtomValue(pluginCatalogsAtom);
