@@ -1,4 +1,4 @@
-import type { PluginBlock, PluginInput } from "@t3tools/contracts";
+import type { PluginBlock, PluginInput, PluginCatalog } from "@t3tools/contracts";
 import { PluginSecretResult } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import * as Option from "effect/Option";
@@ -55,4 +55,18 @@ export function pluginLink(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+export function pluginSettingsPages(catalog: PluginCatalog) {
+  return catalog.plugins
+    .filter((plugin) => plugin.status === "active")
+    .flatMap((plugin) =>
+      plugin.views
+        .filter((view) => view.location === "settings-page")
+        .map((view) => ({
+          pluginId: plugin.id,
+          viewId: view.id,
+          title: view.title,
+        })),
+    );
 }

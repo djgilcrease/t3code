@@ -1,3 +1,4 @@
+import { PluginSettingsLinks, usePluginSettingsPages } from "../plugins/PluginSettingsLinks";
 import {
   lazy,
   Suspense,
@@ -145,6 +146,10 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   // Below md the nav is an icon rail; searching expands it over the page.
   const [compactSearchOpen, setCompactSearchOpen] = useState(false);
   const [activeResultIndex, setActiveResultIndex] = useState(0);
+  const pluginPages = usePluginSettingsPages();
+  const hasPluginResults = pluginPages.some((page) =>
+    page.title.toLowerCase().includes(query.trim().toLowerCase()),
+  );
   const searchableItems = useAvailableSettingsSearchItems();
   const results = searchSettings(query, searchableItems);
   const isSearching = query.trim().length > 0;
@@ -319,7 +324,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                 <Kbd>/</Kbd>
               )}
             </div>
-            {isSearching && results.length === 0 ? (
+            {isSearching && results.length === 0 && !hasPluginResults ? (
               <p
                 role="status"
                 className="px-2 py-6 text-center text-xs text-sidebar-muted-foreground"
@@ -435,6 +440,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
             )}
           </div>
         </SidebarGroup>
+        <PluginSettingsLinks query={query} compact={!compactSearchOpen} />
       </SidebarContent>
       <SidebarFooter className="max-md:hidden">
         <Suspense fallback={null}>

@@ -33,14 +33,30 @@ type Entry = PluginCatalog["plugins"][number];
 export function PluginPanels({
   environmentId,
   location,
+  pluginId,
+  viewId,
 }: {
   environmentId: EnvironmentId;
+  pluginId?: string;
+  viewId?: string;
   location: PluginViewDescriptor["location"];
 }) {
   const query = serverEnvironment.pluginCatalog({ environmentId, input: {} });
   const result = useAtomValue(query);
   const catalog = Option.getOrNull(AsyncResult.value(result));
   if (!catalog) return result._tag === "Failure" ? <Text>Plugins could not be loaded.</Text> : null;
+  const available = catalog.plugins.some(
+    (plugin) =>
+      plugin.status === "active" &&
+      plugin.id === pluginId &&
+      plugin.views.some((view) => view.id === viewId && view.location === location),
+  );
+  if (location === "settings-page" && !available)
+    return (
+      <Text>
+        This extension page is unavailable. Enable or reinstall its plugin in Plugins settings.
+      </Text>
+    );
   return (
     <View className="gap-4">
       {catalog.configurationError && (
@@ -53,7 +69,12 @@ export function PluginPanels({
       )}
       {catalog.plugins.flatMap((plugin) =>
         plugin.views
-          .filter((view) => view.location === location)
+          .filter(
+            (view) =>
+              view.location === location &&
+              (!pluginId || plugin.id === pluginId) &&
+              (!viewId || view.id === viewId),
+          )
           .map((view) => (
             <PluginPanel
               key={`${plugin.id}:${view.id}`}
