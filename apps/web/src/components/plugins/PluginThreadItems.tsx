@@ -86,6 +86,7 @@ export function PluginThreadItems({
           <PopoverPopup>
             <div className="max-h-[75vh] w-96 max-w-[85vw] overflow-auto">
               <PluginPanels
+                key={threadId}
                 environmentId={environmentId}
                 pluginId={plugin.id}
                 viewId={view.id}
