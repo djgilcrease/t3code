@@ -3415,6 +3415,14 @@ export type OrchestrationV2Command = typeof OrchestrationV2Command.Type;
 
 // Excluded from dispatchCommand so only the server can send these.
 const OrchestrationV2InternalCommand = Schema.Union([
+  // Notes in a thread that its work was copied to another environment. Archiving is separate.
+  Schema.Struct({
+    type: Schema.Literal("thread.moved"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    environmentLabel: TrimmedNonEmptyString,
+    movedThreadId: TrimmedNonEmptyString,
+  }),
   Schema.Struct({
     type: Schema.Literal("thread.worktree-cleanup.fail"),
     commandId: CommandId,

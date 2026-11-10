@@ -1744,3 +1744,50 @@ it.effect(
       assert.equal(stale.storedEvents.length, 0);
     }).pipe(Effect.provide(layerTest)),
 );
+
+it.effect("notes where a moved thread continues without starting a provider", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const projections = yield* ProjectionStore.ProjectionStoreV2;
+    const outbox = yield* EffectOutbox.EffectOutboxV2;
+    const threadId = ThreadId.make("thread:moved");
+    yield* orchestrator.dispatch({
+      type: "thread.create",
+      commandId: CommandId.make("create:moved"),
+      threadId,
+      projectId: ProjectId.make("project:moved"),
+      title: "Moved",
+      modelSelection,
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: "feature",
+      worktreePath: "/repo/worktrees/feature",
+      createdBy: "user",
+      creationSource: "web",
+    });
+    const command = {
+      type: "thread.moved" as const,
+      commandId: CommandId.make("moved:thread"),
+      threadId,
+      environmentLabel: "server",
+      movedThreadId: "thread:on-server",
+    };
+    yield* orchestrator.dispatch(command);
+    yield* orchestrator.dispatch({
+      type: "thread.archive",
+      commandId: CommandId.make("archive:moved"),
+      threadId,
+    });
+    const projection = yield* projections.getThreadProjection(threadId);
+    assert.isNotNull(projection.thread.archivedAt);
+    assert.equal(projection.runs.length, 0);
+    const history = yield* projections.getTimelinePage(threadId, { limit: 20, view: "activity" });
+    const notices = history.items.flatMap(({ item }) =>
+      item.type === "notification" ? [item] : [],
+    );
+    assert.equal(notices.length, 1);
+    assert.equal(notices[0]?.summary, "Moved to server.");
+    assert.include(notices[0]?.detail, "thread:on-server");
+    assert.deepEqual(yield* outbox.listByCommandId(command.commandId), []);
+  }).pipe(Effect.provide(layerTest)),
+);

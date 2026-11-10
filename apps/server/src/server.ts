@@ -206,6 +206,7 @@ import * as PluginModuleLoader from "./plugins/PluginModuleLoader.ts";
 import * as PluginHttp from "./plugins/http.ts";
 import * as PluginPackages from "./plugins/PluginPackages.ts";
 import * as PluginManager from "./plugins/PluginManager.ts";
+import * as PluginThreads from "./plugins/PluginThreads.ts";
 import * as RuntimeLayer from "./orchestration-v2/runtimeLayer.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
@@ -699,6 +700,11 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   layerThreadSettlementWorker,
   layerIdleCompactionWorker,
   layerWorktreeRemoval,
+  PluginThreads.layerBinding.pipe(
+    Layer.provide(PluginThreads.layer),
+    Layer.provide(layerWorktreeRemoval),
+    Layer.provide(RuntimeLayer.layerEventSink),
+  ),
   StorageCleanup.layer.pipe(
     Layer.provide(ProjectionStoreV2.layer),
     Layer.provide(layerWorktreeRemoval),

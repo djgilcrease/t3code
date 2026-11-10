@@ -26,6 +26,7 @@ import {
   type PluginViewInput,
   type PluginContributions,
   type PluginContext,
+  type PluginThreads,
   type PluginLaunch,
   type T3Plugin,
 } from "@t3tools/contracts";
@@ -82,6 +83,13 @@ const decodeLifecycleResult = Schema.decodeEffect(PluginLifecycleResult);
 const decodeHttpResponseTimeout = Schema.decodeUnknownEffect(PluginHttpResponseTimeout);
 const decodeLaunch = Schema.decodeUnknownEffect(Launch);
 type RequestError = PluginOperationError | PluginRequestError | EnvironmentAuthorizationError;
+/** A failure's message is shown to the user, so implementations keep causes out of it. */
+type ThreadFailure = { readonly message: string };
+export type PluginThreadHost = {
+  readonly [Method in keyof PluginThreads]: (
+    ...input: Parameters<PluginThreads[Method]>
+  ) => Effect.Effect<Effect.Success<ReturnType<PluginThreads[Method]>>, ThreadFailure>;
+};
 
 export class PluginRegistry extends Context.Service<
   PluginRegistry,
@@ -90,6 +98,8 @@ export class PluginRegistry extends Context.Service<
     readonly reconcile: (next: PluginConfiguration) => Effect.Effect<boolean>;
     readonly restart: (id: string) => Effect.Effect<boolean>;
     readonly setHttpOrigin: (origin: string) => Effect.Effect<void>;
+    /** Thread services depend on this registry through Git, so they are handed over later. */
+    readonly setThreads: (host: PluginThreadHost) => Effect.Effect<void>;
     readonly changes: Stream.Stream<number>;
     readonly list: (scopes: readonly AuthEnvironmentScope[]) => Effect.Effect<PluginCatalog>;
     readonly readView: (
@@ -155,6 +165,7 @@ const make = Effect.gen(function* () {
   const active = new Map<string, PluginContributions>();
   const restartLimits = new Map<string, (limit: number) => Effect.Effect<void>>();
   let httpOrigin: string | undefined;
+  let threadHost: PluginThreadHost | undefined;
   const entries = new Map<string, PluginCatalog["plugins"][number]>();
   const pluginScopes = new Map<string, Scope.Closeable>();
   const lifetime = yield* Scope.Scope;
@@ -225,6 +236,18 @@ const make = Effect.gen(function* () {
           Effect.map((key) => `plugin.${item.id}.${key}`),
           Effect.mapError((cause) => new PluginError({ operation: "secret-key", cause })),
         );
+      const threadFailure = (message: string) =>
+        new PluginError({ operation: "thread", cause: new Error(message) });
+      const threadCall = <A>(run: (host: PluginThreadHost) => Effect.Effect<A, ThreadFailure>) =>
+        Effect.suspend(() =>
+          threadHost === undefined
+            ? Effect.fail(threadFailure("Thread access is not ready on this environment."))
+            : run(threadHost).pipe(Effect.mapError((error) => threadFailure(error.message))),
+        );
+      const insideData = (file: string) =>
+        path.resolve(file).startsWith(dataDirectory + path.sep)
+          ? Effect.void
+          : Effect.fail(threadFailure("The file must be inside the plugin's data directory."));
       const context: PluginContext = {
         id: item.id,
         dataDirectory,
@@ -234,6 +257,15 @@ const make = Effect.gen(function* () {
               Effect.mapError((cause) => new PluginError({ operation: "activity", cause })),
             )
           : undefined,
+        threads: {
+          describe: (threadId) => threadCall((host) => host.describe(threadId)),
+          export: (input) =>
+            insideData(input.file).pipe(Effect.andThen(threadCall((host) => host.export(input)))),
+          projects: (repository) => threadCall((host) => host.projects(repository)),
+          import: (input) =>
+            insideData(input.file).pipe(Effect.andThen(threadCall((host) => host.import(input)))),
+          archive: (input) => threadCall((host) => host.archive(input)),
+        },
         capabilities: [
           "provider-mcp-servers",
           "http-response-timeout",
@@ -242,6 +274,7 @@ const make = Effect.gen(function* () {
           "supervised-processes",
           "thread-details",
           ...(Option.isSome(projection) ? ["environment-activity"] : []),
+          "thread-portability",
         ],
         httpBasePath: `/api/plugins/${item.id}`,
         httpBaseUrl: Effect.suspend(() =>
@@ -507,6 +540,11 @@ const make = Effect.gen(function* () {
     setHttpOrigin: Effect.fn("PluginRegistry.setHttpOrigin")((origin) =>
       Effect.sync(() => {
         httpOrigin = origin;
+      }),
+    ),
+    setThreads: Effect.fn("PluginRegistry.setThreads")((host) =>
+      Effect.sync(() => {
+        threadHost = host;
       }),
     ),
     changes: SubscriptionRef.changes(revision),

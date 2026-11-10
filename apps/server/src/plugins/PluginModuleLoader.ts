@@ -71,6 +71,20 @@ const Activated = Schema.Struct({
   httpResponseTimeoutMs: PluginHttpResponseTimeout,
 });
 const decodeProcessInput = Schema.decodeUnknownSync(PluginProcessInput);
+const decodeThreadFile = Schema.decodeUnknownSync(
+  Schema.Struct({ threadId: Schema.String, file: Schema.String }),
+);
+const decodeThreadImport = Schema.decodeUnknownSync(
+  Schema.Struct({ file: Schema.String, projectId: Schema.String, branch: Schema.String }),
+);
+const decodeThreadArchive = Schema.decodeUnknownSync(
+  Schema.Struct({
+    threadId: Schema.String,
+    movedTo: Schema.Struct({ environmentLabel: Schema.String, threadId: Schema.String }),
+  }),
+);
+/** Marks a host failure whose text the plugin may show its user. */
+const shownToUser = new WeakSet<Error>();
 const decodeActivated = Schema.decodeUnknownSync(Activated);
 const decodeActivity = Schema.decodeUnknownSync(PluginActivity);
 const decodeManifest = Schema.decodeUnknownSync(PluginManifest);
@@ -283,6 +297,34 @@ const make = Effect.gen(function* () {
             if (method === "activity" && hostContext.activity)
               return decodeActivity(await run(hostContext.activity));
             if (method === "http-url") return await run(hostContext.httpBaseUrl);
+            if (method.startsWith("thread-")) {
+              const threads = hostContext.threads;
+              if (!threads) throw new Error("Thread access unavailable");
+              const call: Effect.Effect<Schema.Json, PluginError> =
+                method === "thread-describe"
+                  ? threads.describe(String(payload.threadId))
+                  : method === "thread-export"
+                    ? threads.export(decodeThreadFile(value))
+                    : method === "thread-projects"
+                      ? threads.projects(String(payload.repository))
+                      : method === "thread-import"
+                        ? threads.import(decodeThreadImport(value))
+                        : threads.archive(decodeThreadArchive(value)).pipe(Effect.as(null));
+              const outcome = await run(
+                call.pipe(
+                  Effect.match({
+                    onSuccess: (result) => ({ result }),
+                    onFailure: (error) => ({
+                      failure: error.cause instanceof Error ? error.cause.message : null,
+                    }),
+                  }),
+                ),
+              );
+              if ("result" in outcome) return outcome.result;
+              const failure = new Error(outcome.failure ?? "Thread call failed");
+              if (outcome.failure !== null) shownToUser.add(failure);
+              throw failure;
+            }
             if (method === "request-chunk") {
               const request = requests.get(Number(payload.id));
               if (!request) return null;
@@ -348,12 +390,13 @@ const make = Effect.gen(function* () {
                 .then(
                   (payload) =>
                     send({ kind: "host-reply", id: message.id, method: "", payload, ok: true }),
-                  () =>
+                  (error) =>
                     send({
                       kind: "host-reply",
                       id: message.id,
                       method: "",
-                      payload: null,
+                      payload:
+                        error instanceof Error && shownToUser.has(error) ? error.message : null,
                       ok: false,
                     }),
                 )
