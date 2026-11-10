@@ -103,6 +103,9 @@ export class PluginRegistry extends Context.Service<
     readonly setHttpOrigin: (origin: string) => Effect.Effect<void>;
     /** Thread services depend on this registry through Git, so they are handed over later. */
     readonly setThreads: (host: PluginThreadHost) => Effect.Effect<void>;
+    readonly setTerminalInputActivity: (
+      source: Effect.Effect<ReadonlyMap<string, number>>,
+    ) => Effect.Effect<void>;
     readonly changes: Stream.Stream<number>;
     readonly list: (scopes: readonly AuthEnvironmentScope[]) => Effect.Effect<PluginCatalog>;
     readonly readView: (
@@ -170,6 +173,7 @@ const make = Effect.gen(function* () {
   const restartLimits = new Map<string, (limit: number) => Effect.Effect<void>>();
   let httpOrigin: string | undefined;
   let threadHost: PluginThreadHost | undefined;
+  let terminalInputActivity: Effect.Effect<ReadonlyMap<string, number>> = Effect.succeed(new Map());
   const entries = new Map<string, PluginCatalog["plugins"][number]>();
   const pluginScopes = new Map<string, Scope.Closeable>();
   const lifetime = yield* Scope.Scope;
@@ -262,7 +266,11 @@ const make = Effect.gen(function* () {
           : undefined,
         activity: Option.isSome(projection)
           ? projection.value.getShellSnapshot().pipe(
-              Effect.map(({ threads }) => summarizePluginActivity(threads)),
+              Effect.flatMap(({ threads }) =>
+                terminalInputActivity.pipe(
+                  Effect.map((inputs) => summarizePluginActivity(threads, inputs)),
+                ),
+              ),
               Effect.mapError((cause) => new PluginError({ operation: "activity", cause })),
             )
           : undefined,
@@ -502,13 +510,15 @@ const make = Effect.gen(function* () {
       return yield* guarded(
         input.pluginId,
         "view",
-        Effect.suspend(view.read).pipe(
+        Effect.suspend(() => view.read(input.context)).pipe(
           Effect.flatMap(decodeView),
-          // Status blocks are drawn only by the thread details row, which draws nothing else.
+          // Each machine-readable location accepts only its matching block kind.
           Effect.filterOrFail(
             (content) =>
               content.blocks.every(
-                (block) => (block.kind === "status") === (view.location === "thread-details"),
+                (block) =>
+                  (block.kind === "status") === (view.location === "thread-details") &&
+                  (block.kind === "environment") === (view.location === "managed-environments"),
               ),
             () => new PluginError({ operation: "view-location", cause: null }),
           ),
@@ -588,6 +598,11 @@ const make = Effect.gen(function* () {
     setHttpOrigin: Effect.fn("PluginRegistry.setHttpOrigin")((origin) =>
       Effect.sync(() => {
         httpOrigin = origin;
+      }),
+    ),
+    setTerminalInputActivity: Effect.fn("PluginRegistry.setTerminalInputActivity")((source) =>
+      Effect.sync(() => {
+        terminalInputActivity = source;
       }),
     ),
     setThreads: Effect.fn("PluginRegistry.setThreads")((host) =>

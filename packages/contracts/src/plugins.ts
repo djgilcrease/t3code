@@ -47,7 +47,11 @@ export const PluginCatalog = Schema.Struct({
   plugins: Schema.Array(PluginCatalogEntry),
 });
 export type PluginCatalog = typeof PluginCatalog.Type;
-export const PluginViewInput = Schema.Struct({ pluginId: PluginId, viewId: PluginLocalId });
+export const PluginViewInput = Schema.Struct({
+  pluginId: PluginId,
+  viewId: PluginLocalId,
+  context: Schema.optionalKey(PluginInput),
+});
 export const PluginCommandInput = Schema.Struct({
   pluginId: PluginId,
   commandId: PluginLocalId,

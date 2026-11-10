@@ -623,7 +623,10 @@ const make = Effect.gen(function* () {
                 })),
                 views: metadata.views.map((view) => ({
                   ...view,
-                  read: () => call("view", { id: view.id }).pipe(Effect.map(decodeView)),
+                  read: (input) =>
+                    call("view", { id: view.id, context: input ?? {} }).pipe(
+                      Effect.map(decodeView),
+                    ),
                 })),
                 ...(metadata.beforeRemove
                   ? { beforeRemove: () => call("before-remove", null).pipe(Effect.asVoid) }
