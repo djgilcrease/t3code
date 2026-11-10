@@ -14,6 +14,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 
 import * as ClientCapabilities from "../platform/capabilities.ts";
 import {
+  type PluginConnectionOwner,
   type ConnectionCatalogEntry,
   type ConnectionCredential,
   type ConnectionProfile,
@@ -120,6 +121,7 @@ export class EnvironmentRegistry extends Context.Service<
     ) => Effect.Effect<void>;
     readonly remove: (
       environmentId: EnvironmentId,
+      managedBy?: PluginConnectionOwner,
     ) => Effect.Effect<
       void,
       | Persistence.ConnectionPersistenceError
@@ -575,6 +577,17 @@ export const make = Effect.gen(function* () {
           yield* assertKnownAddress(route);
         }
         const previous = (yield* SubscriptionRef.get(entries)).get(environmentId);
+        const incoming = Option.getOrNull(registered.profile);
+        const saved = previous && Option.getOrNull(previous.profile);
+        if (
+          incoming?._tag === "BearerConnectionProfile" &&
+          incoming.managedBy &&
+          previous &&
+          (saved?._tag !== "BearerConnectionProfile" ||
+            saved.managedBy?.environmentId !== incoming.managedBy.environmentId ||
+            saved.managedBy.pluginId !== incoming.managedBy.pluginId)
+        )
+          return false;
         let entry = registered;
         if (previous !== undefined) {
           const existing = connectionRoutes(previous);
@@ -896,8 +909,26 @@ export const make = Effect.gen(function* () {
     }
   });
 
-  const remove = Effect.fn("EnvironmentRegistry.remove")(function* (environmentId: EnvironmentId) {
-    return yield* withLeaseLock(environmentId, removeLocked(environmentId));
+  const remove = Effect.fn("EnvironmentRegistry.remove")(function* (
+    environmentId: EnvironmentId,
+    managedBy?: PluginConnectionOwner,
+  ) {
+    return yield* withLeaseLock(
+      environmentId,
+      Effect.gen(function* () {
+        if (managedBy) {
+          const entry = (yield* SubscriptionRef.get(entries)).get(environmentId);
+          const profile = entry && Option.getOrNull(entry.profile);
+          if (
+            profile?._tag !== "BearerConnectionProfile" ||
+            profile.managedBy?.environmentId !== managedBy.environmentId ||
+            profile.managedBy.pluginId !== managedBy.pluginId
+          )
+            return;
+        }
+        yield* removeLocked(environmentId);
+      }),
+    );
   });
 
   const disconnectSsh = (environmentId: EnvironmentId, profile: SshConnectionProfile) =>

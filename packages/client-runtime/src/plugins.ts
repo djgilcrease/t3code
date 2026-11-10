@@ -4,9 +4,19 @@ import type {
   PluginCatalog,
   PluginStatusAction,
 } from "@t3tools/contracts";
-import { PluginNoticeResult, PluginRelayResult, PluginSecretResult } from "@t3tools/contracts";
+import {
+  PluginEnvironmentLaunchResult,
+  PluginNoticeResult,
+  PluginRelayResult,
+  PluginSecretResult,
+} from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import * as Option from "effect/Option";
+
+const decodeEnvironmentLaunchResult = Schema.decodeUnknownOption(PluginEnvironmentLaunchResult);
+export function pluginEnvironmentLaunchResult(value: unknown) {
+  return Option.getOrNull(decodeEnvironmentLaunchResult(value));
+}
 
 const decodeSecretResult = Schema.decodeUnknownOption(PluginSecretResult);
 export function pluginSecretResult(value: unknown): PluginSecretResult | null {
