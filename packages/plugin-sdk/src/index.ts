@@ -10,6 +10,14 @@ const Label = Schema.String.check(Schema.isMaxLength(200));
 const Text = Schema.String.check(Schema.isMaxLength(16_384));
 export const PluginInput = Schema.Record(Schema.String, Schema.Json);
 export type PluginInput = typeof PluginInput.Type;
+export const PluginInvocationContext = Schema.Struct({
+  audience: Schema.Literals(["client", "agent"]),
+  environmentId: Schema.optionalKey(Label),
+  projectId: Schema.optionalKey(Label),
+  threadId: Schema.optionalKey(Label),
+});
+export type PluginInvocationContext = typeof PluginInvocationContext.Type;
+
 export const PluginPermission = Schema.Literals([
   "orchestration:read",
   "orchestration:operate",
@@ -107,6 +115,7 @@ export const PluginBlock = Schema.Union([
     ),
   }),
   PluginManagedEnvironment,
+  Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("code"), text: Text }),
   Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("text"), text: Text }),
   Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("link"), label: Label, url: Text }),
   Schema.Struct({
@@ -179,6 +188,13 @@ export const PluginView = Schema.Struct({
   ),
 );
 export type PluginView = typeof PluginView.Type;
+
+/** Replaces only the calling panel; navigation state belongs to the client. */
+export const PluginViewResult = Schema.Struct({
+  $t3: Schema.Literal("view"),
+  view: PluginView,
+});
+export type PluginViewResult = typeof PluginViewResult.Type;
 export const PluginViewDescriptor = Schema.Struct({
   id: PluginLocalId,
   title: Label,
@@ -551,7 +567,10 @@ export interface PluginContributions {
   readonly lifecycleTimeoutMs?: number;
   readonly commands?: readonly (PluginCommandDescriptor & {
     /** Decode and validate feature-specific input inside the handler. */
-    readonly run: (input: PluginInput) => Effect.Effect<Schema.Json, PluginError>;
+    readonly run: (
+      input: PluginInput,
+      context?: PluginInvocationContext,
+    ) => Effect.Effect<Schema.Json, PluginError>;
   })[];
   readonly views?: readonly (PluginViewDescriptor & {
     readonly read: (input?: PluginInput) => Effect.Effect<PluginView, PluginError>;
