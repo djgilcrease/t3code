@@ -3,6 +3,7 @@ import {
   type PluginCatalog,
   type PluginTone,
   type PluginView,
+  type PluginCommandInput,
 } from "@t3tools/contracts";
 import * as Option from "effect/Option";
 import { type Atom as AtomType, Atom, AsyncResult } from "effect/reactivity";
@@ -72,5 +73,49 @@ export function createPluginSummaryAtoms(input: {
       ? previous
       : next;
   });
-  return { pluginCatalogsAtom, pluginStatusByEnvironmentAtom };
+  const managedPluginEnvironmentsAtom = Atom.make((get) =>
+    get(pluginCatalogsAtom).flatMap(({ environmentId, catalog }) =>
+      catalog === null
+        ? []
+        : catalog.plugins.flatMap((plugin) =>
+            plugin.status !== "active"
+              ? []
+              : plugin.views
+                  .filter((view) => view.location === "managed-environments")
+                  .flatMap((view) => {
+                    const content = AsyncResult.getOrElse(
+                      get(
+                        input.pluginView({
+                          environmentId,
+                          input: { pluginId: plugin.id, viewId: view.id },
+                        }),
+                      ),
+                      () => null,
+                    );
+                    return (content?.blocks ?? []).flatMap((block) => {
+                      if (block.kind !== "environment") return [];
+                      const command = plugin.commands.find(
+                        (command) => command.id === block.connect.command,
+                      );
+                      if (!command) return [];
+                      return [
+                        {
+                          ...block,
+                          owner: { environmentId, pluginId: plugin.id },
+                          command: {
+                            pluginId: plugin.id,
+                            commandId: command.id,
+                            permission: command.permission,
+                            input: block.connect.input,
+                          } satisfies PluginCommandInput,
+                        },
+                      ];
+                    });
+                  }),
+          ),
+    ),
+  );
+  return { pluginCatalogsAtom, pluginStatusByEnvironmentAtom, managedPluginEnvironmentsAtom };
 }
+
+export { createManagedPluginConnections } from "../plugins/managed.ts";

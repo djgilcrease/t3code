@@ -10,6 +10,12 @@ import {
   type ConnectionTarget,
 } from "./model.ts";
 
+export const PluginConnectionOwner = Schema.Struct({
+  environmentId: EnvironmentId,
+  pluginId: Schema.String,
+});
+export type PluginConnectionOwner = typeof PluginConnectionOwner.Type;
+
 const ConnectionProfileBase = {
   connectionId: Schema.String,
   environmentId: EnvironmentId,
@@ -22,6 +28,7 @@ export class BearerConnectionProfile extends Schema.TaggedClass<BearerConnection
     ...ConnectionProfileBase,
     httpBaseUrl: Schema.String,
     wsBaseUrl: Schema.String,
+    managedBy: Schema.optionalKey(PluginConnectionOwner),
     learned: Schema.optionalKey(Schema.Literal(true)),
     authorization: Schema.optionalKey(Schema.Literal("t3-connect")),
     /**

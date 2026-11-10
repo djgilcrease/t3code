@@ -5,7 +5,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import { AsyncResult, Atom } from "effect/reactivity";
 
 import * as EnvironmentRegistry from "../connection/registry.ts";
-import type { ConnectionCatalogEntry } from "../connection/catalog.ts";
+import type { ConnectionCatalogEntry, PluginConnectionOwner } from "../connection/catalog.ts";
 import { AVAILABLE_CONNECTION_STATE } from "../connection/model.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import {
@@ -143,6 +143,18 @@ export function createEnvironmentCatalogAtoms<R, E>(
         Effect.flatMap((registry) => registry.remove(environmentId)),
       ),
   });
+  const removePluginManaged = createRuntimeCommand(runtime, {
+    label: "environment-catalog:remove-plugin-managed",
+    scheduler: commandScheduler,
+    concurrency: serial,
+    execute: (input: {
+      readonly environmentId: EnvironmentIdType;
+      readonly managedBy: PluginConnectionOwner;
+    }) =>
+      EnvironmentRegistry.EnvironmentRegistry.pipe(
+        Effect.flatMap((registry) => registry.remove(input.environmentId, input.managedBy)),
+      ),
+  });
   const removeRelayEnvironments = createRuntimeCommand(runtime, {
     label: "environment-catalog:remove-relay-environments",
     scheduler: commandScheduler,
@@ -203,6 +215,7 @@ export function createEnvironmentCatalogAtoms<R, E>(
     sessionGenerationAtom,
     register,
     remove,
+    removePluginManaged,
     removeRoute,
     reorderRoutes,
     removeRelayEnvironments,

@@ -24,6 +24,7 @@ import { fetchRemoteEnvironmentDescriptor } from "../environment/descriptor.ts";
 import * as ClientCapabilities from "../platform/capabilities.ts";
 import * as ManagedRelay from "../relay/managedRelay.ts";
 import {
+  type PluginConnectionOwner,
   BearerConnectionCredential,
   BearerConnectionProfile,
   BearerConnectionRegistration,
@@ -47,6 +48,7 @@ import { orchestrationProtocolCompatibilityError } from "./compatibility.ts";
 import { connectionRoutes, routeEntry, sshTargetKey } from "./routes.ts";
 
 export interface PairingConnectionInput {
+  readonly managedBy?: PluginConnectionOwner;
   readonly pairingUrl?: string;
   readonly host?: string;
   readonly pairingCode?: string;
@@ -150,6 +152,7 @@ export const preparePairingRegistration = Effect.fn(
       label: descriptor.label,
       httpBaseUrl: target.httpBaseUrl,
       wsBaseUrl: target.wsBaseUrl,
+      ...(input.managedBy ? { managedBy: input.managedBy } : {}),
     }),
   };
   // The registry checks again under its lease; this early check keeps a refused code unspent.
@@ -206,6 +209,18 @@ export const preparePairingRegistration = Effect.fn(
 const registerPairingConnection = Effect.fn(
   "clientRuntime.connection.onboarding.registerPairingConnection",
 )(function* (input: PairingConnectionInput) {
+  if (input.managedBy && input.expectedEnvironmentId) {
+    const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+    const current = (yield* SubscriptionRef.get(registry.entries)).get(input.expectedEnvironmentId);
+    const profile = current && Option.getOrNull(current.profile);
+    if (
+      current &&
+      (profile?._tag !== "BearerConnectionProfile" ||
+        profile.managedBy?.environmentId !== input.managedBy.environmentId ||
+        profile.managedBy.pluginId !== input.managedBy.pluginId)
+    )
+      return input.expectedEnvironmentId;
+  }
   const registration = yield* preparePairingRegistration(input);
   const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
   const knownAddressOnly = input.expectedEnvironmentId === undefined;
@@ -213,9 +228,11 @@ const registerPairingConnection = Effect.fn(
     return registration.target.environmentId;
   }
   yield* registry.setCompatibility(registration.target.environmentId, null);
-  yield* registry
-    .setEnabled(registration.target.environmentId, true)
-    .pipe(Effect.catchTags({ EnvironmentNotRegisteredError: () => Effect.void }));
+  if (!input.managedBy) {
+    yield* registry
+      .setEnabled(registration.target.environmentId, true)
+      .pipe(Effect.catchTags({ EnvironmentNotRegisteredError: () => Effect.void }));
+  }
   return registration.target.environmentId;
 });
 
