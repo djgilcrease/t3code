@@ -91,7 +91,7 @@ export function installClientNoticeRouting() {
             await Notifications.setNotificationChannelAsync(channelId, {
               name: sound ? "Extension notices" : "Extension notices (silent)",
               importance: Notifications.AndroidImportance.HIGH,
-              sound: sound ? "default" : null,
+              ...(sound ? {} : { sound: null }),
             });
           await Notifications.scheduleNotificationAsync({
             identifier: `${sessionId}:${notice.id}`,
