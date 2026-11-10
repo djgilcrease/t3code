@@ -305,3 +305,7 @@ A `thread-panel` descriptor can request `presentation: "dialog"` for a larger
 view opened from the thread info bar. Other panels keep their default popover
 presentation. Both receive the owning thread as `threadId` in `read` input;
 resolve its directory through `context.threads.describe` on that environment.
+
+Set `requiresRepository: true` on a thread panel to hide its button until the
+owning thread's Git status confirms a repository. Other panels remain visible
+without Git. Both web and mobile use the same contribution selector.
