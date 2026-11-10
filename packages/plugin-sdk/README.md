@@ -286,8 +286,8 @@ Require `project-source-reads` for `context.projects.describe(projectId)` and
 `readSource({ projectId, path })`. Describe resolves the project's current host
 source-control selection. API reads are GET-only, relative to that provider's
 API root, use its existing authentication, and keep credentials in the host.
-Check `apiReads` before offering an adapter; currently GitHub implements this
-optional driver boundary. Paths and responses are bounded; no arbitrary origin
+Check `apiReads` before offering an adapter; currently GitHub and GitLab implement this
+optional driver boundary. GitLab uses the existing `glab` service in the project checkout. Paths and responses are bounded; no arbitrary origin
 or redirect target is accepted through this boundary.
 
 Require `task-context` for the `taskContext({ projectId, threadId })` contribution.
