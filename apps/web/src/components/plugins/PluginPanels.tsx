@@ -35,6 +35,16 @@ import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { Input } from "../ui/input";
 
+function associationQuery(selection: PluginInput) {
+  const search = selection.associationSearch;
+  return search &&
+    typeof search === "object" &&
+    !Array.isArray(search) &&
+    typeof search.query === "string"
+    ? search.query
+    : "";
+}
+
 type Entry = PluginCatalog["plugins"][number];
 type Location = PluginViewDescriptor["location"];
 
@@ -276,6 +286,7 @@ function PluginPanel({
               block={block}
               busy={busy}
               run={run}
+              submittedQuery={associationQuery(selection)}
               canRun={(action) => plugin.commands.some((command) => command.id === action.command)}
               search={(query, cursor) =>
                 setSelection((current) => ({

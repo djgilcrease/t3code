@@ -10,17 +10,18 @@ export function PluginAssociationsView({
   run,
   search,
   canRun,
+  submittedQuery,
 }: {
   block: PluginAssociations;
   busy: boolean;
   run: (action: PluginAction) => Promise<boolean>;
   search: (query: string, cursor?: string) => void;
   canRun: (action: PluginAction) => boolean;
+  submittedQuery: string;
 }) {
-  const [query, setQuery] = useState("");
-  const [submitted, setSubmitted] = useState("");
+  const [query, setQuery] = useState(submittedQuery);
+  const submitted = submittedQuery;
   const submit = () => {
-    setSubmitted(query);
     search(query);
   };
   const [expanded, setExpanded] = useState(false);
@@ -43,7 +44,7 @@ export function PluginAssociationsView({
       ))}
       {block.clear && block.selected.length > 0 && (
         <Button
-          label="Clear issues"
+          label={block.clear.label}
           disabled={busy || !canRun(block.clear)}
           onPress={() => block.clear && void run(block.clear)}
         />

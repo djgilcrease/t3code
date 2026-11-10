@@ -34,6 +34,16 @@ import { Button as MaterialButton } from "../../components/ui/Button";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 
+function associationQuery(selection: PluginInput) {
+  const search = selection.associationSearch;
+  return search &&
+    typeof search === "object" &&
+    !Array.isArray(search) &&
+    typeof search.query === "string"
+    ? search.query
+    : "";
+}
+
 type Entry = PluginCatalog["plugins"][number];
 
 export function PluginPanels({
@@ -248,6 +258,7 @@ function PluginPanel({
               block={block}
               busy={busy}
               run={run}
+              submittedQuery={associationQuery(selection)}
               canRun={(action) => plugin.commands.some((command) => command.id === action.command)}
               search={(query, cursor) =>
                 setSelection((current) => ({
