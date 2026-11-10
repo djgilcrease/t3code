@@ -1,3 +1,4 @@
+import { launchImageLibraryAsync } from "expo-image-picker";
 import { clientNoticeRoutingConflicted } from "@t3tools/client-runtime/notificationRouting";
 import { pluginCatalogsAtom } from "../../state/plugins";
 import {
@@ -19,13 +20,14 @@ import {
   pluginLink,
   pluginSecretResult,
   pluginNoticeResult,
+  pluginViewResult,
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { useContext, useEffect, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { Image, Linking, Switch, TextInput, View } from "react-native";
+import { Image, Linking, ScrollView, Switch, TextInput, View } from "react-native";
 import { AppText as Text } from "../../components/ui/AppText";
 import { Button as MaterialButton } from "../../components/ui/Button";
 import { serverEnvironment } from "../../state/server";
@@ -123,7 +125,8 @@ function PluginPanel({
     input: { pluginId: plugin.id, viewId: view.id, context: { ...context, ...selection } },
   });
   const result = useAtomValue(query);
-  const content = Option.getOrNull(AsyncResult.value(result));
+  const [page, setPage] = useState<ReturnType<typeof pluginViewResult>>(null);
+  const content = page?.view ?? Option.getOrNull(AsyncResult.value(result));
   const registry = useContext(RegistryContext);
   const execute = useAtomCommand(serverEnvironment.executePluginCommand);
   const [busy, setBusy] = useState(false);
@@ -160,6 +163,8 @@ function PluginPanel({
         if (outcome._tag === "Success") {
           setSecret(pluginSecretResult(outcome.value));
           setNotice(pluginNoticeResult(outcome.value));
+          const nextPage = pluginViewResult(outcome.value);
+          if (nextPage) setPage(nextPage);
           onCommandResult?.(outcome.value);
         }
         if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
@@ -179,7 +184,13 @@ function PluginPanel({
   return (
     <View className="gap-3 rounded-xl border border-border p-4">
       <Text className="font-t3-medium text-foreground">{content?.title ?? view.title}</Text>
-      <MaterialButton label="Refresh" onPress={() => registry.refresh(query)} />
+      <MaterialButton
+        label="Refresh"
+        onPress={() => {
+          setPage(null);
+          registry.refresh(query);
+        }}
+      />
       {notice && (
         <Text accessibilityRole={notice.tone === "danger" ? "alert" : "text"}>{notice.text}</Text>
       )}
@@ -227,6 +238,14 @@ function PluginPanel({
               style={{ width: "100%", height: 300 }}
               resizeMode="contain"
             />
+          );
+        if (block.kind === "code")
+          return (
+            <ScrollView key={block.id} horizontal>
+              <Text selectable style={{ fontFamily: "monospace" }}>
+                {block.text}
+              </Text>
+            </ScrollView>
           );
         if (block.kind === "text")
           return (
@@ -380,10 +399,7 @@ function PluginFormView({
               label="Choose image (at most 64 KiB)"
               disabled={busy || !allowed}
               onPress={() => {
-                void import("expo-image-picker")
-                  .then((picker) =>
-                    picker.launchImageLibraryAsync({ mediaTypes: ["images"], base64: true }),
-                  )
+                void launchImageLibraryAsync({ mediaTypes: ["images"], base64: true })
                   .then((result) => {
                     const asset = result.assets?.[0];
                     if (!asset?.base64 || asset.base64.length > 87384) {
