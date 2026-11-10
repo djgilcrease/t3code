@@ -110,8 +110,14 @@ function watchGuideRun(
         },
       });
     };
+    const outcomeAt =
+      failure === null
+        ? data.guide?.generatedAt
+        : data.run?._tag === "Failed"
+          ? data.run.failedAt
+          : undefined;
     const routed = routeClientToastNotification({
-      id: `guide:${runKey}`,
+      id: `guide:${outcomeAt}:${runKey}`,
       type: failure === null ? "success" : "error",
       title,
       description: failure === null ? body : `${body}: ${failure}`,
