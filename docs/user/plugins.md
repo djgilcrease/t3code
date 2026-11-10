@@ -5,8 +5,24 @@ clients use the plugins installed on the environment they are connected to.
 
 ## Install and manage plugins
 
-Open **Settings → Plugins**, select the environment, and paste a GitHub or GitLab
-HTTPS repository URL. T3 installs the highest stable version tag, such as
+Open **Settings → Plugins** and paste a GitHub or GitLab HTTPS repository URL.
+The machine selector defaults to **All**: installation targets the machines connected
+when you press Install. Select a single machine to install only there. Each destination
+uses its existing authenticated connection and its own Git credentials and package
+verification. Machines do not need to connect directly to each other.
+
+Results are shown per machine. Reconnect an offline machine and use its retry action;
+successful installs are kept if another fails. Newly connected machines are included
+only when you submit another All install. There is no background installation queue;
+leaving this page clears retry results. Existing repository installs keep their version,
+enabled state, and configuration. Each new install selects the latest stable version
+available to that machine, so versions can differ. Updates, enable/disable, restart,
+and removal below each machine affect only that machine, even under All.
+
+Only repository packages are portable. Local registrations, plugin data, secrets,
+credentials, private settings, and machine paths are never copied.
+
+T3 installs the highest stable version tag, such as
 `v1.10.0`. The repository must be packaged for T3 plugins; an arbitrary source
 repository cannot be installed. Git must be available on the environment.
 Self-hosted GitLab URLs and subgroup repositories work too. Private repositories

@@ -169,7 +169,6 @@ function SettingsRouteLayout() {
       singleEnvironment={
         pathname === "/settings/providers" ||
         pathname === "/settings/secrets" ||
-        pathname === "/settings/plugins" ||
         pathname.startsWith("/settings/extensions/")
       }
       deviceOnly={SETTINGS_DEVICE_ONLY_PATHS.has(pathname)}
