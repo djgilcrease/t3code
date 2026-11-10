@@ -65,19 +65,21 @@ export function PluginThreadItems({
   environmentId: EnvironmentId;
   threadId: ThreadId;
 }) {
-  const result = useAtomValue(serverEnvironment.pluginCatalog({ environmentId, input: {} }));
-  const catalog = Option.getOrNull(AsyncResult.value(result));
-  const views = catalog ? pluginThreadDetailsViews(catalog) : [];
+  const catalogs = useAtomValue(pluginCatalogsAtom);
+  const views = catalogs.flatMap(({ environmentId: sourceId, catalog }) =>
+    catalog ? pluginThreadDetailsViews(catalog).map((view) => ({ ...view, sourceId })) : [],
+  );
   if (views.length === 0) return null;
   return (
     <div
       className="flex shrink-0 flex-wrap items-center justify-end gap-1 pe-1.5"
       data-plugin-thread-items
     >
-      {views.map(({ plugin, viewId }) => (
+      {views.map(({ plugin, viewId, sourceId }) => (
         <PluginThreadView
-          key={`${plugin.id}:${viewId}`}
-          environmentId={environmentId}
+          key={`${sourceId}:${plugin.id}:${viewId}`}
+          environmentId={sourceId}
+          targetEnvironmentId={environmentId}
           threadId={threadId}
           plugin={plugin}
           viewId={viewId}
@@ -89,12 +91,14 @@ export function PluginThreadItems({
 
 function PluginThreadView({
   environmentId,
+  targetEnvironmentId,
   threadId,
   plugin,
   viewId,
 }: {
   environmentId: EnvironmentId;
   threadId: ThreadId;
+  targetEnvironmentId: EnvironmentId;
   plugin: Entry;
   viewId: string;
 }) {
@@ -166,7 +170,8 @@ function PluginThreadView({
   return (
     <>
       {view?.blocks.map((block) =>
-        block.kind === "status" ? (
+        block.kind === "status" &&
+        (block.environmentId ?? environmentId) === targetEnvironmentId ? (
           <PluginStatusItem
             key={block.id}
             block={block}
