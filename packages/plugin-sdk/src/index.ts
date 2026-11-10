@@ -256,12 +256,89 @@ export const PluginActivity = Schema.Struct({
   lastActivity: Schema.Number,
 });
 export type PluginActivity = typeof PluginActivity.Type;
+export const PluginThreadSummary = Schema.Struct({
+  environmentId: Label,
+  environmentLabel: Label,
+  threadId: Label,
+  title: Text,
+  projectId: Label,
+  /** Identity shared by clones of one repository; null without a Git remote. */
+  repository: Schema.NullOr(Text),
+  /** Where the thread works: its worktree, or the project directory. */
+  directory: Text,
+  branch: Schema.NullOr(Text),
+  running: Schema.Boolean,
+  subagents: Schema.Int,
+  archived: Schema.Boolean,
+});
+export type PluginThreadSummary = typeof PluginThreadSummary.Type;
+export const PluginThreadExport = Schema.Struct({
+  /**
+   * A commit of the working tree as it stood: tracked changes and untracked files Git does
+   * not ignore. Its parent is `head`. Both are null outside a Git repository.
+   */
+  snapshot: Schema.NullOr(Label),
+  /** The ref holding `snapshot`; delete it when done. */
+  snapshotRef: Schema.NullOr(Text),
+  head: Schema.NullOr(Label),
+  messages: Schema.Int,
+  /** Older messages left out to bound the file; the first message is always kept. */
+  omittedMessages: Schema.Int,
+});
+export type PluginThreadExport = typeof PluginThreadExport.Type;
+export const PluginThreadProject = Schema.Struct({
+  projectId: Label,
+  title: Text,
+  directory: Text,
+});
+export type PluginThreadProject = typeof PluginThreadProject.Type;
+export const PluginThreadImport = Schema.Struct({
+  environmentId: Label,
+  environmentLabel: Label,
+  threadId: Label,
+  /** The new worktree. */
+  directory: Text,
+});
+export type PluginThreadImport = typeof PluginThreadImport.Type;
+
+/**
+ * Copies a thread between environments. The conversation file is the host's own format;
+ * carry it as bytes. Paths must lie inside `dataDirectory`. A failure's `cause` is an Error
+ * whose message is safe to show the user.
+ */
+export interface PluginThreads {
+  readonly describe: (threadId: string) => Effect.Effect<PluginThreadSummary, PluginError>;
+  /** Stops a running turn, holding its queue, then snapshots the work and writes the conversation. */
+  readonly export: (input: {
+    readonly threadId: string;
+    readonly file: string;
+  }) => Effect.Effect<PluginThreadExport, PluginError>;
+  /** Projects on this environment that are clones of the repository. */
+  readonly projects: (
+    repository: string,
+  ) => Effect.Effect<readonly PluginThreadProject[], PluginError>;
+  /**
+   * Creates a thread from an exported conversation, in a new worktree of an existing local
+   * branch. Its first turn starts a new provider session that is handed the history.
+   */
+  readonly import: (input: {
+    readonly file: string;
+    readonly projectId: string;
+    readonly branch: string;
+  }) => Effect.Effect<PluginThreadImport, PluginError>;
+  /** Archives a thread after noting in it where the work continues. */
+  readonly archive: (input: {
+    readonly threadId: string;
+    readonly movedTo: { readonly environmentLabel: string; readonly threadId: string };
+  }) => Effect.Effect<void, PluginError>;
+}
 
 export interface PluginContext {
   /** Committed thread activity, including subagents and background work; connection presence is excluded. */
   readonly activity?: Effect.Effect<PluginActivity, PluginError> | undefined;
   readonly id: string;
   readonly dataDirectory: string;
+  readonly threads?: PluginThreads;
   readonly runProcess?: (
     input: PluginProcessInput,
   ) => Effect.Effect<PluginProcessResult, PluginError>;
