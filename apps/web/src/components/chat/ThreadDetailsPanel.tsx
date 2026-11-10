@@ -190,7 +190,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                 >
                   <div className="flex flex-col">
                     {show.environment ? (
-                      <div className="flex items-center">
+                      <div className="flex flex-col">
                         <div className="min-w-0 flex-1">
                           <BranchToolbar
                             layout="panel"
