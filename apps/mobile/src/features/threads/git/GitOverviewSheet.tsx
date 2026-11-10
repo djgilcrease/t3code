@@ -311,7 +311,11 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
         ) : null}
       </ListSection>
 
-      <PluginThreadRows environmentId={environmentId} threadId={threadId} />
+      <PluginThreadRows
+        environmentId={environmentId}
+        threadId={threadId}
+        hasRepository={gitStatus.data?.isRepo === true}
+      />
       {selectedThreadProject && (
         <PluginPanels
           environmentId={environmentId}

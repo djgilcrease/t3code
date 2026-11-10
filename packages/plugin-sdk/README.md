@@ -298,11 +298,11 @@ Require `contextual-associations` for `project-new-thread` and
 owning environment, including the prospective thread ID before first send.
 A `toggle` block carries a boolean and its mutation action. An `associations`
 block carries selected items, search options, and an optional next cursor.
-Each item has a durable provider-qualified `id`, a `label`, a `select` action
+An optional `clear` action removes the selection. Each item has a durable provider-qualified `id`, a `label`, a `select` action
 (select or remove), and an optional `open` action. Search submits
 `associationSearch: { blockId, query, cursor? }` to the same view. Return a
-`document` command result with `title` and `text` to open bounded plain text
-inside the client. Revalidate selected identities and permission-sensitive
+`view` command result with a text block to load bounded issue details
+inside the calling panel. Revalidate selected identities and permission-sensitive
 content in the plugin; search results are not an authorization grant.
 
 Require `project-source-reads` for `context.projects.describe(projectId)` and
@@ -319,3 +319,22 @@ Each plugin gets 16,384 characters; the combined budget is 32,768. Failure stops
 the turn rather than silently dropping required context. Native goal commands
 remain verbatim. The plugin owns durable associations, consent, source adapters,
 and context selection; the host adds no tracker-specific persistence or logic.
+
+## Ordered graph views
+
+The `portable-graphs` capability adds bounded `graph` blocks: `label` and up to
+100 ordered `nodes`, each with `id`, later `parents` (or ids beyond this page),
+`label`, `detail`, `annotation`, `badges`, and an ordinary permission-checked
+`action`. Nodes and parent ids are unique, ordered child before parent, and the
+union is limited to 200 ids. The host owns lane layout and static SVG rendering;
+plugins provide data, never SVG or client code. Edges leaving the window continue
+at its bottom. Each page lays out independently.
+
+A `thread-panel` descriptor can request `presentation: "dialog"` for a larger
+view opened from the thread info bar. Other panels keep their default popover
+presentation. Both receive the owning thread as `threadId` in `read` input;
+resolve its directory through `context.threads.describe` on that environment.
+
+Set `requiresRepository: true` on a thread panel to hide its button until the
+owning thread's Git status confirms a repository. Other panels remain visible
+without Git. Both web and mobile use the same contribution selector.
