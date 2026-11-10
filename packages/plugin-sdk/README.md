@@ -103,6 +103,12 @@ folder in place but clears their T3-managed data and credentials.
   copyable value for 30 seconds in the calling client. It is never part of a
   view or catalog; agent calls and read commands cannot use this disclosure. The server checks the actual
   descriptor permission, regardless of what the invocation envelope claims.
+  Hosts advertising `command-invocation-context` pass a second `run` argument with
+  `audience` (`client` or `agent`) and, for thread MCP calls, the authenticated
+  `environmentId`, `projectId`, and `threadId`. Treat agent-supplied input as
+  untrusted: scoped commands must require this context and reject missing identity.
+  Outside MCP clients and peer plugin calls have no project identity. Client
+  commands can select an explicit project under their normal environment grants.
 - **Views** return data rendered by host components on web, desktop, and mobile.
   Version 1 provides text, HTTP links, actions, forms, tables, and status items. Use
   `settings-page` for a standalone Extensions page and `usage` for a Usage panel.
@@ -133,6 +139,13 @@ folder in place but clears their T3-managed data and credentials.
   each other can exchange data this way. A relayed step does not refresh views;
   the last result does. The chain stops if the user closes the dialog or the
   client goes away, so leave the source unchanged until the final step.
+- **Panel navigation** commands can return `{ $t3: "view", view }` to replace
+  the calling portable panel with another bounded `PluginView`. Return actions
+  for back/next navigation explicitly. State stays in that mounted client,
+  so two clients can explore independently. Refresh returns to the entry view.
+  A `code` block (`id`, `kind: "code"`, `text`) displays bounded preformatted
+  plain text without HTML or syntax execution. Require
+  `portable-view-navigation` before using either addition.
 - **Launch hooks** transform a provider's purpose, arguments, and environment in
   configuration order. Return new values. An undefined environment value means
   deletion. Codex agents and text generation, Claude agents and text generation,

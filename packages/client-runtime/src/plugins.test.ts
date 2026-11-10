@@ -9,6 +9,7 @@ import {
   pluginFormInput,
   pluginLink,
   pluginSecretResult,
+  pluginViewResult,
   type PluginForm,
 } from "./plugins.ts";
 
@@ -222,4 +223,28 @@ describe("thread details actions", () => {
     expect(cancelled).toBeNull();
     expect(steps).toEqual(["source:move"]);
   });
+});
+
+it("decodes bounded client-local navigation and rejects malformed pages", () => {
+  const result = {
+    $t3: "view",
+    view: {
+      title: "Details",
+      blocks: [{ id: "patch", kind: "code", text: "diff --git a/file b/file" }],
+    },
+  };
+  expect(pluginViewResult(result)).toEqual(result);
+  expect(
+    pluginViewResult({
+      ...result,
+      view: { ...result.view, blocks: [{ id: "patch", kind: "code", text: "x".repeat(16_385) }] },
+    }),
+  ).toBeNull();
+  expect(
+    pluginViewResult({
+      ...result,
+      view: { ...result.view, blocks: [...result.view.blocks, ...result.view.blocks] },
+    }),
+  ).toBeNull();
+  expect(pluginViewResult({ $t3: "notice", text: "hello" })).toBeNull();
 });

@@ -8,6 +8,7 @@ import {
   PluginMcpServers,
   PluginHttpResponseTimeout,
   type PluginMcpContext,
+  type PluginInvocationContext,
   type PluginMcpServer,
   PluginCommandDescriptor,
   PluginManifest,
@@ -123,6 +124,7 @@ export class PluginRegistry extends Context.Service<
       input: PluginCommandInput,
       scopes: readonly AuthEnvironmentScope[],
       audience?: "client" | "agent" | "agent-read",
+      context?: Omit<PluginInvocationContext, "audience">,
     ) => Effect.Effect<Schema.Json, RequestError>;
     readonly mcpServers: (
       context: PluginMcpContext,
@@ -370,6 +372,7 @@ const make = Effect.gen(function* () {
           "provider-mcp-servers",
           "http-response-timeout",
           "settings-pages",
+          "portable-view-navigation",
           "worktree-lifecycle",
           "supervised-processes",
           "thread-details",
@@ -377,6 +380,7 @@ const make = Effect.gen(function* () {
           ...(Option.isSome(projection) ? ["environment-activity"] : []),
           "thread-portability",
           "plugin-commands",
+          "command-invocation-context",
           "notification-routing",
           ...(Option.isSome(notifications)
             ? ["notification-journal", "native-notification-delivery", "notification-targets"]
@@ -607,7 +611,7 @@ const make = Effect.gen(function* () {
     },
   );
   const execute: PluginRegistry["Service"]["execute"] = Effect.fn("PluginRegistry.execute")(
-    function* (input, scopes, audience = "client") {
+    function* (input, scopes, audience = "client", context) {
       const plugin = yield* getPlugin(input.pluginId);
       const command = plugin.commands?.find((c) => c.id === input.commandId);
       if (!command)
@@ -627,10 +631,12 @@ const make = Effect.gen(function* () {
       const result = yield* guarded(
         input.pluginId,
         "command",
-        Effect.suspend(() => command.run(input.input)).pipe(
-          Effect.flatMap(decodeJson),
-          Effect.flatMap(boundedResult),
-        ),
+        Effect.suspend(() =>
+          command.run(input.input, {
+            ...context,
+            audience: audience === "client" ? "client" : "agent",
+          }),
+        ).pipe(Effect.flatMap(decodeJson), Effect.flatMap(boundedResult)),
       ).pipe(
         // A relayed step is not the end of its action; views refresh once the chain ends.
         Effect.onExit((exit) =>
