@@ -20,6 +20,7 @@ import { CustomSnoozeDialogHost } from "../components/CustomSnoozeDialog";
 import { GuestShareDialogHost } from "../components/chat/GuestShareControls";
 import { UseInAnotherAppDialogHost } from "../components/mcp/UseInAnotherAppDialog";
 import { AddProjectToMachineDialogHost } from "../components/AddProjectToMachineDialog";
+import { PluginActionDialogHost } from "../components/plugins/PluginThreadItems";
 import { ConfirmDialogHost } from "../components/ConfirmDialogHost";
 import { DevReplayHost } from "../components/DevReplayHost";
 import { FirstRunGate } from "../components/onboarding/FirstRunGate";
@@ -227,6 +228,7 @@ function RootRouteBranch() {
           {appShell}
         </FirstRunGate>
       )}
+      <PluginActionDialogHost />
       {/* Above both shells and the router, so drafts survive navigation, including to /welcome. */}
       <ThemeEditorHost />
     </>

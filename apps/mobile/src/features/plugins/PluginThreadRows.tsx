@@ -14,7 +14,6 @@ import {
 import {
   EnvironmentId,
   type PluginCatalog,
-  type PluginNoticeResult,
   type PluginStatusAction,
   type PluginTone,
   type ThreadId,
@@ -62,8 +61,7 @@ export function PluginStatusDots({ environmentId }: { environmentId: Environment
 
 interface Run {
   readonly action: PluginStatusAction;
-  readonly phase: "ask" | "running" | "done";
-  readonly notice: PluginNoticeResult | null;
+  readonly phase: "ask" | "running";
   /** Progress reported by a relayed step. */
   readonly status: string | null;
 }
@@ -152,7 +150,7 @@ function PluginThreadView({
     return { ok: false, message: failure instanceof Error ? failure.message : null };
   };
   const start = (action: PluginStatusAction, destination: EnvironmentId | null) => {
-    setRun({ action, phase: "running", notice: null, status: null });
+    setRun({ action, phase: "running", status: null });
     void runPluginAction({
       start: {
         environmentId,
@@ -162,9 +160,22 @@ function PluginThreadView({
       execute: executeStep,
       onStatus: (status) =>
         setRun((current) => (current?.phase === "running" ? { ...current, status } : current)),
-    }).then((notice) =>
-      setRun(notice === null ? null : { action, phase: "done", notice, status: null }),
-    );
+    }).then((notice) => {
+      setRun(null);
+      if (notice === null) return;
+      // An alert outlives this sheet, which closes when the action archives its own thread.
+      const target = notice.thread;
+      Dialog.alert(
+        action.label.replace(/(…|\.\.\.)$/u, ""),
+        notice.text,
+        target
+          ? [
+              { text: "Close", style: "cancel" },
+              { text: "Open thread", onPress: () => openThread(target) },
+            ]
+          : [{ text: "OK" }],
+      );
+    });
   };
   const confirmThenStart = (action: PluginStatusAction, destination: EnvironmentId | null) => {
     if (action.confirm === undefined) start(action, destination);
@@ -178,8 +189,7 @@ function PluginThreadView({
       });
   };
   const press = (action: PluginStatusAction) => {
-    if (action.environment !== undefined)
-      setRun({ action, phase: "ask", notice: null, status: null });
+    if (action.environment !== undefined) setRun({ action, phase: "ask", status: null });
     else confirmThenStart(action, null);
   };
 
@@ -228,28 +238,6 @@ function PluginThreadView({
           onPick={(destination) => confirmThenStart(run.action, destination)}
           onCancel={() => setRun(null)}
         />
-      ) : null}
-      {run?.notice ? (
-        <View>
-          <View className="bg-grouped-card">
-            <ListRowLayout
-              label={run.notice.text}
-              tone={run.notice.tone === "danger" ? "danger" : "default"}
-            />
-          </View>
-          {run.notice.thread ? (
-            <ListRow
-              icon="arrow.right.circle"
-              label="Open thread"
-              onPress={() => {
-                const target = run.notice?.thread;
-                setRun(null);
-                if (target) openThread(target);
-              }}
-            />
-          ) : null}
-          <ListRow icon="xmark" label="Dismiss" onPress={() => setRun(null)} />
-        </View>
       ) : null}
     </>
   );
