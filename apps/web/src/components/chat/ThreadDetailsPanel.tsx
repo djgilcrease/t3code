@@ -74,6 +74,7 @@ interface ThreadDetailsPanelProps extends Pick<
   isGitRepo: boolean;
   /** False when no worktree can come from this folder, so it offers no workspace modes. */
   offersWorkspaceModes: boolean;
+  hasRepository: boolean;
   envLocked: boolean;
   availableEnvironments: readonly EnvironmentOption[];
   autoEnvironmentLabel?: string | undefined;
@@ -233,6 +234,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                         </div>
                         {props.isServerThread ? (
                           <PluginThreadItems
+                            hasRepository={props.hasRepository}
                             environmentId={props.environmentId}
                             threadId={props.threadId}
                           />

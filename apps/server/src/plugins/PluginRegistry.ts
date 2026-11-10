@@ -396,6 +396,7 @@ const make = Effect.gen(function* () {
           "task-context",
           "project-source-reads",
           "portable-collections",
+          "portable-graphs",
           ...(Option.isSome(projection) ? ["environment-activity"] : []),
           "thread-portability",
           "plugin-commands",
