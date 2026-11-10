@@ -319,3 +319,22 @@ Each plugin gets 16,384 characters; the combined budget is 32,768. Failure stops
 the turn rather than silently dropping required context. Native goal commands
 remain verbatim. The plugin owns durable associations, consent, source adapters,
 and context selection; the host adds no tracker-specific persistence or logic.
+
+## Ordered graph views
+
+The `portable-graphs` capability adds bounded `graph` blocks: `label` and up to
+100 ordered `nodes`, each with `id`, later `parents` (or ids beyond this page),
+`label`, `detail`, `annotation`, `badges`, and an ordinary permission-checked
+`action`. Nodes and parent ids are unique, ordered child before parent, and the
+union is limited to 200 ids. The host owns lane layout and static SVG rendering;
+plugins provide data, never SVG or client code. Edges leaving the window continue
+at its bottom. Each page lays out independently.
+
+A `thread-panel` descriptor can request `presentation: "dialog"` for a larger
+view opened from the thread info bar. Other panels keep their default popover
+presentation. Both receive the owning thread as `threadId` in `read` input;
+resolve its directory through `context.threads.describe` on that environment.
+
+Set `requiresRepository: true` on a thread panel to hide its button until the
+owning thread's Git status confirms a repository. Other panels remain visible
+without Git. Both web and mobile use the same contribution selector.

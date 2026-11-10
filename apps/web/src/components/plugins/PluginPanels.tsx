@@ -24,6 +24,7 @@ import {
   pluginSecretResult,
   pluginNoticeResult,
   pluginViewResult,
+  pluginGraphLayout,
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
 import { AsyncResult, Atom } from "effect/reactivity";
@@ -314,6 +315,17 @@ function PluginPanel({
             />
           );
 
+        if (block.kind === "graph")
+          return (
+            <PluginGraph
+              key={block.id}
+              block={block}
+              environmentId={environmentId}
+              plugin={plugin}
+              busy={busy}
+              run={run}
+            />
+          );
         if (block.kind === "collection")
           return (
             <PluginCollection
@@ -642,5 +654,88 @@ function PluginCollection({
           ))}
       </div>
     </div>
+  );
+}
+
+function PluginGraph({
+  block,
+  ...props
+}: {
+  block: Extract<import("@t3tools/contracts").PluginBlock, { kind: "graph" }>;
+  environmentId: EnvironmentId;
+  plugin: Entry;
+  busy: boolean;
+  run: (action: PluginAction) => Promise<boolean>;
+}) {
+  const layout = pluginGraphLayout(block.nodes);
+  return (
+    <div role="group" aria-label={block.label} className="overflow-x-auto">
+      {block.nodes.map((node, i) => (
+        <PluginGraphRow
+          key={node.id}
+          node={node}
+          row={layout.rows[i]!}
+          width={layout.width}
+          {...props}
+        />
+      ))}
+    </div>
+  );
+}
+function PluginGraphRow({
+  node,
+  row,
+  width,
+  environmentId,
+  plugin,
+  busy,
+  run,
+}: {
+  node: Extract<import("@t3tools/contracts").PluginBlock, { kind: "graph" }>["nodes"][number];
+  row: ReturnType<typeof pluginGraphLayout>["rows"][number];
+  width: number;
+  environmentId: EnvironmentId;
+  plugin: Entry;
+  busy: boolean;
+  run: (action: PluginAction) => Promise<boolean>;
+}) {
+  const command = plugin.commands.find((command) => command.id === node.action.command);
+  const allowed = useAtomValue(
+    serverEnvironment.executePluginCommand.permissionAtom(
+      environmentId,
+      commandInput(plugin, command, node.action),
+    ),
+  );
+  return (
+    <button
+      type="button"
+      disabled={busy || !command || !allowed}
+      onClick={() => void run(node.action)}
+      aria-label={`${node.action.label}: ${node.label}`}
+      style={{ minWidth: width + 400 }}
+      className="flex h-11 w-full items-center gap-3 rounded-sm text-left text-sm hover:bg-muted focus-visible:outline focus-visible:outline-ring disabled:opacity-50"
+    >
+      <svg width={width} height={44} className="shrink-0" aria-hidden="true">
+        {row.paths.map((path) => (
+          <path key={path.d} d={path.d} stroke={path.color} strokeWidth={2} fill="none" />
+        ))}
+        <circle cx={10 + row.column * 16} cy={22} r={4} fill={row.color} />
+      </svg>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2 overflow-hidden">
+          {node.badges.map((badge) => (
+            <span
+              key={badge}
+              className="max-w-40 shrink-0 truncate rounded border border-current px-1 text-xs text-primary"
+            >
+              {badge}
+            </span>
+          ))}
+          <span className="truncate">{node.label}</span>
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">{node.detail}</span>
+      </span>
+      <span className="pr-2 font-mono text-xs text-muted-foreground">{node.annotation}</span>
+    </button>
   );
 }
