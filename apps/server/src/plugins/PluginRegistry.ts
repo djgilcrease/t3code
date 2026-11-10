@@ -370,6 +370,7 @@ const make = Effect.gen(function* () {
           "provider-mcp-servers",
           "http-response-timeout",
           "settings-pages",
+          "portable-view-navigation",
           "worktree-lifecycle",
           "supervised-processes",
           "thread-details",

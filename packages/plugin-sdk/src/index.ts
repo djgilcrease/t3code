@@ -89,6 +89,7 @@ export type PluginManagedEnvironment = typeof PluginManagedEnvironment.Type;
 
 export const PluginBlock = Schema.Union([
   PluginManagedEnvironment,
+  Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("code"), text: Text }),
   Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("text"), text: Text }),
   Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("link"), label: Label, url: Text }),
   Schema.Struct({
@@ -160,6 +161,13 @@ export const PluginView = Schema.Struct({
   ),
 );
 export type PluginView = typeof PluginView.Type;
+
+/** Replaces only the calling panel; navigation state belongs to the client. */
+export const PluginViewResult = Schema.Struct({
+  $t3: Schema.Literal("view"),
+  view: PluginView,
+});
+export type PluginViewResult = typeof PluginViewResult.Type;
 export const PluginViewDescriptor = Schema.Struct({
   id: PluginLocalId,
   title: Label,

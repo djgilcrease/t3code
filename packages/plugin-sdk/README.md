@@ -133,6 +133,13 @@ folder in place but clears their T3-managed data and credentials.
   each other can exchange data this way. A relayed step does not refresh views;
   the last result does. The chain stops if the user closes the dialog or the
   client goes away, so leave the source unchanged until the final step.
+- **Panel navigation** commands can return `{ $t3: "view", view }` to replace
+  the calling portable panel with another bounded `PluginView`. Return actions
+  for back/next navigation explicitly. State stays in that mounted client,
+  so two clients can explore independently. Refresh returns to the entry view.
+  A `code` block (`id`, `kind: "code"`, `text`) displays bounded preformatted
+  plain text without HTML or syntax execution. Require
+  `portable-view-navigation` before using either addition.
 - **Launch hooks** transform a provider's purpose, arguments, and environment in
   configuration order. Return new values. An undefined environment value means
   deletion. Codex agents and text generation, Claude agents and text generation,
