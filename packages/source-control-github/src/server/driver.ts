@@ -1,4 +1,8 @@
-import { SourceControlSignInError, type SourceControlProviderKind } from "@t3tools/contracts";
+import {
+  SourceControlProviderError,
+  SourceControlSignInError,
+  type SourceControlProviderKind,
+} from "@t3tools/contracts";
 import {
   defineSourceControlDriver,
   withOwnServices,
@@ -101,6 +105,27 @@ const makeInstance = Effect.gen(function* () {
   const mediaHttpClient = yield* HttpClient.HttpClient;
   return yield* withOwnServices(
     Effect.all({
+      readApi: Effect.gen(function* () {
+        const api = yield* GitHubRest.GitHubRest;
+        return Effect.fn("GitHubDriver.readApi")(function* (input: {
+          readonly host: string;
+          readonly path: string;
+        }) {
+          const response = yield* api.rest({
+            ...input,
+            operation: "plugin-read",
+            maxResponseBytes: 128 * 1024,
+          });
+          if (response.truncated || response.invalidUtf8)
+            return yield* new SourceControlProviderError({
+              provider: definition.kind,
+              operation: "plugin-read",
+              cwd: "",
+              detail: "Invalid API response",
+            });
+          return response.body;
+        });
+      }),
       sourceControl: GitHubSourceControlProvider.make,
       discovery: GitHubSourceControlProvider.makeDiscovery,
       pullRequests: GitHubPullRequestProvider.make,

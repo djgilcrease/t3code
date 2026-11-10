@@ -1,3 +1,4 @@
+import { PluginPanels } from "../plugins/PluginPanels";
 import { DraftEnvironmentControl } from "./DraftEnvironmentControl";
 import { NativeScrollEdgeEffectsContext } from "../../native/NativeScrollViewMarker";
 import { DraftThreadHeader } from "./DraftThreadHeader";
@@ -781,6 +782,13 @@ export function NewTaskDraftScreen(props: {
       </View>
 
       {environmentControl}
+      {selectedProject && (
+        <PluginPanels
+          environmentId={selectedProject.environmentId}
+          location="thread-associations"
+          context={{ projectId: selectedProject.id, threadId: creationMetadata.threadId }}
+        />
+      )}
       {shareUnavailableNotice}
     </View>
   );

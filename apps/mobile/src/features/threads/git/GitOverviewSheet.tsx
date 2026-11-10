@@ -1,3 +1,4 @@
+import { PluginPanels } from "../../plugins/PluginPanels";
 import * as Dialog from "../../../components/ui/Dialog";
 import { cn } from "../../../lib/cn";
 import { useOpenPullRequest } from "../../../native/useOpenPullRequest";
@@ -314,6 +315,13 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
       </ListSection>
 
       <PluginThreadRows environmentId={environmentId} threadId={threadId} />
+      {selectedThreadProject && (
+        <PluginPanels
+          environmentId={environmentId}
+          location="thread-associations"
+          context={{ projectId: selectedThreadProject.id, threadId }}
+        />
+      )}
 
       {linkedPrLines.length > 0 ? (
         <ListSection title={`Linked ${linkedPrActions.terminology.plural}`}>

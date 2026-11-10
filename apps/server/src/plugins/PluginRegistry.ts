@@ -29,7 +29,9 @@ import {
   type PluginContributions,
   type PluginContext,
   type PluginThreads,
+  type PluginProjects,
   type PluginLaunch,
+  type PluginTaskContext,
   type T3Plugin,
 } from "@t3tools/contracts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
@@ -61,6 +63,7 @@ const decodeConfiguration = Schema.decodeUnknownEffect(Schema.fromJsonString(Plu
 const decodeManifest = Schema.decodeUnknownEffect(PluginManifest);
 const decodeCommand = Schema.decodeUnknownEffect(PluginCommandDescriptor);
 const decodeViewDescriptor = Schema.decodeUnknownEffect(PluginViewDescriptor);
+const decodeTaskText = Schema.decodeUnknownEffect(Schema.String.check(Schema.isMaxLength(16_384)));
 const decodeView = Schema.decodeUnknownEffect(PluginView);
 const decodeHealth = Schema.decodeUnknownEffect(PluginRuntimeHealth);
 const isSecretResult = Schema.is(PluginSecretResult);
@@ -109,6 +112,7 @@ export class PluginRegistry extends Context.Service<
     readonly setNotificationDelivery: (
       deliver: (threadId: string) => Effect.Effect<void>,
     ) => Effect.Effect<void>;
+    readonly setProjects: (host: PluginProjects) => Effect.Effect<void>;
     readonly setThreads: (host: PluginThreadHost) => Effect.Effect<void>;
     readonly setTerminalInputActivity: (
       source: Effect.Effect<ReadonlyMap<string, number>>,
@@ -127,6 +131,7 @@ export class PluginRegistry extends Context.Service<
     readonly mcpServers: (
       context: PluginMcpContext,
     ) => Effect.Effect<PluginMcpServers, PluginOperationError>;
+    readonly taskContext: (input: PluginTaskContext) => Effect.Effect<string, PluginOperationError>;
     readonly prepareLaunch: (
       launch: PluginLaunch,
     ) => Effect.Effect<PluginLaunch, PluginOperationError>;
@@ -183,6 +188,7 @@ const make = Effect.gen(function* () {
   const restartLimits = new Map<string, (limit: number) => Effect.Effect<void>>();
   let httpOrigin: string | undefined;
   let notificationDelivery: ((threadId: string) => Effect.Effect<void>) | undefined;
+  let projectHost: PluginProjects | undefined;
   let threadHost: PluginThreadHost | undefined;
   let terminalInputActivity: Effect.Effect<ReadonlyMap<string, number>> = Effect.succeed(new Map());
   const entries = new Map<string, PluginCatalog["plugins"][number]>();
@@ -357,6 +363,16 @@ const make = Effect.gen(function* () {
                 );
           },
         },
+        projects: {
+          describe: (projectId) =>
+            projectHost
+              ? projectHost.describe(projectId)
+              : Effect.fail(new PluginError({ operation: "projects-unavailable", cause: null })),
+          readSource: (input) =>
+            projectHost
+              ? projectHost.readSource(input)
+              : Effect.fail(new PluginError({ operation: "projects-unavailable", cause: null })),
+        },
         threads: {
           describe: (threadId) => threadCall((host) => host.describe(threadId)),
           export: (input) =>
@@ -373,6 +389,9 @@ const make = Effect.gen(function* () {
           "worktree-lifecycle",
           "supervised-processes",
           "thread-details",
+          "contextual-associations",
+          "task-context",
+          "project-source-reads",
           ...(Option.isSome(projection) ? ["environment-activity"] : []),
           "thread-portability",
           "plugin-commands",
@@ -688,6 +707,11 @@ const make = Effect.gen(function* () {
         notificationDelivery = deliver;
       }),
     ),
+    setProjects: Effect.fn("PluginRegistry.setProjects")((host) =>
+      Effect.sync(() => {
+        projectHost = host;
+      }),
+    ),
     setThreads: Effect.fn("PluginRegistry.setThreads")((host) =>
       Effect.sync(() => {
         threadHost = host;
@@ -717,6 +741,27 @@ const make = Effect.gen(function* () {
         ),
       ),
     ),
+    taskContext: Effect.fn("PluginRegistry.taskContext")(function* (input) {
+      yield* Deferred.await(initialized);
+      const parts: string[] = [];
+      for (const [id, plugin] of active) {
+        if (!plugin.taskContext || entries.get(id)?.status !== "active") continue;
+        const text = yield* guarded(
+          id,
+          "task-context",
+          plugin.taskContext(input).pipe(Effect.flatMap(decodeTaskText)),
+        );
+        if (text) parts.push(`Reference material from ${id}:\n${text}`);
+      }
+      const text = parts.join("\n\n");
+      if (text.length > 32_768)
+        return yield* new PluginOperationError({
+          pluginId: "host",
+          operation: "task-context-budget",
+          cause: null,
+        });
+      return text;
+    }),
     readView,
     execute,
     mcpServers: Effect.fn("PluginRegistry.mcpServers")(function* (context) {

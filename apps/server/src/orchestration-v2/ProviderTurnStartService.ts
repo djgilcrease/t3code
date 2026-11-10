@@ -1,3 +1,4 @@
+import * as PluginRegistry from "../plugins/PluginRegistry.ts";
 import { modelSelectionsEqual } from "@t3tools/shared/model";
 import { projectComposerContextForProvider } from "@t3tools/shared/composerContextReferences";
 import {
@@ -837,7 +838,7 @@ export const layer: Layer.Layer<
       });
       let effectiveHandoffs = handoffs;
       let resumeFellBack = false;
-      const userText = projectComposerContextForProvider({
+      let userText = projectComposerContextForProvider({
         text: message.text,
         records: message.context?.records ?? [],
       });
@@ -848,6 +849,14 @@ export const layer: Layer.Layer<
         (session.driver === "opencode" &&
           session.providerSession.capabilities.turns.supportsNativeGoals === true);
       const goalCommand = goalDriver && parseGoalCommand(message) !== null;
+      const plugins = yield* Effect.serviceOption(PluginRegistry.PluginRegistry);
+      if (!goalCommand && Option.isSome(plugins)) {
+        const reference = yield* plugins.value
+          .taskContext({ projectId: projection.thread.projectId, threadId: projection.thread.id })
+          .pipe(Effect.mapError((cause) => new ProviderTurnStartError({ runId: run.id, cause })));
+        if (reference)
+          userText = `${userText}\n\n<plugin-reference-material>\n${reference}\n</plugin-reference-material>`;
+      }
       // The provider turn marks cancellation work delivered; restart continuations use their own text or resume natively.
       const noteContinuation = isRestartNoteContinuation(
         run,
