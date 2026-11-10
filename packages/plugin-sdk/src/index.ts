@@ -67,7 +67,7 @@ export type PluginStatusAction = typeof PluginStatusAction.Type;
 export const PluginField = Schema.Struct({
   name: PluginLocalId,
   label: Label,
-  kind: Schema.Literals(["text", "password", "number", "boolean", "select"]),
+  kind: Schema.Literals(["text", "password", "number", "boolean", "select", "multiline", "image"]),
   value: Schema.optionalKey(Schema.Union([Schema.String, Schema.Number, Schema.Boolean])),
   options: Schema.optionalKey(
     Schema.Array(Schema.Struct({ label: Label, value: Label })).check(Schema.isMaxLength(100)),
@@ -96,6 +96,24 @@ export const PluginManagedEnvironment = Schema.Struct({
 export type PluginManagedEnvironment = typeof PluginManagedEnvironment.Type;
 
 export const PluginBlock = Schema.Union([
+  Schema.Struct({
+    id: PluginLocalId,
+    kind: Schema.Literal("collection"),
+    queryField: Schema.optionalKey(PluginLocalId),
+    label: Label,
+    items: Schema.Array(
+      Schema.Struct({ id: Label, label: Label, search: Text, input: PluginInput }),
+    ).check(Schema.isMaxLength(500)),
+  }),
+  Schema.Struct({
+    id: PluginLocalId,
+    kind: Schema.Literal("image"),
+    label: Label,
+    source: Schema.String.check(
+      Schema.isMaxLength(200_000),
+      Schema.isPattern(/^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/),
+    ),
+  }),
   PluginManagedEnvironment,
   Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("code"), text: Text }),
   Schema.Struct({ id: PluginLocalId, kind: Schema.Literal("text"), text: Text }),
@@ -108,6 +126,7 @@ export const PluginBlock = Schema.Union([
   Schema.Struct({
     id: PluginLocalId,
     kind: Schema.Literal("form"),
+    instance: Schema.optionalKey(Label),
     label: Label,
     command: PluginLocalId,
     fields: Schema.Array(PluginField).check(Schema.isMaxLength(40)),
@@ -145,6 +164,7 @@ export const PluginView = Schema.Struct({
     (view) =>
       unique(view.blocks.map((block) => block.id)) &&
       view.blocks.every((block) => {
+        if (block.kind === "collection") return unique(block.items.map((item) => item.id));
         if (block.kind === "form")
           return (
             unique(block.fields.map((field) => field.name)) &&
@@ -184,6 +204,8 @@ export const PluginViewDescriptor = Schema.Struct({
     "settings-page",
     "usage",
     "thread-details",
+    "thread-panel",
+    "project-settings",
     "managed-environments",
     "environment-launcher",
   ]),
