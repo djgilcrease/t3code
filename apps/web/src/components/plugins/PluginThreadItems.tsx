@@ -30,6 +30,7 @@ import {
   DialogPanel,
   DialogPopup,
   DialogTitle,
+  DialogTrigger,
 } from "../ui/dialog";
 import { Label } from "../ui/label";
 import {
@@ -78,25 +79,48 @@ export function PluginThreadItems({
       className="flex min-w-0 flex-wrap items-center gap-1 px-2.5 pb-1 empty:hidden"
       data-plugin-thread-items
     >
-      {panels.map(({ plugin, view }) => (
-        <Popover key={`${plugin.id}:${view.id}`}>
-          <PopoverTrigger render={<Button variant="ghost" size="sm" />}>
-            {view.title}
-          </PopoverTrigger>
-          <PopoverPopup>
-            <div className="max-h-[75vh] w-96 max-w-[85vw] overflow-auto">
-              <PluginPanels
-                key={threadId}
-                environmentId={environmentId}
-                pluginId={plugin.id}
-                viewId={view.id}
-                location="thread-panel"
-                context={{ threadId }}
-              />
-            </div>
-          </PopoverPopup>
-        </Popover>
-      ))}
+      {panels.map(({ plugin, view }) =>
+        view.presentation === "dialog" ? (
+          <Dialog key={`${plugin.id}:${view.id}`}>
+            <DialogTrigger render={<Button variant="ghost" size="sm" />}>
+              {view.title}
+            </DialogTrigger>
+            <DialogPopup variant="wide">
+              <DialogHeader>
+                <DialogTitle>{view.title}</DialogTitle>
+              </DialogHeader>
+              <DialogPanel>
+                <PluginPanels
+                  key={threadId}
+                  environmentId={environmentId}
+                  pluginId={plugin.id}
+                  viewId={view.id}
+                  location="thread-panel"
+                  context={{ threadId }}
+                />
+              </DialogPanel>
+            </DialogPopup>
+          </Dialog>
+        ) : (
+          <Popover key={`${plugin.id}:${view.id}`}>
+            <PopoverTrigger render={<Button variant="ghost" size="sm" />}>
+              {view.title}
+            </PopoverTrigger>
+            <PopoverPopup>
+              <div className="max-h-[75vh] w-96 max-w-[85vw] overflow-auto">
+                <PluginPanels
+                  key={threadId}
+                  environmentId={environmentId}
+                  pluginId={plugin.id}
+                  viewId={view.id}
+                  location="thread-panel"
+                  context={{ threadId }}
+                />
+              </div>
+            </PopoverPopup>
+          </Popover>
+        ),
+      )}
       {views.map(({ plugin, viewId, sourceId }) => (
         <PluginThreadView
           key={`${sourceId}:${plugin.id}:${viewId}`}

@@ -194,3 +194,62 @@ export async function runPluginAction(options: {
   }
   return failed("The plugin did not finish. Try again.");
 }
+
+const GRAPH_COLORS = ["#0284c7", "#c026d3", "#16a34a", "#ea580c", "#7c3aed", "#0891b2"];
+
+/** Pending parents keep their lane and color until their node is reached. */
+export function pluginGraphLayout(
+  nodes: readonly { readonly id: string; readonly parents: readonly string[] }[],
+) {
+  let lanes: { id: string; color: string }[] = [];
+  let nextColor = 0;
+  let columns = 1;
+  const rows = nodes.map((node) => {
+    const existing = lanes.findIndex((lane) => lane.id === node.id);
+    const column = existing < 0 ? lanes.length : existing;
+    const color =
+      existing < 0 ? GRAPH_COLORS[nextColor++ % GRAPH_COLORS.length]! : lanes[column]!.color;
+    const before = [...lanes];
+    if (existing < 0) lanes.push({ id: node.id, color });
+    const next = [...lanes];
+    next.splice(column, 1);
+    node.parents.forEach((id, i) => {
+      if (!next.some((lane) => lane.id === id)) {
+        const lane = {
+          id,
+          color: i === 0 ? color : GRAPH_COLORS[nextColor++ % GRAPH_COLORS.length]!,
+        };
+        if (i === 0) next.splice(Math.min(column, next.length), 0, lane);
+        else next.push(lane);
+      }
+    });
+    const edges: { from: number; to: number; start: number; end: number; color: string }[] = [];
+    before.forEach((lane, from) => {
+      if (lane.id === node.id) edges.push({ from, to: column, start: 0, end: 22, color });
+      else
+        edges.push({
+          from,
+          to: next.findIndex((item) => item.id === lane.id),
+          start: 0,
+          end: 44,
+          color: lane.color,
+        });
+    });
+    node.parents.forEach((parent) => {
+      const to = next.findIndex((lane) => lane.id === parent);
+      edges.push({ from: column, to, start: 22, end: 44, color: next[to]!.color });
+    });
+    columns = Math.max(columns, before.length, column + 1, next.length);
+    lanes = next;
+    return {
+      id: node.id,
+      column,
+      color,
+      paths: edges.map((edge) => ({
+        color: edge.color,
+        d: `M ${10 + edge.from * 16} ${edge.start} C ${10 + edge.from * 16} 22 ${10 + edge.to * 16} 22 ${10 + edge.to * 16} ${edge.end}`,
+      })),
+    };
+  });
+  return { width: columns * 16 + 4, rows };
+}
