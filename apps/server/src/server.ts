@@ -1,3 +1,4 @@
+import * as PluginProjects from "./plugins/PluginProjects.ts";
 import { PrepareLaunch } from "@t3tools/provider-core/server/prepareLaunch";
 import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEventLoggers";
 import type { RelayManagedEndpointRuntimeConfig } from "@t3tools/contracts/relay";
@@ -729,6 +730,7 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   layerThreadSettlementWorker,
   layerIdleCompactionWorker,
   layerWorktreeRemoval,
+  PluginProjects.layerBinding.pipe(Layer.provide(layerSourceControlProviderRegistry)),
   PluginThreads.layerBinding.pipe(
     Layer.provide(PluginThreads.layer),
     Layer.provide(layerWorktreeRemoval),

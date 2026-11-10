@@ -1,3 +1,5 @@
+import { Switch } from "../ui/switch";
+import { PluginAssociationsView } from "./PluginAssociationsView";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -25,7 +27,7 @@ import {
   pluginGraphLayout,
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
-import { AsyncResult } from "effect/reactivity";
+import { AsyncResult, Atom } from "effect/reactivity";
 import * as Option from "effect/Option";
 import { useContext, useEffect, useRef, useState } from "react";
 import { serverEnvironment } from "../../state/server";
@@ -33,6 +35,17 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { Input } from "../ui/input";
+
+function associationQuery(selection: PluginInput) {
+  const search = selection.associationSearch;
+  return search &&
+    typeof search === "object" &&
+    !Array.isArray(search) &&
+    "query" in search &&
+    typeof search.query === "string"
+    ? search.query
+    : "";
+}
 
 type Entry = PluginCatalog["plugins"][number];
 type Location = PluginViewDescriptor["location"];
@@ -91,13 +104,14 @@ export function PluginPanels({
         plugin.views
           .filter(
             (v) =>
+              plugin.status === "active" &&
               v.location === location &&
               (!pluginId || plugin.id === pluginId) &&
               (!viewId || v.id === viewId),
           )
           .map((view) => (
             <PluginPanel
-              key={`${plugin.id}:${view.id}`}
+              key={`${plugin.id}:${view.id}:${JSON.stringify(context ?? {})}`}
               environmentId={environmentId}
               plugin={plugin}
               view={view}
@@ -133,6 +147,24 @@ function PluginPanel({
   const content = page?.view ?? Option.getOrNull(AsyncResult.value(result));
   const registry = useContext(RegistryContext);
   const execute = useAtomCommand(serverEnvironment.executePluginCommand);
+  const commandAccess = Atom.make(
+    (get) =>
+      new Set(
+        plugin.commands
+          .filter((command) =>
+            get(
+              serverEnvironment.executePluginCommand.permissionAtom(environmentId, {
+                pluginId: plugin.id,
+                commandId: command.id,
+                permission: command.permission,
+                input: {},
+              }),
+            ),
+          )
+          .map((command) => command.id),
+      ),
+  );
+  const allowedCommands = useAtomValue(commandAccess);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const running = useRef(false);
@@ -188,9 +220,23 @@ function PluginPanel({
         setBusy(false);
       });
   };
+  if (content?.blocks.length === 0 && !page) return null;
   return (
-    <section className="space-y-3 rounded-lg border p-4" aria-label={view.title}>
-      <div className="flex items-center justify-between gap-3">
+    <section
+      className={
+        view.location === "project-new-thread"
+          ? "space-y-3 px-4 py-3"
+          : "space-y-3 rounded-lg border p-4"
+      }
+      aria-label={view.title}
+    >
+      <div
+        className={
+          view.location === "project-new-thread"
+            ? "hidden"
+            : "flex items-center justify-between gap-3"
+        }
+      >
         <h3 className="text-sm font-medium">{content?.title ?? view.title}</h3>
         <Button
           size="sm"
@@ -200,7 +246,7 @@ function PluginPanel({
             registry.refresh(query);
           }}
         >
-          Refresh
+          {page ? "Back" : "Refresh"}
         </Button>
       </div>
       {notice && <p role={notice.tone === "danger" ? "alert" : "status"}>{notice.text}</p>}
@@ -239,6 +285,36 @@ function PluginPanel({
       )}
       {result._tag === "Failure" && <p role="alert">This plugin view could not be loaded.</p>}
       {content?.blocks.map((block) => {
+        if (block.kind === "toggle")
+          return (
+            <label key={block.id} className="flex items-center justify-between gap-3">
+              {block.label}
+              <Switch
+                aria-label={block.label}
+                checked={block.value}
+                disabled={busy || !allowedCommands.has(block.action.command)}
+                onCheckedChange={() => void run(block.action)}
+              />
+            </label>
+          );
+        if (block.kind === "associations")
+          return (
+            <PluginAssociationsView
+              key={block.id}
+              block={block}
+              busy={busy}
+              run={run}
+              submittedQuery={associationQuery(selection)}
+              canRun={(action) => allowedCommands.has(action.command)}
+              search={(query, cursor) =>
+                setSelection((current) => ({
+                  ...current,
+                  associationSearch: { blockId: block.id, query, ...(cursor ? { cursor } : {}) },
+                }))
+              }
+            />
+          );
+
         if (block.kind === "graph")
           return (
             <PluginGraph
@@ -279,7 +355,7 @@ function PluginPanel({
           );
         if (block.kind === "text")
           return (
-            <p key={block.id} className="whitespace-pre-wrap text-sm">
+            <p key={block.id} className="whitespace-pre-wrap wrap-break-word text-sm">
               {block.text}
             </p>
           );

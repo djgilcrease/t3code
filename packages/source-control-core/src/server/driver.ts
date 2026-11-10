@@ -49,6 +49,13 @@ export interface SourceControlSignIn {
 }
 
 export interface SourceControlDriverInstance {
+  /** Bounded authenticated GET for trusted extensions; paths are relative to the provider API. */
+  readonly readApi?: (input: {
+    readonly host: string;
+    readonly path: string;
+    readonly cwd: string;
+  }) => Effect.Effect<string, { readonly message: string }>;
+
   readonly sourceControl: SourceControlProvider.SourceControlProvider["Service"];
   readonly discovery: SourceControlProviderDiscoverySpec;
   /** Null for a host whose pull requests this build cannot read. */

@@ -57,6 +57,31 @@ it("rejects ambiguous form and table identities before clients render them", () 
   ).toBe(false);
 });
 
+it("bounds searchable associations and rejects duplicate identities", () => {
+  const item = {
+    id: "repo:123",
+    label: "#123",
+    select: { id: "select", label: "Select", command: "select", input: {} },
+  };
+  const block = {
+    id: "issues",
+    kind: "associations",
+    label: "Issues",
+    selected: [],
+    options: [item],
+  };
+  expect(valid({ title: "Issues", blocks: [block] })).toBe(true);
+  expect(valid({ title: "Issues", blocks: [{ ...block, options: [item, item] }] })).toBe(false);
+  expect(
+    valid({
+      title: "Issues",
+      blocks: [
+        { ...block, selected: Array.from({ length: 21 }, (_, i) => ({ ...item, id: String(i) })) },
+      ],
+    }),
+  ).toBe(false);
+});
+
 it("bounds ordered graphs and rejects backwards edges and duplicate nodes", () => {
   const node = {
     id: "child",

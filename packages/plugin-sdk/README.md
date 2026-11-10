@@ -291,6 +291,35 @@ These tokens last 30 days and are restricted to MCP. Ordinary bearer sessions
 issued with `auth session issue` cannot access MCP. Revoke either token with
 `auth session revoke <session-id>`.
 
+## Project and thread associations
+
+Require `contextual-associations` for `project-new-thread` and
+`thread-associations` views. Clients supply `{ projectId, threadId? }` on the
+owning environment, including the prospective thread ID before first send.
+A `toggle` block carries a boolean and its mutation action. An `associations`
+block carries selected items, search options, and an optional next cursor.
+An optional `clear` action removes the selection. Each item has a durable provider-qualified `id`, a `label`, a `select` action
+(select or remove), and an optional `open` action. Search submits
+`associationSearch: { blockId, query, cursor? }` to the same view. Return a
+`view` command result with a text block to load bounded issue details
+inside the calling panel. Revalidate selected identities and permission-sensitive
+content in the plugin; search results are not an authorization grant.
+
+Require `project-source-reads` for `context.projects.describe(projectId)` and
+`readSource({ projectId, path })`. Describe resolves the project's current host
+source-control selection. API reads are GET-only, relative to that provider's
+API root, use its existing authentication, and keep credentials in the host.
+Check `apiReads` before offering an adapter; currently GitHub and GitLab implement this
+optional driver boundary. GitLab uses the existing `glab` service in the project checkout. Paths and responses are bounded; no arbitrary origin
+or redirect target is accepted through this boundary.
+
+Require `task-context` for the `taskContext({ projectId, threadId })` contribution.
+It returns refreshed reference text for each user turn, before provider dispatch.
+Each plugin gets 16,384 characters; the combined budget is 32,768. Failure stops
+the turn rather than silently dropping required context. Native goal commands
+remain verbatim. The plugin owns durable associations, consent, source adapters,
+and context selection; the host adds no tracker-specific persistence or logic.
+
 ## Ordered graph views
 
 The `portable-graphs` capability adds bounded `graph` blocks: `label` and up to

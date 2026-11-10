@@ -381,6 +381,16 @@ function ProjectOverviewContent(props: {
         </SettingsSection>
       ) : null}
 
+      <SettingsSection title="New threads">
+        {props.members.map((member) => (
+          <PluginPanels
+            key={`${member.environmentId}:${member.id}`}
+            environmentId={member.environmentId}
+            location="project-new-thread"
+            context={{ projectId: member.id }}
+          />
+        ))}
+      </SettingsSection>
       <SettingsSection title="Checkouts">
         {props.members.map((member, index) => {
           const environment = props.environments.find(
