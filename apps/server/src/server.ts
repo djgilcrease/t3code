@@ -4,6 +4,7 @@ import type { RelayManagedEndpointRuntimeConfig } from "@t3tools/contracts/relay
 import * as Random from "effect/Random";
 import * as EnvironmentKeys from "./cloud/environmentKeys.ts";
 import * as AssetSigner from "./assets/AssetSigner.ts";
+import * as NotificationJournal from "./plugins/NotificationJournal.ts";
 import * as DatabaseStorage from "./persistence/DatabaseStorage.ts";
 import * as WorktreeRemovalService from "./workspace/WorktreeRemovalService.ts";
 import * as StorageCleanup from "./storageCleanup.ts";
@@ -316,6 +317,7 @@ const layerPlugins = PluginManager.layer.pipe(
     PluginRegistry.layer.pipe(
       Layer.provide(PluginModuleLoader.layer),
       Layer.provide(ServerEnvironment.layerIdentity),
+      Layer.provide(NotificationJournal.layer.pipe(Layer.provide(SqlitePersistence.layerConfig))),
       Layer.provide(ProjectionStoreV2.layer.pipe(Layer.provide(SqlitePersistence.layerConfig))),
     ),
   ),

@@ -562,6 +562,10 @@
     "./provider-instance-ids": {
       "types": "./src/providerInstanceIds.ts",
       "default": "./src/providerInstanceIds.ts"
+    },
+    "./notificationRouting": {
+      "types": "./src/notificationRouting.ts",
+      "default": "./src/notificationRouting.ts"
     }
   },
   "scripts": {

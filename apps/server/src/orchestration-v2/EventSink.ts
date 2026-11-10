@@ -1,4 +1,5 @@
 import {
+  PluginNotification,
   CommandId,
   type OrchestrationV2Run,
   OrchestrationV2DomainEvent,
@@ -12,6 +13,8 @@ import {
   type ProjectId,
   ThreadId,
 } from "@t3tools/contracts";
+import { turnItemUpdateCanEndBackgroundWork } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
+import { notificationTransition } from "../plugins/notificationTransition.ts";
 import * as ProviderCommitBatch from "./ProviderCommitBatch.ts";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
@@ -72,6 +75,7 @@ interface ProviderBatchPublication {
   readonly publish: Array<Effect.Effect<void>>;
   eventCount: number;
 }
+const encodeNotification = Schema.encodeEffect(Schema.fromJsonString(PluginNotification));
 const CurrentProviderBatch = Context.Reference<ProviderBatchPublication | undefined>(
   "t3/orchestration-v2/EventSink/CurrentProviderBatch",
   { defaultValue: () => undefined },
@@ -383,9 +387,52 @@ const layerBase: Layer.Layer<
     const applyStoredEvents =
       /* This helper runs for individual orchestration events; the enclosing operation owns the span. */
       Effect.fnUntraced(function* (storedEvents: ReadonlyArray<OrchestrationV2StoredEvent>) {
+        // Transcript chunks cannot change alert eligibility; read shells only for state transitions.
+        const candidates = new Map(
+          storedEvents
+            .filter(
+              ({ event }) =>
+                event.type === "run.updated" ||
+                event.type === "runtime-request.updated" ||
+                event.type === "subagent.updated" ||
+                event.type === "thread.guest-share-updated" ||
+                (event.type === "turn-item.updated" &&
+                  turnItemUpdateCanEndBackgroundWork(event.payload)),
+            )
+            .map((stored) => [stored.event.threadId, stored] as const),
+        );
+        const before = new Map(
+          yield* Effect.forEach([...candidates.keys()], (threadId) =>
+            projectionStore
+              .getThreadShell(threadId)
+              .pipe(Effect.map((shell) => [threadId, shell] as const)),
+          ),
+        );
         yield* Effect.forEach(storedEvents, (stored) => projectionStore.apply(stored.event), {
           concurrency: 1,
         });
+        for (const [threadId, stored] of candidates) {
+          const after = yield* projectionStore.getThreadShell(threadId);
+          const transition = notificationTransition(before.get(threadId) ?? null, after);
+          if (transition === null || after === null) continue;
+          const notification = {
+            id: `${stored.event.id}:${transition.kind}:${transition.identity}`.slice(0, 200),
+            sequence: 0,
+            kind: transition.kind,
+            threadId: after.delegatedFrom?.threadId ?? after.lineage.parentThreadId ?? threadId,
+            sourceThreadId: threadId,
+            ...(after.delegatedFrom
+              ? { targetEnvironmentId: after.delegatedFrom.environmentId }
+              : {}),
+            projectId: after.projectId,
+            provider: after.providerInstanceId,
+            title: after.title.slice(0, 200),
+            occurredAt: DateTime.formatIso(stored.event.occurredAt),
+          };
+          const payload = yield* encodeNotification(notification);
+          yield* sql`INSERT OR IGNORE INTO notification_journal (event_id, payload_json)
+            VALUES (${notification.id}, ${payload})`;
+        }
         const sequence = storedEvents.at(-1)?.sequence;
         if (sequence !== undefined) {
           const now = DateTime.formatIso(yield* DateTime.now);

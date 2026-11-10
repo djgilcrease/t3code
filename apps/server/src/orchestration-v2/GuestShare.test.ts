@@ -15,6 +15,7 @@ import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 
+import * as NotificationJournal from "../plugins/NotificationJournal.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 import * as EffectOutbox from "./EffectOutbox.ts";
@@ -34,6 +35,7 @@ const adapter = {
 const layerDatabase = SqlitePersistence.layerMemory;
 const layerTest = Layer.mergeAll(
   layerDatabase,
+  NotificationJournal.layer.pipe(Layer.provide(layerDatabase)),
   ProjectionStore.layer.pipe(Layer.provide(layerDatabase)),
   EffectOutbox.layer.pipe(Layer.provide(layerDatabase)),
   ProviderReplayHarness.layerWithRegistry(
@@ -92,6 +94,8 @@ it.effect("redeems a guest link once and sends each guest message once, with its
   Effect.gen(function* () {
     const orchestrator = yield* setup;
     const projections = yield* ProjectionStore.ProjectionStoreV2;
+    const notifications = yield* NotificationJournal.NotificationJournal;
+    const baseline = yield* notifications.read({ after: null });
     const redeem = (id: string) =>
       orchestrator.dispatch({
         type: "thread.guest-share.redeem",
@@ -112,6 +116,13 @@ it.effect("redeems a guest link once and sends each guest message once, with its
       text: "Why not keep the old cache?",
     });
     assert.equal((yield* projections.getThreadShell(threadId))?.pendingGuestMessageCount, 1);
+    const alerts = yield* notifications.read({ after: baseline.cursor });
+    assert.deepEqual(
+      alerts.events.map((event) => event.kind),
+      ["guest-request"],
+    );
+    assert.equal(alerts.events[0]?.threadId, threadId);
+    assert.equal(alerts.events[0]?.title, "Review me");
 
     yield* sendGuestMessage(orchestrator, "send-1");
     const projection = yield* projections.getThreadProjection(threadId);
