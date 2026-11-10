@@ -122,6 +122,16 @@ folder in place but clears their T3-managed data and credentials.
   and, with `thread`, an **Open thread** button. A failed command shows only a
   generic error, so report user-facing failures as a `danger` notice. Require
   the `thread-details` capability.
+- **Relayed steps** let a `thread-details` action continue on another
+  environment. Return `{ $t3: "relay", environmentId?, command, input, status? }`
+  and the client calls that command of the same plugin next, on the named
+  connected environment or on the one that answered. Each step is an ordinary
+  command: its permission is checked where it runs, and it keeps the 30-second
+  and 256 KiB limits, so move large data in chunks and long work in a
+  background fiber the next step waits on. Two environments that cannot reach
+  each other can exchange data this way. A relayed step does not refresh views;
+  the last result does. The chain stops if the user closes the dialog or the
+  client goes away, so leave the source unchanged until the final step.
 - **Launch hooks** transform a provider's purpose, arguments, and environment in
   configuration order. Return new values. An undefined environment value means
   deletion. Codex agents and text generation, Claude agents and text generation,
