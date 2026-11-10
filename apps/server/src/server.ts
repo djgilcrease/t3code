@@ -18,7 +18,12 @@ import * as NodeHttp from "node:http";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { EnvironmentHttpApi, GitCommandError, type RepositoryIdentity } from "@t3tools/contracts";
+import {
+  ThreadId,
+  EnvironmentHttpApi,
+  GitCommandError,
+  type RepositoryIdentity,
+} from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Duration from "effect/Duration";
 import * as Deferred from "effect/Deferred";
@@ -316,6 +321,8 @@ const layerPlugins = PluginManager.layer.pipe(
   Layer.provideMerge(
     PluginRegistry.layer.pipe(
       Layer.provide(PluginModuleLoader.layer),
+      Layer.provide(layerServerSettings),
+      Layer.provide(ProjectStore.layer.pipe(Layer.provide(SqlitePersistence.layerConfig))),
       Layer.provide(ServerEnvironment.layerIdentity),
       Layer.provide(NotificationJournal.layer.pipe(Layer.provide(SqlitePersistence.layerConfig))),
       Layer.provide(ProjectionStoreV2.layer.pipe(Layer.provide(SqlitePersistence.layerConfig))),
@@ -699,6 +706,15 @@ const layerServerRestart = Layer.effect(
 
 const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   AgentAwarenessRelay.layer,
+  Layer.effectDiscard(
+    Effect.gen(function* () {
+      const registry = yield* PluginRegistry.PluginRegistry;
+      const notifications = yield* AgentAwarenessRelay.AgentAwarenessRelay;
+      yield* registry.setNotificationDelivery((threadId) =>
+        notifications.publishThread(ThreadId.make(threadId)),
+      );
+    }),
+  ).pipe(Layer.provide(AgentAwarenessRelay.layer)),
   HeldHooksWaker.layer,
   layerThreadSettlementWorker,
   layerIdleCompactionWorker,

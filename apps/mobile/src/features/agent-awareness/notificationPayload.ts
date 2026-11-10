@@ -83,6 +83,12 @@ export function threadDeepLinkOnScreen(pathname: string): string | null {
 
 export function extractAgentNotificationDeepLink(response: unknown): string | null {
   const data = dataFromNotificationResponse(response);
+  if (data?.t3PluginNotice === true && typeof data.pluginNoticePath === "string") {
+    const path = data.pluginNoticePath;
+    if (/^\/settings(?:\/[a-zA-Z0-9-]+)*$/.test(path)) return path;
+    const threadPath = normalizeThreadDeepLink(path);
+    if (threadPath) return threadPath;
+  }
   const deepLink = data?.deepLink;
   if (typeof deepLink === "string") {
     const normalizedDeepLink = normalizeThreadDeepLink(deepLink);

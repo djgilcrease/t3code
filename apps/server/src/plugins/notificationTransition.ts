@@ -4,6 +4,7 @@ import * as DateTime from "effect/DateTime";
 
 type Thread = Pick<
   OrchestrationV2ThreadShell,
+  | "title"
   | "lineage"
   | "archivedAt"
   | "pendingRuntimeRequest"
@@ -29,7 +30,16 @@ function observation(thread: Thread): { kind: PluginNotificationKind; identity: 
   if ((thread.pendingGuestMessageCount ?? 0) > 0) {
     return { kind: "guest-request", identity: `${thread.latestRunId}:guest` };
   }
-  if (thread.activityRunStatus != null) return null;
+  if (
+    thread.activityRunStatus != null ||
+    backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? []) ||
+    ["preparing", "starting", "running", "waiting"].includes(thread.status)
+  ) {
+    return {
+      kind: "activity",
+      identity: `${thread.latestRunId}:${thread.activityRunStatus ?? thread.status}:${thread.title}`,
+    };
+  }
   if (thread.status === "failed") {
     return {
       kind: thread.lastErrorClass === "usage_limit" ? "usage-limit" : "failure",
@@ -51,12 +61,19 @@ function observation(thread: Thread): { kind: PluginNotificationKind; identity: 
 }
 
 export function notificationTransition(before: Thread | null, after: Thread | null) {
-  if (before === null || after === null) return null;
+  if (before === null) return null;
+  const prior = observation(before);
+  if (after === null)
+    return prior === null ? null : { kind: "clear" as const, identity: prior.identity };
   const next = observation(after);
   if (after.lineage.relationshipToParent === "subagent" || after.lineage.sideChat === true) {
-    if (next?.kind !== "input" && next?.kind !== "approval") return null;
+    if (next?.kind !== "input" && next?.kind !== "approval") {
+      return prior?.kind === "input" || prior?.kind === "approval"
+        ? { kind: "clear" as const, identity: prior.identity }
+        : null;
+    }
   }
-  if (next === null) return null;
-  const prior = observation(before);
+  if (next === null)
+    return prior === null ? null : { kind: "clear" as const, identity: prior.identity };
   return prior?.kind === next.kind && prior.identity === next.identity ? null : next;
 }

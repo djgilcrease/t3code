@@ -1,3 +1,4 @@
+import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as TestClock from "effect/testing/TestClock";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
@@ -16,6 +17,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as NotificationJournal from "./NotificationJournal.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as PluginModuleLoader from "./PluginModuleLoader.ts";
@@ -789,4 +791,45 @@ it.effect.each([0, 999, 3_900_001, Number.POSITIVE_INFINITY])(
         });
       }),
     ),
+);
+
+it.effect(
+  "dispatches native notifications through committed-state delivery without starting a turn",
+  () => {
+    const refreshed: string[] = [];
+    return withHost(
+      [
+        plugin((context) =>
+          Effect.succeed({
+            commands: [
+              {
+                ...command,
+                run: () =>
+                  context.notifications!.refreshNative("known-thread").pipe(Effect.as(null)),
+              },
+            ],
+          }),
+        ),
+      ],
+      Effect.gen(function* () {
+        const host = yield* PluginRegistry.PluginRegistry;
+        expect(
+          yield* host
+            .execute(envelope, AuthStandardClientScopes)
+            .pipe(Effect.exit, Effect.map(Exit.isFailure)),
+        ).toBe(true);
+        yield* host.setNotificationDelivery((threadId) =>
+          Effect.sync(() => {
+            refreshed.push(threadId);
+          }),
+        );
+        expect(yield* host.execute(envelope, AuthStandardClientScopes)).toBeNull();
+        expect(refreshed).toEqual(["known-thread"]);
+      }),
+    ).pipe(
+      Effect.provideService(NotificationJournal.NotificationJournal, {
+        read: () => Effect.succeed({ cursor: 0, events: [] }),
+      }),
+    );
+  },
 );
