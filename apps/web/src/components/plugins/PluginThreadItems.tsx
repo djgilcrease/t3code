@@ -60,7 +60,7 @@ export function PluginThreadItems({
   if (views.length === 0) return null;
   return (
     <div
-      className="flex shrink-0 flex-wrap items-center justify-end gap-1 pe-1.5"
+      className="flex min-w-0 flex-wrap items-center gap-1 px-2.5 pb-1 empty:hidden"
       data-plugin-thread-items
     >
       {views.map(({ plugin, viewId, sourceId }) => (
