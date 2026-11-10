@@ -833,3 +833,35 @@ it.effect(
     );
   },
 );
+
+it.effect("refreshes bounded task context and removes disabled contributions", () =>
+  withHost(
+    [plugin(() => Effect.succeed({ taskContext: ({ threadId }) => Effect.succeed(threadId) }))],
+    Effect.gen(function* () {
+      const host = yield* PluginRegistry.PluginRegistry;
+      expect(yield* host.taskContext({ projectId: "project", threadId: "one" })).toBe(
+        "Reference material from test:\none",
+      );
+      expect(yield* host.taskContext({ projectId: "project", threadId: "two" })).toBe(
+        "Reference material from test:\ntwo",
+      );
+      const config = yield* host.configuration;
+      yield* host.reconcile({
+        plugins: config.plugins.map((entry) => ({ ...entry, enabled: false })),
+      });
+      expect(yield* host.taskContext({ projectId: "project", threadId: "one" })).toBe("");
+    }),
+  ),
+);
+
+it.effect("fails closed on oversized task reference material", () =>
+  withHost(
+    [plugin(() => Effect.succeed({ taskContext: () => Effect.succeed("x".repeat(16_385)) }))],
+    Effect.gen(function* () {
+      const host = yield* PluginRegistry.PluginRegistry;
+      expect(
+        (yield* host.taskContext({ projectId: "project", threadId: "one" }).pipe(Effect.flip))._tag,
+      ).toBe("PluginOperationError");
+    }),
+  ),
+);

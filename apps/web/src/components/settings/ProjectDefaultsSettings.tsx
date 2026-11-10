@@ -1,4 +1,5 @@
 import { managedRuntimeModeDenial } from "@t3tools/client-runtime/contract-labels";
+import { PluginPanels } from "../plugins/PluginPanels";
 import {
   DEFAULT_SERVER_SETTINGS,
   type ModelSelection,
@@ -360,6 +361,18 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
           {modelRow}
           {fallbackRow}
           {workspaceRow}
+          {targets.flatMap((target) =>
+            target.projectId
+              ? [
+                  <PluginPanels
+                    key={`${target.environmentId}:${target.projectId}`}
+                    environmentId={target.environmentId}
+                    location="project-new-thread"
+                    context={{ projectId: target.projectId }}
+                  />,
+                ]
+              : [],
+          )}
         </>
       ) : category === "general" ? (
         <>

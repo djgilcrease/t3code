@@ -1,5 +1,6 @@
 import { errorDisplayMessage } from "@t3tools/client-runtime/errors";
 import { T, useGT } from "gt-react-native";
+import { PluginPanels } from "../plugins/PluginPanels";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { AppText as Text, AppTextInput } from "../../components/ui/AppText";
 import { Button } from "../../components/ui/Button";
@@ -402,6 +403,16 @@ function ProjectOverviewContent(props: {
         </SettingsSection>
       ) : null}
 
+      <SettingsSection title="New threads">
+        {props.members.map((member) => (
+          <PluginPanels
+            key={`${member.environmentId}:${member.id}`}
+            environmentId={member.environmentId}
+            location="project-new-thread"
+            context={{ projectId: member.id }}
+          />
+        ))}
+      </SettingsSection>
       <SettingsSection title={gt("Checkouts")}>
         {props.members.map((member, index) => {
           const environment = props.environments.find(
