@@ -56,3 +56,40 @@ it("rejects ambiguous form and table identities before clients render them", () 
     }),
   ).toBe(false);
 });
+
+it("bounds ordered graphs and rejects backwards edges and duplicate nodes", () => {
+  const node = {
+    id: "child",
+    parents: ["parent"],
+    label: "Child",
+    detail: "Detail",
+    annotation: "id",
+    badges: [],
+    action: { id: "open", label: "Open", command: "read", input: {} },
+  };
+  const graph = {
+    id: "graph",
+    kind: "graph",
+    label: "History",
+    nodes: [node, { ...node, id: "parent", parents: [] }],
+  };
+  expect(valid({ title: "Test", blocks: [graph] })).toBe(true);
+  expect(valid({ title: "Test", blocks: [{ ...graph, nodes: [node, node] }] })).toBe(false);
+  expect(valid({ title: "Test", blocks: [{ ...graph, nodes: [...graph.nodes].reverse() }] })).toBe(
+    false,
+  );
+  expect(
+    valid({ title: "Test", blocks: [{ ...graph, nodes: [{ ...node, parents: ["child"] }] }] }),
+  ).toBe(false);
+  expect(
+    valid({
+      title: "Test",
+      blocks: [
+        {
+          ...graph,
+          nodes: Array.from({ length: 101 }, (_, i) => ({ ...node, id: `node-${i}`, parents: [] })),
+        },
+      ],
+    }),
+  ).toBe(false);
+});
