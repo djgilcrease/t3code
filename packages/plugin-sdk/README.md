@@ -103,6 +103,12 @@ folder in place but clears their T3-managed data and credentials.
   copyable value for 30 seconds in the calling client. It is never part of a
   view or catalog; agent calls and read commands cannot use this disclosure. The server checks the actual
   descriptor permission, regardless of what the invocation envelope claims.
+  Hosts advertising `command-invocation-context` pass a second `run` argument with
+  `audience` (`client` or `agent`) and, for thread MCP calls, the authenticated
+  `environmentId`, `projectId`, and `threadId`. Treat agent-supplied input as
+  untrusted: scoped commands must require this context and reject missing identity.
+  Outside MCP clients and peer plugin calls have no project identity. Client
+  commands can select an explicit project under their normal environment grants.
 - **Views** return data rendered by host components on web, desktop, and mobile.
   Version 1 provides text, HTTP links, actions, forms, tables, and status items. Use
   `settings-page` for a standalone Extensions page and `usage` for a Usage panel.
