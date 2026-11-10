@@ -55,6 +55,7 @@ export interface SourceControlDriverInstance {
   readonly readApi?: (input: {
     readonly host: string;
     readonly path: string;
+    readonly cwd: string;
   }) => Effect.Effect<string, { readonly message: string }>;
 
   readonly sourceControl: SourceControlProvider.SourceControlProvider["Service"];

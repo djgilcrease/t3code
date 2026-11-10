@@ -45,15 +45,15 @@ export const layerBinding = Layer.effectDiscard(
           !/^[a-zA-Z0-9][a-zA-Z0-9_./%\-]*(?:\?[^#]*)?$/.test(input.path) ||
           input.path.includes("\\") ||
           /(^|\/)\.{1,2}(\/|\?|$)/.test(input.path) ||
-          /%2e|%2f|%5c/i.test(input.path.split("?")[0] ?? "")
+          /%2e|%5c/i.test(input.path.split("?")[0] ?? "")
         )
           return yield* new PluginError({ operation: "source-path", cause: null });
-        const { context, driver } = yield* resolve(input.projectId);
+        const { context, driver, project } = yield* resolve(input.projectId);
         if (!context || !driver?.readApi)
           return yield* new PluginError({ operation: "unsupported-source", cause: null });
         const host = new URL(context.provider.baseUrl).host;
         return yield* driver
-          .readApi({ host, path: input.path })
+          .readApi({ host, path: input.path, cwd: project.workspaceRoot })
           .pipe(Effect.mapError((cause) => new PluginError({ operation: "source-read", cause })));
       }),
     };
