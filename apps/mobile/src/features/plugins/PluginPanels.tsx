@@ -18,13 +18,14 @@ import {
   pluginFormInput,
   pluginLink,
   pluginSecretResult,
+  pluginViewResult,
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { useContext, useEffect, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { Linking, Switch, TextInput, View } from "react-native";
+import { Linking, ScrollView, Switch, TextInput, View } from "react-native";
 import { AppText as Text } from "../../components/ui/AppText";
 import { Button as MaterialButton } from "../../components/ui/Button";
 import { serverEnvironment } from "../../state/server";
@@ -121,7 +122,8 @@ function PluginPanel({
     input: { pluginId: plugin.id, viewId: view.id, ...(context ? { context } : {}) },
   });
   const result = useAtomValue(query);
-  const content = Option.getOrNull(AsyncResult.value(result));
+  const [page, setPage] = useState<ReturnType<typeof pluginViewResult>>(null);
+  const content = page?.view ?? Option.getOrNull(AsyncResult.value(result));
   const registry = useContext(RegistryContext);
   const execute = useAtomCommand(serverEnvironment.executePluginCommand);
   const [busy, setBusy] = useState(false);
@@ -155,6 +157,8 @@ function PluginPanel({
       .then((outcome) => {
         if (outcome._tag === "Success") {
           setSecret(pluginSecretResult(outcome.value));
+          const nextPage = pluginViewResult(outcome.value);
+          if (nextPage) setPage(nextPage);
           onCommandResult?.(outcome.value);
         }
         if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
@@ -174,7 +178,13 @@ function PluginPanel({
   return (
     <View className="gap-3 rounded-xl border border-border p-4">
       <Text className="font-t3-medium text-foreground">{content?.title ?? view.title}</Text>
-      <MaterialButton label="Refresh" onPress={() => registry.refresh(query)} />
+      <MaterialButton
+        label="Refresh"
+        onPress={() => {
+          setPage(null);
+          registry.refresh(query);
+        }}
+      />
       {error && <Text accessibilityRole="alert">{error}</Text>}
       {secret && (
         <View className="gap-2 rounded-lg border border-border p-3">
@@ -202,6 +212,14 @@ function PluginPanel({
         <Text accessibilityRole="alert">This plugin view could not be loaded.</Text>
       )}
       {content?.blocks.map((block) => {
+        if (block.kind === "code")
+          return (
+            <ScrollView key={block.id} horizontal>
+              <Text selectable style={{ fontFamily: "monospace" }}>
+                {block.text}
+              </Text>
+            </ScrollView>
+          );
         if (block.kind === "text")
           return (
             <Text key={block.id} selectable>
