@@ -25,6 +25,9 @@ source folder is kept. There is no marketplace or central plugin account.
 Plugins can contribute their own pages under **Settings → Extensions**, separate
 from installation and update controls. Extensions appears only while an active
 plugin contributes a page. Plugins can also contribute panels to **Usage → Limits**.
+A plugin can also add a status and actions beside the machine name in a thread's
+details, such as moving the thread to another machine. On mobile they appear in
+the thread's Git sheet, under the machine's name.
 The selected environment owns the plugin, its credentials, and its data.
 
 A plugin that manages worktree resources can run cleanup before deletion. If

@@ -39,6 +39,7 @@ import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
 import { Menu } from "../../components/ui/Menu";
 import { EnvironmentMachineSymbol } from "../../components/EnvironmentMachineSymbol";
+import { PluginStatusDots } from "../plugins/PluginThreadRows";
 import { ProjectFavicon } from "../../components/ProjectFavicon";
 import {
   ProviderIcon,
@@ -1328,6 +1329,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
             >
               {props.environmentLabel}
             </Text>
+            <PluginStatusDots environmentId={thread.environmentId} />
           </View>
         ) : (
           <View className="flex-1" />

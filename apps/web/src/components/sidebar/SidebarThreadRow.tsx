@@ -1,6 +1,7 @@
 import { useAtomMount } from "@effect/atom-react";
 import { asLaunchingThread } from "@t3tools/client-runtime/state/thread-inbox";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
+import { PluginStatusDots } from "../plugins/PluginStatusDots";
 import { ThreadTerminalStatusButton } from "../ThreadStatusIndicators";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
 import { requestCustomSnooze } from "../CustomSnoozeDialog";
@@ -1197,6 +1198,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         aria-hidden
         className="pointer-events-none ml-auto inline-flex shrink-0 items-center gap-1"
       >
+        <PluginStatusDots environmentId={thread.environmentId} />
         {remoteMachineIcon}
         <SidebarProviderStack
           thread={thread}
@@ -1207,6 +1209,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   );
   const titleLineIcons = metaLineEmpty ? (
     <span aria-hidden className="inline-flex shrink-0 items-center gap-1">
+      <PluginStatusDots environmentId={thread.environmentId} />
       {remoteMachineIcon}
       <SidebarProviderStack
         thread={thread}

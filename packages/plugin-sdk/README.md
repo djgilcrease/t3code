@@ -104,12 +104,24 @@ folder in place but clears their T3-managed data and credentials.
   view or catalog; agent calls and read commands cannot use this disclosure. The server checks the actual
   descriptor permission, regardless of what the invocation envelope claims.
 - **Views** return data rendered by host components on web, desktop, and mobile.
-  Version 1 provides text, HTTP links, actions, forms, and tables. Use
+  Version 1 provides text, HTTP links, actions, forms, tables, and status items. Use
   `settings-page` for a standalone Extensions page and `usage` for a Usage panel.
   The Extensions navigation group disappears when its last active contributor
   is disabled or removed. Use stable block, action, row, and field IDs. Never put
   credentials in views, defaults, labels, or results. Password fields never
   prefill server values.
+- **Thread details** views use the `thread-details` location and hold only
+  `status` blocks: an optional `tone`, `label`, and `detail`, plus at most three
+  actions. T3 draws them beside the machine name in a thread's details, and a
+  toned item also tints a dot on that environment's thread rows. The view is
+  read once per environment, not per thread. A pressed action receives the
+  thread as `threadId` in its input. An action can ask first: `confirm` shows
+  text before it runs, and `environment: { name, label }` asks for another
+  connected environment that runs the same plugin and sends its id under
+  `name`. Return `{ $t3: "notice", tone, text, thread? }` to end with a message
+  and, with `thread`, an **Open thread** button. A failed command shows only a
+  generic error, so report user-facing failures as a `danger` notice. Require
+  the `thread-details` capability.
 - **Launch hooks** transform a provider's purpose, arguments, and environment in
   configuration order. Return new values. An undefined environment value means
   deletion. Codex agents and text generation, Claude agents and text generation,

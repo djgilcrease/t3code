@@ -44,6 +44,7 @@ import {
   THREAD_DETAILS_PANEL_LABEL_CLASS,
 } from "./threadDetailsPanelStyles";
 import { Menu, MenuPopup } from "../ui/menu";
+import { PluginThreadItems } from "../plugins/PluginThreadItems";
 
 const GitActionsControl = memo(BaseGitActionsControl);
 
@@ -189,17 +190,27 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                 >
                   <div className="flex flex-col">
                     {show.environment ? (
-                      <BranchToolbar
-                        layout="panel"
-                        panelSection="workspace"
-                        availableEnvironments={props.availableEnvironments}
-                        {...(props.onEnvironmentChange
-                          ? { onEnvironmentChange: props.onEnvironmentChange }
-                          : {})}
-                        autoEnvironmentLabel={props.autoEnvironmentLabel}
-                        onAutoEnvironment={props.onAutoEnvironment}
-                        {...branchToolbarProps}
-                      />
+                      <div className="flex items-center">
+                        <div className="min-w-0 flex-1">
+                          <BranchToolbar
+                            layout="panel"
+                            panelSection="workspace"
+                            availableEnvironments={props.availableEnvironments}
+                            {...(props.onEnvironmentChange
+                              ? { onEnvironmentChange: props.onEnvironmentChange }
+                              : {})}
+                            autoEnvironmentLabel={props.autoEnvironmentLabel}
+                            onAutoEnvironment={props.onAutoEnvironment}
+                            {...branchToolbarProps}
+                          />
+                        </div>
+                        {props.isServerThread ? (
+                          <PluginThreadItems
+                            environmentId={props.environmentId}
+                            threadId={props.threadId}
+                          />
+                        ) : null}
+                      </div>
                     ) : null}
 
                     {show.openIn ? (
