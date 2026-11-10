@@ -14,6 +14,7 @@ import {
   PluginView,
   PluginRuntimeHealth,
   PluginSecretResult,
+  PluginRelayResult,
   PluginLocalId,
   PluginError,
   PluginOperationError,
@@ -56,6 +57,7 @@ const decodeViewDescriptor = Schema.decodeUnknownEffect(PluginViewDescriptor);
 const decodeView = Schema.decodeUnknownEffect(PluginView);
 const decodeHealth = Schema.decodeUnknownEffect(PluginRuntimeHealth);
 const isSecretResult = Schema.is(PluginSecretResult);
+const isRelayResult = Schema.is(PluginRelayResult);
 const decodeJson = Schema.decodeUnknownEffect(Schema.Json);
 const decodeSecretKey = Schema.decodeUnknownEffect(PluginLocalId);
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Json));
@@ -464,7 +466,11 @@ const make = Effect.gen(function* () {
         Effect.suspend(() => command.run(input.input)).pipe(
           Effect.flatMap(decodeJson),
           Effect.flatMap(boundedResult),
-          Effect.ensuring(changed),
+        ),
+      ).pipe(
+        // A relayed step is not the end of its action; views refresh once the chain ends.
+        Effect.onExit((exit) =>
+          Exit.isSuccess(exit) && isRelayResult(exit.value) ? Effect.void : changed,
         ),
       );
       if (

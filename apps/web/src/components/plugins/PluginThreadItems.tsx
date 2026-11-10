@@ -22,7 +22,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
-import { useContext, useId, useState } from "react";
+import { useContext, useId, useRef, useState } from "react";
 
 import { cn } from "../../lib/utils";
 import { useEnvironmentMachines, useEnvironments } from "../../state/environments";
@@ -51,6 +51,8 @@ interface Run {
   readonly action: PluginStatusAction;
   readonly phase: "ask" | "running" | "done";
   readonly notice: PluginNoticeResult | null;
+  /** Progress reported by a relayed step. */
+  readonly status: string | null;
   /** A plain action runs in place; its dialog opens only if it has something to say. */
   readonly dialog: boolean;
 }
@@ -103,6 +105,7 @@ function PluginThreadView({
   const registry = useContext(RegistryContext);
   const execute = useAtomCommand(serverEnvironment.executePluginCommand, { reportFailure: false });
   const [run, setRun] = useState<Run | null>(null);
+  const cancel = useRef<AbortController | null>(null);
 
   const executeStep = async (step: PluginActionStep): Promise<PluginActionReply> => {
     const target = EnvironmentId.make(step.environmentId);
@@ -135,7 +138,9 @@ function PluginThreadView({
     destination: EnvironmentId | null,
     dialog: boolean,
   ) => {
-    setRun({ action, phase: "running", notice: null, dialog });
+    setRun({ action, phase: "running", notice: null, status: null, dialog });
+    const controller = new AbortController();
+    cancel.current = controller;
     void runPluginAction({
       start: {
         environmentId,
@@ -143,13 +148,18 @@ function PluginThreadView({
         input: pluginStatusActionInput(action, threadId, destination),
       },
       execute: executeStep,
+      signal: controller.signal,
+      onStatus: (status) =>
+        setRun((current) => (current?.phase === "running" ? { ...current, status } : current)),
     }).then((notice) =>
-      setRun(notice === null ? null : { action, phase: "done", notice, dialog: true }),
+      setRun(
+        notice === null ? null : { action, phase: "done", notice, status: null, dialog: true },
+      ),
     );
   };
   const press = (action: PluginStatusAction) => {
     if (action.confirm !== undefined || action.environment !== undefined)
-      setRun({ action, phase: "ask", notice: null, dialog: true });
+      setRun({ action, phase: "ask", notice: null, status: null, dialog: true });
     else start(action, null, false);
   };
 
@@ -173,7 +183,11 @@ function PluginThreadView({
           plugin={plugin}
           run={run}
           onStart={(destination) => start(run.action, destination, true)}
-          onClose={() => setRun(null)}
+          onClose={() => {
+            // Stops carrying further steps; a plugin leaves its source untouched until the end.
+            cancel.current?.abort();
+            setRun(null);
+          }}
         />
       ) : null}
     </>
@@ -361,7 +375,7 @@ function PluginStatusActionDialog({
             ) : null}
             {run.phase === "running" ? (
               <p role="status" className="text-muted-foreground text-sm">
-                Working…
+                {run.status ?? "Working…"}
               </p>
             ) : null}
             {run.notice ? (
