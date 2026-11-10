@@ -1,6 +1,7 @@
 import * as Schema from "effect/Schema";
 import * as SchemaGetter from "effect/SchemaGetter";
 import {
+  PluginNotificationRoutes,
   PluginCommandDescriptor,
   PluginId,
   PluginInput,
@@ -41,6 +42,7 @@ export const PluginCatalogEntry = Schema.Struct({
   source: Schema.optionalKey(PluginSource),
   commands: Schema.Array(PluginCommandDescriptor),
   views: Schema.Array(PluginViewDescriptor),
+  notificationRoutes: Schema.optionalKey(PluginNotificationRoutes),
 });
 export const PluginCatalog = Schema.Struct({
   configurationError: Schema.Boolean,

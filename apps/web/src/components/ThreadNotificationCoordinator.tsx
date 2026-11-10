@@ -3,12 +3,13 @@ import {
   type PendingSubagentRequest,
   presentThreadShell,
 } from "@t3tools/client-runtime/state/models";
+import { resolvePluginNotificationRoute } from "@t3tools/client-runtime/notificationRouting";
+import { pluginCatalogsAtom } from "../state/plugins";
 import { isShownUnderParent } from "@t3tools/client-runtime/state/threads";
 import type { AnyRouter } from "@tanstack/react-router";
 import { threadKey } from "@t3tools/client-runtime/state/entities";
 import type { EnvironmentId, OrchestrationV2ThreadShell, ThreadId } from "@t3tools/contracts";
 import { monitorHoldsWakeCompletion } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
-import type { ClientSettings } from "@t3tools/contracts/settings";
 import * as Option from "effect/Option";
 import type { AtomRegistry } from "effect/reactivity";
 import {
@@ -139,7 +140,32 @@ export function startThreadNotifications(
         .has(threadKey({ environmentId, threadId: thread.id }))
     )
       return;
-    const { notificationMode: mode, inAppNotificationsEnabled } = getClientSettings();
+    const effectivePreferences = () => {
+      const route = resolvePluginNotificationRoute(
+        registry.get(pluginCatalogsAtom).find((entry) => entry.environmentId === environmentId)
+          ?.catalog ?? null,
+        {
+          kind:
+            kind === "completion"
+              ? "completion"
+              : status === "approval"
+                ? "approval"
+                : status === "limited"
+                  ? "usage-limit"
+                  : status === "failed"
+                    ? "failure"
+                    : status === "request"
+                      ? "guest-request"
+                      : "input",
+          projectId: state.raw.projectId,
+          provider: state.raw.providerInstanceId,
+        },
+      );
+      return route
+        ? { notificationMode: route.mode, inAppNotificationsEnabled: route.inApp }
+        : getClientSettings();
+    };
+    const { notificationMode: mode, inAppNotificationsEnabled } = effectivePreferences();
     const active = activeThread();
     const title =
       kind === "completion"
@@ -155,7 +181,7 @@ export function startThreadNotifications(
                 : "Input needed";
     if (hasNotificationSound(mode)) {
       void playNotificationSound(kind, () =>
-        hasNotificationSound(getClientSettings().notificationMode),
+        hasNotificationSound(effectivePreferences().notificationMode),
       );
     }
     if (
@@ -357,7 +383,16 @@ export function startThreadNotifications(
 
   const syncEnvironments = () => {
     const { notificationMode, inAppNotificationsEnabled } = getClientSettings();
-    const enabled = notificationMode !== "off" || inAppNotificationsEnabled;
+    const pluginRouting = registry
+      .get(pluginCatalogsAtom)
+      .some((entry) =>
+        entry.catalog?.plugins.some(
+          (plugin) =>
+            plugin.status === "active" &&
+            plugin.notificationRoutes?.some((route) => route.inApp || route.mode !== "off"),
+        ),
+      );
+    const enabled = notificationMode !== "off" || inAppNotificationsEnabled || pluginRouting;
     if (!enabled) closeToasts(() => true);
     const environmentIds = enabled ? registry.get(environmentSummaries.environmentIdsAtom) : [];
     const activeIds = new Set(environmentIds);
@@ -383,16 +418,27 @@ export function startThreadNotifications(
   };
 
   // Listeners that only exist for some notification modes, rebuilt when the mode changes.
-  let appliedMode: ClientSettings["notificationMode"] | null = null;
+  let appliedMode: string | null = null;
   let stopModeListeners = () => {};
   const applyMode = () => {
     const nextMode = getClientSettings().notificationMode;
-    if (nextMode === appliedMode) return;
-    appliedMode = nextMode;
+    const routes = registry
+      .get(pluginCatalogsAtom)
+      .flatMap((entry) =>
+        (entry.catalog?.plugins ?? []).flatMap((plugin) =>
+          plugin.status === "active" ? (plugin.notificationRoutes ?? []) : [],
+        ),
+      );
+    const routingModes = `${nextMode}:${routes.some((route) => hasDesktopNotifications(route.mode))}:${routes.some((route) => hasNotificationSound(route.mode))}`;
+    if (routingModes === appliedMode) return;
+    appliedMode = routingModes;
     stopModeListeners();
     clearPending();
     const stops: Array<() => void> = [];
-    if (hasDesktopNotifications(nextMode)) {
+    if (
+      hasDesktopNotifications(nextMode) ||
+      routes.some((route) => hasDesktopNotifications(route.mode))
+    ) {
       const unsubscribeBadgeClear = window.desktopBridge?.onNotificationBadgeClear(clearPending);
       window.addEventListener("focus", clearPending);
       stops.push(() => {
@@ -401,7 +447,10 @@ export function startThreadNotifications(
         clearPending();
       });
     }
-    if (hasNotificationSound(nextMode)) {
+    if (
+      hasNotificationSound(nextMode) ||
+      routes.some((route) => hasNotificationSound(route.mode))
+    ) {
       document.addEventListener("pointerdown", unlockNotificationAudio);
       document.addEventListener("keydown", unlockNotificationAudio);
       stops.push(() => {
@@ -419,6 +468,7 @@ export function startThreadNotifications(
     syncEnvironments();
   };
   const unsubscribeSettings = subscribeClientSettings(onSettings);
+  const unsubscribeRouting = registry.subscribe(pluginCatalogsAtom, onSettings);
   const unsubscribeEnvironmentIds = registry.subscribe(
     environmentSummaries.environmentIdsAtom,
     () => {
@@ -436,6 +486,7 @@ export function startThreadNotifications(
 
   return () => {
     unsubscribeSettings();
+    unsubscribeRouting();
     unsubscribeEnvironmentIds();
     for (const unsubscribe of unsubscribeHidden) unsubscribe();
     unsubscribeRoute();

@@ -9,7 +9,10 @@ import {
   IsExecutable as HostProcessIsExecutable,
 } from "@t3tools/shared/HostProcess";
 import {
+  PluginNotificationRoutes,
   PluginActivity,
+  PluginNotificationBatch,
+  PluginNotificationRead,
   PluginManifest,
   PluginMcpServers,
   PluginLifecycleTimeout,
@@ -65,6 +68,7 @@ const Activated = Schema.Struct({
   commands: Schema.Array(PluginCommandDescriptor),
   views: Schema.Array(PluginViewDescriptor),
   beforeRemove: Schema.Boolean,
+  notificationRoutes: Schema.optionalKey(Schema.Boolean),
   lifecycle: Schema.Boolean,
   lifecycleTimeoutMs: PluginLifecycleTimeout,
   mcp: Schema.Boolean,
@@ -72,6 +76,9 @@ const Activated = Schema.Struct({
   http: Schema.Boolean,
   httpResponseTimeoutMs: PluginHttpResponseTimeout,
 });
+const decodeNotificationRoutes = Schema.decodeUnknownSync(PluginNotificationRoutes);
+const decodeNotificationBatch = Schema.decodeSync(PluginNotificationBatch);
+const decodeNotificationRead = Schema.decodeUnknownSync(PluginNotificationRead);
 const decodeProcessInput = Schema.decodeUnknownSync(PluginProcessInput);
 const decodeThreadFile = Schema.decodeUnknownSync(
   Schema.Struct({ threadId: Schema.String, file: Schema.String }),
@@ -195,6 +202,7 @@ const make = Effect.gen(function* () {
                 "mcp-servers",
                 "lifecycle",
                 "before-remove",
+                "notification-routes",
               ].includes(method);
               // Client refreshes can be superseded while the worker is still answering.
               // Keep their watchdog until the reply arrives, even after caller cancellation.
@@ -302,6 +310,10 @@ const make = Effect.gen(function* () {
               await run(hostContext.secrets.remove(String(payload.key)));
               return null;
             }
+            if (method === "notifications-read" && hostContext.notifications)
+              return decodeNotificationBatch(
+                await run(hostContext.notifications.read(decodeNotificationRead(value))),
+              );
             if (method === "activity" && hostContext.activity)
               return decodeActivity(await run(hostContext.activity));
             if (method === "environment-id" && hostContext.environmentId)
@@ -630,6 +642,12 @@ const make = Effect.gen(function* () {
                 })),
                 ...(metadata.beforeRemove
                   ? { beforeRemove: () => call("before-remove", null).pipe(Effect.asVoid) }
+                  : {}),
+                ...(metadata.notificationRoutes
+                  ? {
+                      notificationRoutes: () =>
+                        call("notification-routes", {}).pipe(Effect.map(decodeNotificationRoutes)),
+                    }
                   : {}),
                 ...(metadata.lifecycle
                   ? {

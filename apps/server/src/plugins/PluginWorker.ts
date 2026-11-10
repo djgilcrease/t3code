@@ -6,7 +6,9 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import {
   PluginError,
+  PluginNotificationRoutes,
   PluginActivity,
+  PluginNotificationBatch,
   PluginManifest,
   PluginMcpContext,
   PluginLifecycleEvent,
@@ -29,6 +31,8 @@ import {
   MAX_PLUGIN_MESSAGE_BYTES,
   type PluginMessage,
 } from "./pluginProtocol.ts";
+const decodeNotificationRoutes = Schema.decodeSync(PluginNotificationRoutes);
+const decodeNotificationBatch = Schema.decodeUnknownSync(PluginNotificationBatch);
 const decodeProcessResult = Schema.decodeUnknownSync(PluginProcessResult);
 const decodePeers = Schema.decodeUnknownSync(Schema.Array(PluginPeer));
 const decodeThreadSummary = Schema.decodeUnknownSync(PluginThreadSummary);
@@ -123,6 +127,10 @@ export async function runPluginWorker(): Promise<void> {
             ? payload.capabilities.filter((value): value is string => typeof value === "string")
             : [],
           environmentId: hostEffect("environment-id", null).pipe(Effect.map(String)),
+          notifications: {
+            read: (input) =>
+              hostEffect("notifications-read", input).pipe(Effect.map(decodeNotificationBatch)),
+          },
           activity: hostEffect("activity", null).pipe(Effect.map(decodeActivity)),
           runProcess: (input) =>
             hostEffect("process-run", input).pipe(Effect.map(decodeProcessResult)),
@@ -173,6 +181,7 @@ export async function runPluginWorker(): Promise<void> {
           ),
           views: (contributions.views ?? []).map(({ read: _read, ...descriptor }) => descriptor),
           beforeRemove: !!contributions.beforeRemove,
+          notificationRoutes: !!contributions.notificationRoutes,
           lifecycle: !!contributions.onLifecycle,
           lifecycleTimeoutMs: contributions.lifecycleTimeoutMs ?? 30_000,
           mcp: !!contributions.mcpServers,
@@ -198,6 +207,11 @@ export async function runPluginWorker(): Promise<void> {
         } finally {
           controllers.delete(message.id);
         }
+      }
+      case "notification-routes": {
+        return decodeNotificationRoutes(
+          await Effect.runPromise(contributions.notificationRoutes!()),
+        );
       }
       case "mcp-servers": {
         return await Effect.runPromise(
