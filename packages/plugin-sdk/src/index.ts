@@ -98,6 +98,22 @@ export type PluginManagedEnvironment = typeof PluginManagedEnvironment.Type;
 export const PluginBlock = Schema.Union([
   Schema.Struct({
     id: PluginLocalId,
+    kind: Schema.Literal("graph"),
+    label: Label,
+    nodes: Schema.Array(
+      Schema.Struct({
+        id: Label,
+        parents: Schema.Array(Label).check(Schema.isMaxLength(20)),
+        label: Label,
+        detail: Label,
+        annotation: Label,
+        badges: Schema.Array(Label).check(Schema.isMaxLength(20)),
+        action: PluginAction,
+      }),
+    ).check(Schema.isMaxLength(100)),
+  }),
+  Schema.Struct({
+    id: PluginLocalId,
     kind: Schema.Literal("collection"),
     queryField: Schema.optionalKey(PluginLocalId),
     label: Label,
@@ -164,6 +180,20 @@ export const PluginView = Schema.Struct({
     (view) =>
       unique(view.blocks.map((block) => block.id)) &&
       view.blocks.every((block) => {
+        if (block.kind === "graph") {
+          const positions = new Map(block.nodes.map((node, i) => [node.id, i]));
+          return (
+            positions.size === block.nodes.length &&
+            new Set(block.nodes.flatMap((node) => [node.id, ...node.parents])).size <= 200 &&
+            block.nodes.every(
+              (node, i) =>
+                unique(node.parents) &&
+                node.parents.every(
+                  (parent) => parent !== node.id && (positions.get(parent) ?? Infinity) > i,
+                ),
+            )
+          );
+        }
         if (block.kind === "collection") return unique(block.items.map((item) => item.id));
         if (block.kind === "form")
           return (
@@ -209,6 +239,7 @@ export const PluginViewDescriptor = Schema.Struct({
     "managed-environments",
     "environment-launcher",
   ]),
+  presentation: Schema.optionalKey(Schema.Literals(["popover", "dialog"])),
   permission: PluginPermission,
 });
 export type PluginViewDescriptor = typeof PluginViewDescriptor.Type;
