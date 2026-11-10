@@ -38,6 +38,7 @@ import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolv
 import * as ServerSettings from "../serverSettings.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as WorktreeRemovalService from "../workspace/WorktreeRemovalService.ts";
+import { TerminalManager } from "../terminal/Manager.ts";
 import * as PluginRegistry from "./PluginRegistry.ts";
 
 /** The message is shown to the user, so it never carries a cause. */
@@ -551,5 +552,7 @@ export const layerBinding = Layer.effectDiscard(
   Effect.gen(function* () {
     const registry = yield* PluginRegistry.PluginRegistry;
     yield* registry.setThreads(yield* PluginThreads);
+    const terminals = yield* TerminalManager;
+    yield* registry.setTerminalInputActivity(terminals.inputActivity);
   }),
 );

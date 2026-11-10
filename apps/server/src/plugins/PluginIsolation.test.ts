@@ -311,10 +311,10 @@ import * as Deferred from ${JSON.stringify(import.meta.resolve("effect/Deferred"
 const release = Deferred.makeUnsafe();
 export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activate: (host) => Effect.succeed({
   commands: [{...${JSON.stringify(descriptor("release"))}, run: () => Deferred.succeed(release, undefined).pipe(Effect.as("released"))}],
-  views: [{id: "view", location: "settings", title: "View", permission: "diagnostics:read", read: () => Effect.gen(function* () {
+  views: [{id: "view", location: "settings", title: "View", permission: "diagnostics:read", read: (input = {}) => Effect.gen(function* () {
     yield* host.secrets.set("started", "true");
     yield* Deferred.await(release);
-    return {title: "View", blocks: []};
+    return {title: input.requestId ?? "View", blocks: []};
   })}]
 })};`,
       );
@@ -338,7 +338,7 @@ export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activ
       yield* Deferred.await(started);
       yield* Fiber.interrupt(reading);
       expect(yield* contributions.commands![0]!.run({})).toBe("released");
-      expect(yield* view.read()).toEqual({ title: "View", blocks: [] });
+      expect(yield* view.read({ requestId: "draft" })).toEqual({ title: "draft", blocks: [] });
     }).pipe(Effect.provide(PluginModuleLoader.layer)),
   ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
 );

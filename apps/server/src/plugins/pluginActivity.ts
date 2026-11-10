@@ -3,6 +3,8 @@ import * as DateTime from "effect/DateTime";
 
 type ActivityThread = Pick<
   OrchestrationV2ThreadShell,
+  | "id"
+  | "lineage"
   | "archivedAt"
   | "settledAt"
   | "snoozedAt"
@@ -11,7 +13,10 @@ type ActivityThread = Pick<
   | "pendingBackgroundTasks"
   | "updatedAt"
 >;
-export function summarizePluginActivity(threads: readonly ActivityThread[]): PluginActivity {
+export function summarizePluginActivity(
+  threads: readonly ActivityThread[],
+  terminalInputs: ReadonlyMap<string, number> = new Map(),
+): PluginActivity {
   const open = threads.filter(
     (thread) => !thread.archivedAt && !thread.settledAt && !thread.snoozedAt,
   );
@@ -26,8 +31,17 @@ export function summarizePluginActivity(threads: readonly ActivityThread[]): Plu
       (thread) => thread.pendingRuntimeRequest !== null || thread.status === "waiting",
     ),
     closed: open.length === 0,
+    threads: threads.map((thread) => ({
+      threadId: thread.id,
+      subagent: thread.lineage.relationshipToParent === "subagent",
+    })),
     lastActivity: threads.reduce(
-      (latest, thread) => Math.max(latest, DateTime.toEpochMillis(thread.updatedAt)),
+      (latest, thread) =>
+        Math.max(
+          latest,
+          DateTime.toEpochMillis(thread.updatedAt),
+          terminalInputs.get(thread.id) ?? 0,
+        ),
       0,
     ),
   };

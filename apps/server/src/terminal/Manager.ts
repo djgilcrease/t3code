@@ -229,6 +229,8 @@ export class TerminalManager extends Context.Service<
       registerCleanup?: (stop: () => void) => void,
     ) => Effect.Effect<() => void, TerminalError>;
 
+    readonly inputActivity: Effect.Effect<ReadonlyMap<string, number>>;
+
     /**
      * Attached viewers share one reply owner per PTY until it detaches. Marked replies
      * from other or detached viewer IDs are dropped; identity-free writes do not claim ownership.
@@ -3966,6 +3968,8 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     );
   };
 
+  const terminalInputs = new Map<string, number>();
+  const inputActivity = Effect.sync(() => new Map(terminalInputs));
   const write: TerminalManager["Service"]["write"] = Effect.fn("terminal.write")(
     function* (input, viewerId) {
       const terminalId = input.terminalId;
@@ -4006,6 +4010,11 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
           try: () => {
             session.inputCount += 1;
             process.write(PtyAdapter.ptyInput(data, binary));
+            if (data.length > 0) {
+              terminalInputs.delete(input.threadId);
+              terminalInputs.set(input.threadId, clock.currentTimeMillisUnsafe());
+              if (terminalInputs.size > 10_000) terminalInputs.delete(terminalInputs.keys().next().value!);
+            }
           },
           catch: writeError,
         });
@@ -4289,6 +4298,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     observeStream,
     resyncStream,
     write,
+    inputActivity,
     resize,
     clear,
     close,
