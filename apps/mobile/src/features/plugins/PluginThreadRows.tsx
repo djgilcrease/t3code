@@ -4,6 +4,7 @@ import {
   pluginDestinationLabel,
   pluginStatusActionInput,
   pluginThreadDetailsViews,
+  pluginThreadPanels,
   runPluginAction,
   type PluginActionReply,
   type PluginActionStep,
@@ -75,9 +76,11 @@ interface Run {
 export function PluginThreadRows({
   environmentId,
   threadId,
+  hasRepository,
 }: {
   environmentId: EnvironmentId;
   threadId: ThreadId;
+  hasRepository: boolean;
 }) {
   const catalogs = useAtomValue(pluginCatalogsAtom);
   const views = catalogs.flatMap(({ environmentId: sourceId, catalog }) =>
@@ -87,16 +90,7 @@ export function PluginThreadRows({
   const [expanded, setExpanded] = useState<string | null>(null);
   const panels = catalogs
     .filter((row) => row.environmentId === environmentId)
-    .flatMap(
-      (row) =>
-        row.catalog?.plugins
-          .filter((p) => p.status === "active")
-          .flatMap((plugin) =>
-            plugin.views
-              .filter((v) => v.location === "thread-panel")
-              .map((view) => ({ plugin, view })),
-          ) ?? [],
-    );
+    .flatMap((row) => (row.catalog ? pluginThreadPanels(row.catalog, hasRepository) : []));
   if (views.length === 0 && panels.length === 0) return null;
   return (
     <ListSection

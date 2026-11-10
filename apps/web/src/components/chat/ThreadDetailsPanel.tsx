@@ -70,6 +70,7 @@ interface ThreadDetailsPanelProps extends Pick<
   gitCwd: string | null;
   workspaceMutationId: string | null;
   isGitRepo: boolean;
+  hasRepository: boolean;
   envLocked: boolean;
   availableEnvironments: readonly EnvironmentOption[];
   autoEnvironmentLabel?: string | undefined;
@@ -206,6 +207,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                         </div>
                         {props.isServerThread ? (
                           <PluginThreadItems
+                            hasRepository={props.hasRepository}
                             environmentId={props.environmentId}
                             threadId={props.threadId}
                           />
