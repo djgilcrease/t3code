@@ -318,7 +318,12 @@ const layerUsage = UsageService.layer.pipe(
 );
 const layerPlugins = PluginManager.layer.pipe(
   Layer.provide(PluginPackages.layer.pipe(Layer.provide(ProcessRunner.layer))),
-  Layer.provideMerge(PluginRegistry.layer.pipe(Layer.provide(PluginModuleLoader.layer))),
+  Layer.provideMerge(
+    PluginRegistry.layer.pipe(
+      Layer.provide(PluginModuleLoader.layer),
+      Layer.provide(ProjectionStoreV2.layer.pipe(Layer.provide(SqlitePersistence.layerConfig))),
+    ),
+  ),
   Layer.provide(ServerSecretStore.layer),
 );
 

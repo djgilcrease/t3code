@@ -28,6 +28,8 @@ import {
   type PluginLaunch,
   type T3Plugin,
 } from "@t3tools/contracts";
+import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
+import { summarizePluginActivity } from "./pluginActivity.ts";
 import * as Context from "effect/Context";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
@@ -140,6 +142,7 @@ const authorize = (permission: AuthEnvironmentScope, scopes: readonly AuthEnviro
       );
 
 const make = Effect.gen(function* () {
+  const projection = yield* Effect.serviceOption(ProjectionStore.ProjectionStoreV2);
   const config = yield* ServerConfig.ServerConfig;
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -223,6 +226,12 @@ const make = Effect.gen(function* () {
       const context: PluginContext = {
         id: item.id,
         dataDirectory,
+        activity: Option.isSome(projection)
+          ? projection.value.getShellSnapshot().pipe(
+              Effect.map(({ threads }) => summarizePluginActivity(threads)),
+              Effect.mapError((cause) => new PluginError({ operation: "activity", cause })),
+            )
+          : undefined,
         capabilities: [
           "provider-mcp-servers",
           "http-response-timeout",
@@ -230,6 +239,7 @@ const make = Effect.gen(function* () {
           "worktree-lifecycle",
           "supervised-processes",
           "thread-details",
+          ...(Option.isSome(projection) ? ["environment-activity"] : []),
         ],
         httpBasePath: `/api/plugins/${item.id}`,
         httpBaseUrl: Effect.suspend(() =>
