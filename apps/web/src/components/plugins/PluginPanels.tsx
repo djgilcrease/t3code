@@ -1,8 +1,5 @@
 import { Switch } from "../ui/switch";
 import { PluginAssociationsView } from "./PluginAssociationsView";
-import { PluginDocumentResult } from "@t3tools/contracts";
-import * as Schema from "effect/Schema";
-import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -25,6 +22,8 @@ import {
   pluginFormInput,
   pluginLink,
   pluginSecretResult,
+  pluginNoticeResult,
+  pluginViewResult,
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
 import { AsyncResult } from "effect/reactivity";
@@ -33,9 +32,8 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
+import { Textarea } from "../ui/textarea";
 import { Input } from "../ui/input";
-
-const isDocument = Schema.is(PluginDocumentResult);
 
 type Entry = PluginCatalog["plugins"][number];
 type Location = PluginViewDescriptor["location"];
@@ -101,7 +99,7 @@ export function PluginPanels({
           )
           .map((view) => (
             <PluginPanel
-              key={`${plugin.id}:${view.id}`}
+              key={`${plugin.id}:${view.id}:${JSON.stringify(context ?? {})}`}
               environmentId={environmentId}
               plugin={plugin}
               view={view}
@@ -127,23 +125,14 @@ function PluginPanel({
   onCommandResult?: (result: unknown) => void;
   context?: PluginInput;
 }) {
-  const [search, setSearch] = useState<{ blockId: string; query: string; cursor?: string }>({
-    blockId: "",
-    query: "",
-  });
-  const [document, setDocument] = useState<Schema.Schema.Type<typeof PluginDocumentResult> | null>(
-    null,
-  );
+  const [selection, setSelection] = useState<PluginInput>({});
   const query = serverEnvironment.pluginView({
     environmentId,
-    input: {
-      pluginId: plugin.id,
-      viewId: view.id,
-      context: { ...context, associationSearch: search },
-    },
+    input: { pluginId: plugin.id, viewId: view.id, context: { ...context, ...selection } },
   });
   const result = useAtomValue(query);
-  const content = Option.getOrNull(AsyncResult.value(result));
+  const [page, setPage] = useState<ReturnType<typeof pluginViewResult>>(null);
+  const content = page?.view ?? Option.getOrNull(AsyncResult.value(result));
   const registry = useContext(RegistryContext);
   const execute = useAtomCommand(serverEnvironment.executePluginCommand);
   const [busy, setBusy] = useState(false);
@@ -151,6 +140,7 @@ function PluginPanel({
   const running = useRef(false);
   const [secret, setSecret] = useState<ReturnType<typeof pluginSecretResult>>(null);
   const [copied, setCopied] = useState(false);
+  const [notice, setNotice] = useState<ReturnType<typeof pluginNoticeResult>>(null);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Secret expiry owns a timer cancelled on replacement or unmount.
   useEffect(() => {
     if (!secret) return;
@@ -165,6 +155,7 @@ function PluginPanel({
     setCopied(false);
     setBusy(true);
     setError(null);
+    setNotice(null);
     return execute({
       environmentId,
       input: {
@@ -177,7 +168,9 @@ function PluginPanel({
       .then((outcome) => {
         if (outcome._tag === "Success") {
           setSecret(pluginSecretResult(outcome.value));
-          if (isDocument(outcome.value)) setDocument(outcome.value);
+          setNotice(pluginNoticeResult(outcome.value));
+          const nextPage = pluginViewResult(outcome.value);
+          if (nextPage) setPage(nextPage);
           onCommandResult?.(outcome.value);
         }
         if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
@@ -187,21 +180,46 @@ function PluginPanel({
           );
         }
         registry.refresh(query);
-        return outcome._tag === "Success";
+        return (
+          outcome._tag === "Success" &&
+          !["danger", "warning"].includes(pluginNoticeResult(outcome.value)?.tone ?? "success")
+        );
       })
       .finally(() => {
         running.current = false;
         setBusy(false);
       });
   };
+  if (content?.blocks.length === 0 && !page) return null;
   return (
-    <section className="space-y-3 rounded-lg border p-4" aria-label={view.title}>
-      <div className="flex items-center justify-between gap-3">
+    <section
+      className={
+        view.location === "project-new-thread"
+          ? "space-y-3 px-4 py-3"
+          : "space-y-3 rounded-lg border p-4"
+      }
+      aria-label={view.title}
+    >
+      <div
+        className={
+          view.location === "project-new-thread"
+            ? "hidden"
+            : "flex items-center justify-between gap-3"
+        }
+      >
         <h3 className="text-sm font-medium">{content?.title ?? view.title}</h3>
-        <Button size="sm" variant="ghost" onClick={() => registry.refresh(query)}>
-          Refresh
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setPage(null);
+            registry.refresh(query);
+          }}
+        >
+          {page ? "Back" : "Refresh"}
         </Button>
       </div>
+      {notice && <p role={notice.tone === "danger" ? "alert" : "status"}>{notice.text}</p>}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
@@ -236,12 +254,6 @@ function PluginPanel({
         </div>
       )}
       {result._tag === "Failure" && <p role="alert">This plugin view could not be loaded.</p>}
-      <Dialog open={document !== null} onOpenChange={(open) => !open && setDocument(null)}>
-        <DialogPopup>
-          <DialogTitle>{document?.title}</DialogTitle>
-          <p className="whitespace-pre-wrap text-sm">{document?.text}</p>
-        </DialogPopup>
-      </Dialog>
       {content?.blocks.map((block) => {
         if (block.kind === "toggle")
           return (
@@ -264,10 +276,42 @@ function PluginPanel({
               block={block}
               busy={busy}
               run={run}
+              canRun={(action) => plugin.commands.some((command) => command.id === action.command)}
               search={(query, cursor) =>
-                setSearch({ blockId: block.id, query, ...(cursor ? { cursor } : {}) })
+                setSelection((current) => ({
+                  ...current,
+                  associationSearch: { blockId: block.id, query, ...(cursor ? { cursor } : {}) },
+                }))
               }
             />
+          );
+
+        if (block.kind === "collection")
+          return (
+            <PluginCollection
+              key={block.id}
+              block={block}
+              select={(input) => setSelection((current) => ({ ...current, ...input }))}
+            />
+          );
+        if (block.kind === "image")
+          return (
+            <img
+              key={block.id}
+              src={block.source}
+              alt={block.label}
+              className="max-h-96 max-w-full object-contain"
+            />
+          );
+        if (block.kind === "code")
+          return (
+            <pre
+              key={block.id}
+              className="max-h-96 overflow-auto whitespace-pre text-xs"
+              tabIndex={0}
+            >
+              <code>{block.text}</code>
+            </pre>
           );
         if (block.kind === "text")
           return (
@@ -307,7 +351,7 @@ function PluginPanel({
         if (block.kind === "form")
           return (
             <PluginFormView
-              key={block.id}
+              key={block.instance ?? JSON.stringify(block)}
               form={block}
               environmentId={environmentId}
               plugin={plugin}
@@ -408,7 +452,7 @@ function PluginActionButton({
   );
 }
 function PluginFormView({
-  form,
+  form: incoming,
   environmentId,
   plugin,
   busy,
@@ -420,6 +464,8 @@ function PluginFormView({
   busy: boolean;
   run: (action: PluginAction) => Promise<boolean>;
 }) {
+  const [snapshot, setSnapshot] = useState<PluginForm | null>(null);
+  const form = snapshot ?? incoming;
   const [draft, setValues] = useState<PluginInput | null>(null);
   const values = { ...pluginFormDefaults(form), ...draft };
   const [invalid, setInvalid] = useState(false);
@@ -440,7 +486,10 @@ function PluginFormView({
         setInvalid(input === null);
         if (input !== null)
           void run({ ...action, input }).then((success) => {
-            if (success) setValues(null);
+            if (success) {
+              setValues(null);
+              setSnapshot(null);
+            }
           });
       }}
     >
@@ -452,7 +501,10 @@ function PluginFormView({
               type="checkbox"
               checked={values[field.name] === true}
               disabled={busy || !allowed}
-              onChange={(e) => setValues({ ...values, [field.name]: e.target.checked })}
+              onChange={(e) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: e.target.checked });
+              }}
             />
           ) : field.kind === "select" ? (
             <select
@@ -460,7 +512,10 @@ function PluginFormView({
               value={String(values[field.name] ?? "")}
               disabled={busy || !allowed}
               required={field.required}
-              onChange={(e) => setValues({ ...values, [field.name]: e.target.value })}
+              onChange={(e) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: e.target.value });
+              }}
             >
               <option value="">Select…</option>
               {field.options?.map((option) => (
@@ -469,6 +524,35 @@ function PluginFormView({
                 </option>
               ))}
             </select>
+          ) : field.kind === "multiline" ? (
+            <Textarea
+              value={String(values[field.name] ?? "")}
+              required={field.required}
+              disabled={busy || !allowed}
+              onChange={(e) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: e.target.value });
+              }}
+            />
+          ) : field.kind === "image" ? (
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              disabled={busy || !allowed}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file || file.size > 64 * 1024) {
+                  setInvalid(true);
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setSnapshot((current) => current ?? incoming);
+                  setValues({ ...values, [field.name]: String(reader.result) });
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
           ) : (
             <Input
               type={field.kind}
@@ -477,7 +561,10 @@ function PluginFormView({
               autoComplete={field.kind === "password" ? "off" : undefined}
               required={field.required}
               disabled={busy || !allowed}
-              onChange={(e) => setValues({ ...values, [field.name]: e.target.value })}
+              onChange={(e) => {
+                setSnapshot((current) => current ?? incoming);
+                setValues({ ...values, [field.name]: e.target.value });
+              }}
             />
           )}
         </label>
@@ -487,5 +574,45 @@ function PluginFormView({
         {form.label}
       </Button>
     </form>
+  );
+}
+
+function PluginCollection({
+  block,
+  select,
+}: {
+  block: Extract<import("@t3tools/contracts").PluginBlock, { kind: "collection" }>;
+  select: (input: PluginInput) => void;
+}) {
+  const [search, setSearch] = useState("");
+  return (
+    <div className="space-y-2">
+      <Input
+        aria-label={`Search ${block.label}`}
+        placeholder={`Search ${block.label}`}
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          if (block.queryField) select({ [block.queryField]: e.target.value });
+        }}
+      />
+      <div className="max-h-48 space-y-1 overflow-y-auto" role="list" aria-label={block.label}>
+        {block.items
+          .filter(
+            (item) =>
+              block.queryField !== undefined ||
+              `${item.label} ${item.search}`
+                .toLocaleLowerCase()
+                .includes(search.toLocaleLowerCase()),
+          )
+          .map((item) => (
+            <div key={item.id} role="listitem">
+              <Button variant="ghost" size="sm" onClick={() => select(item.input)}>
+                {item.label}
+              </Button>
+            </div>
+          ))}
+      </div>
+    </div>
   );
 }

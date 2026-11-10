@@ -1,4 +1,5 @@
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
+import { PluginPanels } from "../plugins/PluginPanels";
 import { useComposerMenuState } from "../chat/useComposerMenuState";
 import { m as resolveMessage } from "../../i18n/messages";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
@@ -731,6 +732,14 @@ function ProjectDetail({
             }
           />
         </SettingsSection>
+        {group.memberProjects.map((member) => (
+          <PluginPanels
+            key={`${member.environmentId}:${member.id}`}
+            environmentId={member.environmentId}
+            location="project-settings"
+            context={{ projectId: member.id }}
+          />
+        ))}
       </SettingsPageContainer>
 
       <ProjectFaviconPickerDialog
