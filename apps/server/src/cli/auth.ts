@@ -1,4 +1,4 @@
-import { AuthSessionId, AuthStandardClientScopes } from "@t3tools/contracts";
+import { AuthMcpClientAccess, AuthSessionId, AuthStandardClientScopes } from "@t3tools/contracts";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -248,7 +248,42 @@ const sessionCommand = Command.make("session").pipe(
   Command.withSubcommands([sessionIssueCommand, sessionListCommand, sessionRevokeCommand]),
 );
 
+const mcpIssueCommand = Command.make("issue", {
+  ...authLocationFlags,
+  access: Flag.Literals("access", AuthMcpClientAccess.literals).pipe(Flag.withDefault("read-only")),
+  label: labelFlag,
+  tokenOnly: tokenOnlyFlag,
+}).pipe(
+  Command.withDescription(
+    "Issue a 30-day token restricted to MCP, with an explicit access ceiling.",
+  ),
+  Command.withHandler((flags) =>
+    runWithEnvironmentAuth(
+      flags,
+      (auth) =>
+        Effect.gen(function* () {
+          const session = yield* auth.issueMcpClientSession({
+            label: Option.getOrElse(flags.label, () => "Headless MCP client"),
+            access: flags.access,
+            peerLink: false,
+            client: { deviceType: "bot" },
+          });
+          yield* Console.log(
+            flags.tokenOnly
+              ? session.token
+              : `Session: ${session.sessionId}\nToken: ${session.token}`,
+          );
+        }),
+      { quietLogs: flags.tokenOnly },
+    ),
+  ),
+);
+const mcpCommand = Command.make("mcp").pipe(
+  Command.withDescription("Manage headless MCP access. Revoke tokens with auth session revoke."),
+  Command.withSubcommands([mcpIssueCommand]),
+);
+
 export const authCommand = Command.make("auth").pipe(
   Command.withDescription("Manage the local auth control plane for headless deployments."),
-  Command.withSubcommands([pairingCommand, sessionCommand]),
+  Command.withSubcommands([pairingCommand, sessionCommand, mcpCommand]),
 );

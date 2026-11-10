@@ -38,6 +38,7 @@ type State = {
   closed: number;
   removed: string[];
   persistFails: boolean;
+  removalBlocked: boolean;
 };
 
 function fixture<A, E, R>(
@@ -67,6 +68,7 @@ function fixture<A, E, R>(
         closed: 0,
         removed: [],
         persistFails: false,
+        removalBlocked: false,
       };
       const manual: PluginConfigurationEntry = {
         id: "example",
@@ -148,7 +150,12 @@ function fixture<A, E, R>(
                     );
                     if (version === state.failVersion)
                       return yield* new PluginError({ operation: "activation", cause: null });
-                    return {};
+                    return {
+                      beforeRemove: () =>
+                        state.removalBlocked
+                          ? Effect.fail(new PluginError({ operation: "cleanup", cause: null }))
+                          : Effect.void,
+                    };
                   }),
               },
             };
@@ -441,6 +448,28 @@ it.effect("authorizes management in the service before changing the environment"
         .pipe(Effect.flip);
       expect(result._tag).toBe("EnvironmentAuthorizationError");
       expect(state.loads).toBe(0);
+    }),
+  ),
+);
+
+it.effect("keeps configuration and resources when a plugin refuses removal or disable", () =>
+  fixture((_, state) =>
+    Effect.gen(function* () {
+      const manager = yield* PluginManager.PluginManager;
+      yield* manager.manage({ operation: "install", repository }, AuthStandardClientScopes);
+      state.removalBlocked = true;
+      for (const operation of [
+        { operation: "remove" as const, pluginId: "example" },
+        { operation: "set-enabled" as const, pluginId: "example", enabled: false },
+      ]) {
+        expect(
+          (yield* manager.manage(operation, AuthStandardClientScopes).pipe(Effect.result))._tag,
+        ).toBe("Failure");
+        expect(
+          (yield* (yield* PluginRegistry.PluginRegistry).configuration).plugins[0]?.enabled,
+        ).toBe(true);
+        expect(state.removed).toEqual([]);
+      }
     }),
   ),
 );

@@ -315,6 +315,7 @@ const layerPlugins = PluginManager.layer.pipe(
   Layer.provideMerge(
     PluginRegistry.layer.pipe(
       Layer.provide(PluginModuleLoader.layer),
+      Layer.provide(ServerEnvironment.layerIdentity),
       Layer.provide(ProjectionStoreV2.layer.pipe(Layer.provide(SqlitePersistence.layerConfig))),
     ),
   ),

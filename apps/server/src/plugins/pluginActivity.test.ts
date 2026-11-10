@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 import { summarizePluginActivity } from "./pluginActivity.ts";
 const idle = {

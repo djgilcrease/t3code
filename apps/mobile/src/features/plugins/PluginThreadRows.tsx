@@ -76,9 +76,10 @@ export function PluginThreadRows({
   environmentId: EnvironmentId;
   threadId: ThreadId;
 }) {
-  const result = useAtomValue(serverEnvironment.pluginCatalog({ environmentId, input: {} }));
-  const catalog = Option.getOrNull(AsyncResult.value(result));
-  const views = catalog ? pluginThreadDetailsViews(catalog) : [];
+  const catalogs = useAtomValue(pluginCatalogsAtom);
+  const views = catalogs.flatMap(({ environmentId: sourceId, catalog }) =>
+    catalog ? pluginThreadDetailsViews(catalog).map((view) => ({ ...view, sourceId })) : [],
+  );
   const { environments } = useEnvironments();
   if (views.length === 0) return null;
   return (
@@ -88,10 +89,11 @@ export function PluginThreadRows({
         "This machine"
       }
     >
-      {views.map(({ plugin, viewId }) => (
+      {views.map(({ plugin, viewId, sourceId }) => (
         <PluginThreadView
-          key={`${plugin.id}:${viewId}`}
-          environmentId={environmentId}
+          key={`${sourceId}:${plugin.id}:${viewId}`}
+          environmentId={sourceId}
+          targetEnvironmentId={environmentId}
           threadId={threadId}
           plugin={plugin}
           viewId={viewId}
@@ -103,12 +105,14 @@ export function PluginThreadRows({
 
 function PluginThreadView({
   environmentId,
+  targetEnvironmentId,
   threadId,
   plugin,
   viewId,
 }: {
   environmentId: EnvironmentId;
   threadId: ThreadId;
+  targetEnvironmentId: EnvironmentId;
   plugin: Entry;
   viewId: string;
 }) {
@@ -182,7 +186,8 @@ function PluginThreadView({
   return (
     <>
       {view?.blocks.map((block) =>
-        block.kind === "status" ? (
+        block.kind === "status" &&
+        (block.environmentId ?? environmentId) === targetEnvironmentId ? (
           <View key={block.id}>
             {block.label !== undefined ? (
               <View className="bg-grouped-card">

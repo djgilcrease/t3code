@@ -249,3 +249,20 @@ New generic primitives or lifecycle hooks require an SDK change and client
 support. Arbitrary React bundles, replacement provider adapters, and internal
 orchestration access are outside version 1. Add explicit versioned APIs when a
 real plugin needs them, rather than exposing internal classes permanently.
+
+## Headless environment controllers
+
+`context.activity` reads committed thread activity, including subagents and pending
+background work. It excludes connection presence. Check for `environment-activity`
+in `context.capabilities` before depending on it.
+
+A plugin owning external resources can implement `beforeRemove`. The host awaits
+this bounded hook before disabling or removing the plugin; failure retains its
+configuration, data and credentials. Keep the hook short: refuse while cleanup
+runs in the background, rather than blocking removal on a long provider call.
+
+A controller that operates a guest through MCP can issue a token on that guest
+with `t3 auth mcp issue --access full-access --token-only --base-dir <home>`.
+These tokens last 30 days and are restricted to MCP. Ordinary bearer sessions
+issued with `auth session issue` cannot access MCP. Revoke either token with
+`auth session revoke <session-id>`.

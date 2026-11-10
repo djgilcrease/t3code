@@ -31,6 +31,7 @@ import {
   type PluginLaunch,
   type T3Plugin,
 } from "@t3tools/contracts";
+import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import { summarizePluginActivity } from "./pluginActivity.ts";
 import * as Context from "effect/Context";
@@ -97,6 +98,7 @@ export class PluginRegistry extends Context.Service<
   {
     readonly configuration: Effect.Effect<PluginConfiguration>;
     readonly reconcile: (next: PluginConfiguration) => Effect.Effect<boolean>;
+    readonly beforeRemove: (id: string) => Effect.Effect<void, PluginOperationError>;
     readonly restart: (id: string) => Effect.Effect<boolean>;
     readonly setHttpOrigin: (origin: string) => Effect.Effect<void>;
     /** Thread services depend on this registry through Git, so they are handed over later. */
@@ -155,6 +157,7 @@ const authorize = (permission: AuthEnvironmentScope, scopes: readonly AuthEnviro
       );
 
 const make = Effect.gen(function* () {
+  const identity = yield* Effect.serviceOption(ServerEnvironment.ServerEnvironmentIdentity);
   const projection = yield* Effect.serviceOption(ProjectionStore.ProjectionStoreV2);
   const config = yield* ServerConfig.ServerConfig;
   const fs = yield* FileSystem.FileSystem;
@@ -252,6 +255,11 @@ const make = Effect.gen(function* () {
       const context: PluginContext = {
         id: item.id,
         dataDirectory,
+        environmentId: Option.isSome(identity)
+          ? identity.value.getEnvironmentId.pipe(
+              Effect.mapError((cause) => new PluginError({ operation: "environment-id", cause })),
+            )
+          : undefined,
         activity: Option.isSome(projection)
           ? projection.value.getShellSnapshot().pipe(
               Effect.map(({ threads }) => summarizePluginActivity(threads)),
@@ -557,6 +565,12 @@ const make = Effect.gen(function* () {
       Effect.andThen(Effect.sync(() => configuration)),
     ),
     reconcile,
+    beforeRemove: Effect.fn("PluginRegistry.beforeRemove")(function* (id) {
+      yield* Deferred.await(initialized);
+      const plugin = active.get(id);
+      if (plugin?.beforeRemove)
+        yield* guarded(id, "before-remove", Effect.suspend(plugin.beforeRemove));
+    }),
     restart: Effect.fn("PluginRegistry.restart")(function* (id) {
       yield* Deferred.await(initialized);
       const item = configuration.plugins.find((entry) => entry.id === id);

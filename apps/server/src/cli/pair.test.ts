@@ -604,6 +604,7 @@ describe("scripted auth output", () => {
   it.effect.each(
     [
       ["auth", "session", "issue", "--token-only"],
+      ["auth", "mcp", "issue", "--token-only"],
       ["auth", "session", "list", "--json"],
       ["auth", "pairing", "list", "--json"],
     ].map((command) => ({ command, label: command.join(" ") })),
