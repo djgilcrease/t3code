@@ -1542,6 +1542,9 @@ importers:
 
   packages/client-runtime:
     dependencies:
+      '@effect/atom-react':
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(react@19.3.0)(scheduler@0.28.0)
       '@pierre/diffs':
         specifier: 1.7.0-beta.4
         version: 1.7.0-beta.4(patch_hash=7edcdd484a99c7ec0b2667499c4cb21d113ec9bea1f8570c0b0a030d33bbf1cd)(@shikijs/themes@4.2.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -1602,6 +1605,9 @@ importers:
       jszip:
         specifier: 3.10.1
         version: 3.10.1
+      react:
+        specifier: 'catalog:'
+        version: 19.3.0
       three:
         specifier: 0.180.0
         version: 0.180.0
@@ -1615,6 +1621,9 @@ importers:
       '@types/mdast':
         specifier: ^4.0.4
         version: 4.0.4
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
       '@types/three':
         specifier: 0.180.0
         version: 0.180.0
