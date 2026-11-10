@@ -11,6 +11,10 @@ import {
   PluginMcpContext,
   PluginLifecycleEvent,
   PluginProcessResult,
+  PluginThreadExport,
+  PluginThreadImport,
+  PluginThreadProject,
+  PluginThreadSummary,
   type PluginContext,
   type PluginContributions,
   type T3Plugin,
@@ -25,6 +29,10 @@ import {
   type PluginMessage,
 } from "./pluginProtocol.ts";
 const decodeProcessResult = Schema.decodeUnknownSync(PluginProcessResult);
+const decodeThreadSummary = Schema.decodeUnknownSync(PluginThreadSummary);
+const decodeThreadExport = Schema.decodeUnknownSync(PluginThreadExport);
+const decodeThreadProjects = Schema.decodeUnknownSync(Schema.Array(PluginThreadProject));
+const decodeThreadImport = Schema.decodeUnknownSync(PluginThreadImport);
 const decodeLifecycleEvent = Schema.decodeUnknownSync(PluginLifecycleEvent);
 const decodeMcpContext = Schema.decodeUnknownSync(PluginMcpContext);
 
@@ -115,6 +123,17 @@ export async function runPluginWorker(): Promise<void> {
           activity: hostEffect("activity", null).pipe(Effect.map(decodeActivity)),
           runProcess: (input) =>
             hostEffect("process-run", input).pipe(Effect.map(decodeProcessResult)),
+          threads: {
+            describe: (threadId) =>
+              hostEffect("thread-describe", { threadId }).pipe(Effect.map(decodeThreadSummary)),
+            export: (input) =>
+              hostEffect("thread-export", input).pipe(Effect.map(decodeThreadExport)),
+            projects: (repository) =>
+              hostEffect("thread-projects", { repository }).pipe(Effect.map(decodeThreadProjects)),
+            import: (input) =>
+              hostEffect("thread-import", input).pipe(Effect.map(decodeThreadImport)),
+            archive: (input) => hostEffect("thread-archive", input).pipe(Effect.asVoid),
+          },
           httpBasePath: String(payload.httpBasePath),
           httpBaseUrl: hostEffect("http-url", null).pipe(Effect.map(String)),
           secrets: {
@@ -282,7 +301,12 @@ export async function runPluginWorker(): Promise<void> {
       const reply = pending.get(message.id);
       pending.delete(message.id);
       if (message.ok) reply?.resolve(message.payload);
-      else reply?.reject(new Error("Host capability failed"));
+      else
+        reply?.reject(
+          new Error(
+            typeof message.payload === "string" ? message.payload : "Host capability failed",
+          ),
+        );
     } else if (message.kind === "call") {
       void dispatch(message)
         .then(

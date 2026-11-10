@@ -667,6 +667,7 @@ function commandThreadId(command: OrchestrationV2ServerCommand): ThreadId {
     case "thread.user-input.dismiss":
     case "checkpoint.rollback":
     case "thread.worktree-cleanup.fail":
+    case "thread.moved":
     case "checkpoint.rollback.fail":
     case "thread.background-work.settle":
     case "thread.interrupt.unresponsive":
@@ -13696,6 +13697,49 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     },
   );
 
+  const dispatchThreadMoved = Effect.fn("Orchestrator.dispatchThreadMoved")(function* (
+    command: Extract<OrchestrationV2InternalCommand, { readonly type: "thread.moved" }>,
+    events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
+  ) {
+    const projection = yield* projectionStore
+      .getThreadRecords(command.threadId, ["runs"])
+      .pipe(mapDispatchError(command));
+    const now = yield* DateTime.now;
+    const latestRun = projection.runs
+      .filter((run) => run.status !== "rolled_back")
+      .sort((a, b) => b.ordinal - a.ordinal)[0];
+    yield* emit(
+      events,
+      command,
+    )({
+      type: "turn-item.updated",
+      threadId: command.threadId,
+      providerInstanceId: projection.thread.providerInstanceId,
+      occurredAt: now,
+      payload: {
+        id: TurnItemId.make(`item:thread-moved:${command.commandId}`),
+        threadId: command.threadId,
+        runId: latestRun?.id ?? null,
+        nodeId: null,
+        providerThreadId: null,
+        providerTurnId: null,
+        nativeItemRef: null,
+        parentItemId: null,
+        ordinal: 0,
+        type: "notification",
+        source: { kind: "system" },
+        outcome: "completed",
+        summary: `Moved to ${command.environmentLabel}.`,
+        detail: `This thread continues on ${command.environmentLabel} as thread ${command.movedThreadId}, with its conversation and uncommitted work. This copy was archived and nothing was deleted. Unarchive it to keep working here.`,
+        status: "completed",
+        title: "Thread moved",
+        startedAt: now,
+        completedAt: now,
+        updatedAt: now,
+      },
+    });
+  });
+
   const dispatchCheckpointRollbackFail = Effect.fn("Orchestrator.dispatchCheckpointRollbackFail")(
     function* (
       command: Extract<
@@ -14945,6 +14989,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         break;
       case "thread.worktree-cleanup.fail":
         yield* dispatchWorktreeCleanupFail(command, events);
+        break;
+      case "thread.moved":
+        yield* dispatchThreadMoved(command, events);
         break;
       case "checkpoint.rollback.fail":
         yield* dispatchCheckpointRollbackFail(command, events);
