@@ -21,6 +21,7 @@ import {
   PluginRequestError,
   EnvironmentAuthorizationError,
   authScopeRequiredResponse,
+  AuthStandardClientScopes,
   type AuthEnvironmentScope,
   type PluginCommandInput,
   type PluginViewInput,
@@ -257,6 +258,38 @@ const make = Effect.gen(function* () {
               Effect.mapError((cause) => new PluginError({ operation: "activity", cause })),
             )
           : undefined,
+        plugins: {
+          list: () =>
+            Effect.sync(() =>
+              [...entries.values()]
+                .filter((entry) => entry.status === "active" && entry.id !== item.id)
+                .map(({ id, name, version, commands }) => ({
+                  id,
+                  name,
+                  version,
+                  commands: commands.filter((command) => command.agent),
+                })),
+            ),
+          run: (call) => {
+            const refused = (reason: string) =>
+              new PluginError({ operation: "plugin-command", cause: new Error(reason) });
+            const command = entries
+              .get(call.pluginId)
+              ?.commands.find((candidate) => candidate.id === call.commandId);
+            // A plugin calls as an agent would, so it reaches no secrets and no opted-out command.
+            return call.pluginId === item.id || command === undefined
+              ? Effect.fail(refused("unknown-contribution"))
+              : execute(
+                  { ...call, permission: command.permission },
+                  AuthStandardClientScopes,
+                  "agent",
+                ).pipe(
+                  Effect.mapError((error) =>
+                    refused(error._tag === "PluginRequestError" ? error.reason : "failed"),
+                  ),
+                );
+          },
+        },
         threads: {
           describe: (threadId) => threadCall((host) => host.describe(threadId)),
           export: (input) =>
@@ -275,6 +308,7 @@ const make = Effect.gen(function* () {
           "thread-details",
           ...(Option.isSome(projection) ? ["environment-activity"] : []),
           "thread-portability",
+          "plugin-commands",
         ],
         httpBasePath: `/api/plugins/${item.id}`,
         httpBaseUrl: Effect.suspend(() =>

@@ -3,7 +3,12 @@ import * as TestClock from "effect/testing/TestClock";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
-import { AuthStandardClientScopes, PluginOperationError, type T3Plugin } from "@t3tools/contracts";
+import {
+  AuthStandardClientScopes,
+  PluginOperationError,
+  type PluginContext,
+  type T3Plugin,
+} from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Deferred from "effect/Deferred";
 import * as FileSystem from "effect/FileSystem";
@@ -203,6 +208,63 @@ it.effect(
       }),
     ),
 );
+
+it.effect("a plugin reaches another plugin's commands only as an agent would", () => {
+  let caller: PluginContext | undefined;
+  const reply = (id: string, agent: boolean, result: Schema.Json) => ({
+    ...command,
+    id,
+    agent,
+    run: (input: Record<string, Schema.Json>) => Effect.succeed(result ?? input),
+  });
+  return withHost(
+    [
+      plugin((context) => {
+        caller = context;
+        return Effect.succeed({ commands: [reply("own", true, "own")] });
+      }, "caller"),
+      plugin(
+        () =>
+          Effect.succeed({
+            commands: [
+              reply("echo", true, null),
+              reply("private", false, "private"),
+              reply("key", true, { $t3: "secret", label: "API key", value: "token" }),
+            ],
+          }),
+        "target",
+      ),
+    ],
+    Effect.gen(function* () {
+      const host = yield* PluginRegistry.PluginRegistry;
+      yield* host.list(AuthStandardClientScopes);
+      const plugins = caller!.plugins!;
+      const refusal = (commandId: string, pluginId = "target") =>
+        plugins.run({ pluginId, commandId, input: {} }).pipe(
+          Effect.flip,
+          Effect.map((error) => (error.cause as Error).message),
+        );
+      expect(yield* plugins.list()).toEqual([
+        {
+          id: "target",
+          name: "target",
+          version: "1.0.0",
+          commands: [
+            expect.objectContaining({ id: "echo" }),
+            expect.objectContaining({ id: "key" }),
+          ],
+        },
+      ]);
+      expect(
+        yield* plugins.run({ pluginId: "target", commandId: "echo", input: { thread: "one" } }),
+      ).toEqual({ thread: "one" });
+      expect(yield* refusal("private")).toBe("agent-access-disabled");
+      expect(yield* refusal("key")).toBe("secret-access-disabled");
+      expect(yield* refusal("missing")).toBe("unknown-contribution");
+      expect(yield* refusal("own", "caller")).toBe("unknown-contribution");
+    }),
+  );
+});
 
 it.effect("a read-only agent cannot invoke a write command with a forged read envelope", () =>
   withHost(
