@@ -10,6 +10,14 @@ const Label = Schema.String.check(Schema.isMaxLength(200));
 const Text = Schema.String.check(Schema.isMaxLength(16_384));
 export const PluginInput = Schema.Record(Schema.String, Schema.Json);
 export type PluginInput = typeof PluginInput.Type;
+export const PluginInvocationContext = Schema.Struct({
+  audience: Schema.Literals(["client", "agent"]),
+  environmentId: Schema.optionalKey(Label),
+  projectId: Schema.optionalKey(Label),
+  threadId: Schema.optionalKey(Label),
+});
+export type PluginInvocationContext = typeof PluginInvocationContext.Type;
+
 export const PluginPermission = Schema.Literals([
   "orchestration:read",
   "orchestration:operate",
@@ -530,7 +538,10 @@ export interface PluginContributions {
   readonly lifecycleTimeoutMs?: number;
   readonly commands?: readonly (PluginCommandDescriptor & {
     /** Decode and validate feature-specific input inside the handler. */
-    readonly run: (input: PluginInput) => Effect.Effect<Schema.Json, PluginError>;
+    readonly run: (
+      input: PluginInput,
+      context?: PluginInvocationContext,
+    ) => Effect.Effect<Schema.Json, PluginError>;
   })[];
   readonly views?: readonly (PluginViewDescriptor & {
     readonly read: (input?: PluginInput) => Effect.Effect<PluginView, PluginError>;
