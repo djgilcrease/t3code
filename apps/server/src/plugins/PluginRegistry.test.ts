@@ -1,3 +1,5 @@
+import * as Fiber from "effect/Fiber";
+import * as TestClock from "effect/testing/TestClock";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
@@ -567,4 +569,62 @@ it.effect("constructs the environment services while a plugin activation is stal
       }),
     );
   }),
+);
+
+it.effect("honors a bounded plugin HTTP response timeout without changing the default", () =>
+  Effect.gen(function* () {
+    for (const configured of [false, true]) {
+      const started = yield* Deferred.make<void>();
+      yield* withHost(
+        [
+          plugin(() =>
+            Effect.succeed({
+              ...(configured ? { httpResponseTimeoutMs: 60_000 } : {}),
+              handleHttp: () =>
+                Effect.gen(function* () {
+                  yield* Deferred.succeed(started, undefined);
+                  yield* Effect.sleep("45 seconds");
+                  return new Response("complete");
+                }),
+            }),
+          ),
+        ],
+        Effect.gen(function* () {
+          const host = yield* PluginRegistry.PluginRegistry;
+          const request = yield* host
+            .handleHttp("test", new Request("http://test/api/plugins/test/rpc"))
+            .pipe(Effect.forkScoped);
+          yield* Deferred.await(started);
+          yield* TestClock.adjust("31 seconds");
+          const state = request.pollUnsafe();
+          expect(state === undefined).toBe(configured);
+          yield* TestClock.adjust("14 seconds");
+          const result = yield* Fiber.join(request).pipe(Effect.result);
+          expect(result._tag).toBe(configured ? "Success" : "Failure");
+        }),
+      );
+    }
+  }),
+);
+
+it.effect.each([0, 999, 3_900_001, Number.POSITIVE_INFINITY])(
+  "rejects an invalid HTTP response deadline (%s)",
+  (timeout) =>
+    withHost(
+      [
+        plugin(() =>
+          Effect.succeed({
+            httpResponseTimeoutMs: timeout,
+            handleHttp: () => Effect.succeed(new Response("ready")),
+          }),
+        ),
+      ],
+      Effect.gen(function* () {
+        const host = yield* PluginRegistry.PluginRegistry;
+        expect((yield* host.list(AuthStandardClientScopes)).plugins[0]).toMatchObject({
+          status: "failed",
+          failure: "contributions",
+        });
+      }),
+    ),
 );
