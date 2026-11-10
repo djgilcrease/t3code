@@ -20,7 +20,6 @@ export function PluginManagement({
   const registry = useContext(RegistryContext);
   const manage = useAtomCommand(serverEnvironment.managePlugins);
   const allowed = useAtomValue(serverEnvironment.managePlugins.permissionAtom(environmentId));
-  const [repository, setRepository] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const running = useRef(false);
@@ -32,7 +31,6 @@ export function PluginManagement({
     return manage({ environmentId, input })
       .then((result) => {
         registry.refresh(serverEnvironment.pluginCatalog({ environmentId, input: {} }));
-        if (result._tag === "Success" && input.operation === "install") setRepository("");
         if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
           const failure = squashAtomCommandFailure(result);
           setError(
@@ -48,31 +46,9 @@ export function PluginManagement({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Install a plugin from a GitHub or GitLab repository. Plugins run trusted code on this
-        environment. Updates are checked daily and installed when you choose Update.
+        Actions below affect this machine only. Updates are checked daily and installed only when
+        you choose Update.
       </p>
-      <form
-        className="flex flex-wrap items-end gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void run({ operation: "install", repository });
-        }}
-      >
-        <label className="min-w-48 flex-1 space-y-1 text-sm">
-          <span>Repository URL</span>
-          <Input
-            type="url"
-            placeholder="https://github.com/owner/plugin"
-            value={repository}
-            disabled={!allowed || busy}
-            required
-            onChange={(event) => setRepository(event.target.value)}
-          />
-        </label>
-        <Button type="submit" size="sm" disabled={!allowed || busy || !repository.trim()}>
-          {busy ? "Working…" : "Install plugin"}
-        </Button>
-      </form>
       <Button
         size="sm"
         variant="outline"
@@ -95,6 +71,12 @@ export function PluginManagement({
             {plugin.name} {plugin.source?.tag ?? plugin.version} · {plugin.status}
             {plugin.failure ? ` (${plugin.failure})` : ""}
           </p>
+          {!plugin.source && (
+            <p className="text-xs text-muted-foreground">
+              Local registration. Install from a repository above to use a portable package; local
+              paths and data are never synced.
+            </p>
+          )}
           {plugin.source && (
             <>
               <p className="break-all text-xs text-muted-foreground">{plugin.source.repository}</p>

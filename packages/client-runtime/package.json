@@ -35,6 +35,10 @@
       "types": "./src/savedViews.ts",
       "default": "./src/savedViews.ts"
     },
+    "./plugin-installation": {
+      "types": "./src/usePluginInstallation.ts",
+      "default": "./src/usePluginInstallation.ts"
+    },
     "./plugins": {
       "types": "./src/plugins.ts",
       "default": "./src/plugins.ts"
@@ -657,6 +661,7 @@
     "test": "vp test run"
   },
   "dependencies": {
+    "@effect/atom-react": "catalog:",
     "@pierre/diffs": "catalog:",
     "@t3tools/contracts": "workspace:*",
     "@t3tools/issue-tracker-linear": "workspace:*",
@@ -678,6 +683,7 @@
     "jszip": "3.10.1",
     "remark-gfm": "catalog:",
     "remark-parse": "catalog:",
+    "react": "catalog:",
     "three": "0.180.0",
     "unbash": "^5.0.0",
     "unified": "catalog:"
@@ -685,6 +691,7 @@
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "@types/mdast": "^4.0.4",
+    "@types/react": "catalog:",
     "@types/three": "0.180.0",
     "vite-plus": "catalog:"
   }
