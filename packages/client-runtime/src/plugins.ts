@@ -9,6 +9,7 @@ import {
   PluginNoticeResult,
   PluginRelayResult,
   PluginSecretResult,
+  PluginViewResult,
 } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import * as Option from "effect/Option";
@@ -21,6 +22,11 @@ export function pluginEnvironmentLaunchResult(value: unknown) {
 const decodeSecretResult = Schema.decodeUnknownOption(PluginSecretResult);
 export function pluginSecretResult(value: unknown): PluginSecretResult | null {
   return Option.getOrNull(decodeSecretResult(value));
+}
+
+const decodeViewResult = Schema.decodeUnknownOption(PluginViewResult);
+export function pluginViewResult(value: unknown): PluginViewResult | null {
+  return Option.getOrNull(decodeViewResult(value));
 }
 
 export type PluginForm = Extract<PluginBlock, { readonly kind: "form" }>;
