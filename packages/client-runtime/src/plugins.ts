@@ -1,5 +1,10 @@
-import type { PluginBlock, PluginInput, PluginCatalog } from "@t3tools/contracts";
-import { PluginSecretResult } from "@t3tools/contracts";
+import type {
+  PluginBlock,
+  PluginInput,
+  PluginCatalog,
+  PluginStatusAction,
+} from "@t3tools/contracts";
+import { PluginNoticeResult, PluginSecretResult } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import * as Option from "effect/Option";
 
@@ -69,4 +74,70 @@ export function pluginSettingsPages(catalog: PluginCatalog) {
           title: view.title,
         })),
     );
+}
+
+export type PluginStatus = Extract<PluginBlock, { readonly kind: "status" }>;
+
+export function pluginThreadDetailsViews(catalog: PluginCatalog) {
+  return catalog.plugins
+    .filter((plugin) => plugin.status === "active")
+    .flatMap((plugin) =>
+      plugin.views
+        .filter((view) => view.location === "thread-details")
+        .map((view) => ({ plugin, viewId: view.id })),
+    );
+}
+
+/** The thread is added last, so a plugin's own input cannot name another thread. */
+export function pluginStatusActionInput(
+  action: PluginStatusAction,
+  threadId: string,
+  destination: string | null,
+): PluginInput {
+  return {
+    ...action.input,
+    ...(action.environment && destination !== null
+      ? { [action.environment.name]: destination }
+      : {}),
+    threadId,
+  };
+}
+
+/** An environment picker offers only other environments that run the same plugin. */
+export function pluginActionDestinations<
+  Target extends { readonly environmentId: string; readonly catalog: PluginCatalog | null },
+>(targets: readonly Target[], sourceEnvironmentId: string, pluginId: string): readonly Target[] {
+  return targets.filter(
+    (target) =>
+      target.environmentId !== sourceEnvironmentId &&
+      target.catalog?.plugins.some(
+        (plugin) => plugin.id === pluginId && plugin.status === "active",
+      ) === true,
+  );
+}
+
+export interface PluginActionStep {
+  readonly environmentId: string;
+  readonly commandId: string;
+  readonly input: PluginInput;
+}
+export type PluginActionReply =
+  | { readonly ok: true; readonly value: unknown }
+  | { readonly ok: false; readonly message: string | null };
+
+const decodeNoticeResult = Schema.decodeUnknownOption(PluginNoticeResult);
+const failed = (message: string | null): PluginNoticeResult => ({
+  $t3: "notice",
+  tone: "danger",
+  text: message ?? "The plugin command failed. Try again.",
+});
+
+/** Runs a status action to its end. Null means it finished with nothing to show. */
+export async function runPluginAction(options: {
+  readonly start: PluginActionStep;
+  readonly execute: (step: PluginActionStep) => Promise<PluginActionReply>;
+}): Promise<PluginNoticeResult | null> {
+  const reply = await options.execute(options.start);
+  if (!reply.ok) return failed(reply.message);
+  return Option.getOrNull(decodeNoticeResult(reply.value));
 }

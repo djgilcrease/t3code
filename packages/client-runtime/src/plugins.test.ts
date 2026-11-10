@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  pluginActionDestinations,
+  pluginStatusActionInput,
+  runPluginAction,
   pluginFormDefaults,
   pluginSettingsPages,
   pluginFormInput,
@@ -124,4 +127,54 @@ it("removes extension navigation when the last contributing page is disabled, re
       plugins: [{ ...plugin, views: [{ ...plugin.views[0]!, location: "usage" }] }],
     }),
   ).toEqual([]);
+});
+
+describe("thread details actions", () => {
+  const action = {
+    id: "move",
+    label: "Move",
+    command: "move",
+    input: { threadId: "another-thread", keep: 1 },
+    environment: { name: "destination", label: "Move to" },
+  };
+  const active = { id: "rehome", name: "Rehome", version: "1.0.0", commands: [], views: [] };
+  const catalog = (status: "active" | "disabled") => ({
+    configurationError: false,
+    plugins: [{ ...active, status }],
+  });
+
+  it("names the pressed thread even when the plugin's own input names another", () => {
+    expect(pluginStatusActionInput(action, "pressed-thread", "env-b")).toEqual({
+      keep: 1,
+      destination: "env-b",
+      threadId: "pressed-thread",
+    });
+  });
+  it("offers only other environments where the plugin is running", () => {
+    expect(
+      pluginActionDestinations(
+        [
+          { environmentId: "source", catalog: catalog("active") },
+          { environmentId: "running", catalog: catalog("active") },
+          { environmentId: "disabled", catalog: catalog("disabled") },
+          { environmentId: "loading", catalog: null },
+        ],
+        "source",
+        "rehome",
+      ).map((target) => target.environmentId),
+    ).toEqual(["running"]);
+  });
+  it("turns a failed command into a notice and passes a plugin's notice through", async () => {
+    const start = { environmentId: "source", commandId: "move", input: {} };
+    expect(
+      await runPluginAction({ start, execute: async () => ({ ok: false, message: null }) }),
+    ).toMatchObject({ tone: "danger" });
+    const notice = { $t3: "notice", tone: "success", text: "Moved." };
+    expect(
+      await runPluginAction({ start, execute: async () => ({ ok: true, value: notice }) }),
+    ).toEqual(notice);
+    expect(
+      await runPluginAction({ start, execute: async () => ({ ok: true, value: { any: 1 } }) }),
+    ).toBeNull();
+  });
 });

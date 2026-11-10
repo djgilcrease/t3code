@@ -229,6 +229,7 @@ const make = Effect.gen(function* () {
           "settings-pages",
           "worktree-lifecycle",
           "supervised-processes",
+          "thread-details",
         ],
         httpBasePath: `/api/plugins/${item.id}`,
         httpBaseUrl: Effect.suspend(() =>
@@ -414,7 +415,18 @@ const make = Effect.gen(function* () {
       return yield* guarded(
         input.pluginId,
         "view",
-        Effect.suspend(view.read).pipe(Effect.flatMap(decodeView), Effect.flatMap(boundedResult)),
+        Effect.suspend(view.read).pipe(
+          Effect.flatMap(decodeView),
+          // Status blocks are drawn only by the thread details row, which draws nothing else.
+          Effect.filterOrFail(
+            (content) =>
+              content.blocks.every(
+                (block) => (block.kind === "status") === (view.location === "thread-details"),
+              ),
+            () => new PluginError({ operation: "view-location", cause: null }),
+          ),
+          Effect.flatMap(boundedResult),
+        ),
       );
     },
   );

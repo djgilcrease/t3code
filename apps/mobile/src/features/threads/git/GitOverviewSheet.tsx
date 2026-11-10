@@ -39,6 +39,7 @@ import {
   useLinkedPullRequestLines,
 } from "../LinkedPullRequestList";
 import { useLinkedPullRequestActions } from "../useLinkedPullRequestActions";
+import { PluginThreadRows } from "../../plugins/PluginThreadRows";
 
 type GitOverviewSheetProps = StaticScreenProps<{
   readonly environmentId: string;
@@ -311,6 +312,8 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
           />
         ) : null}
       </ListSection>
+
+      <PluginThreadRows environmentId={environmentId} threadId={threadId} />
 
       {linkedPrLines.length > 0 ? (
         <ListSection title={`Linked ${linkedPrActions.terminology.plural}`}>
