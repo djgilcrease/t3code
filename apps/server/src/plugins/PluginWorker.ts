@@ -122,6 +122,7 @@ export async function runPluginWorker(): Promise<void> {
           capabilities: Array.isArray(payload.capabilities)
             ? payload.capabilities.filter((value): value is string => typeof value === "string")
             : [],
+          environmentId: hostEffect("environment-id", null).pipe(Effect.map(String)),
           activity: hostEffect("activity", null).pipe(Effect.map(decodeActivity)),
           runProcess: (input) =>
             hostEffect("process-run", input).pipe(Effect.map(decodeProcessResult)),
@@ -171,6 +172,7 @@ export async function runPluginWorker(): Promise<void> {
             ({ run: _run, ...descriptor }) => descriptor,
           ),
           views: (contributions.views ?? []).map(({ read: _read, ...descriptor }) => descriptor),
+          beforeRemove: !!contributions.beforeRemove,
           lifecycle: !!contributions.onLifecycle,
           lifecycleTimeoutMs: contributions.lifecycleTimeoutMs ?? 30_000,
           mcp: !!contributions.mcpServers,
@@ -178,6 +180,10 @@ export async function runPluginWorker(): Promise<void> {
           http: !!contributions.handleHttp,
           httpResponseTimeoutMs: contributions.httpResponseTimeoutMs ?? 30_000,
         };
+      }
+      case "before-remove": {
+        await Effect.runPromise(contributions.beforeRemove!());
+        return null;
       }
       case "lifecycle": {
         const controller = new AbortController();
