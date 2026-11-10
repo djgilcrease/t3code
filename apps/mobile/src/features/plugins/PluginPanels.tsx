@@ -21,13 +21,15 @@ import {
   pluginSecretResult,
   pluginNoticeResult,
   pluginViewResult,
+  pluginGraphLayout,
   type PluginForm,
 } from "@t3tools/client-runtime/plugins";
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { useContext, useEffect, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { Image, Linking, ScrollView, Switch, TextInput, View } from "react-native";
+import { Image, Pressable, Linking, ScrollView, Switch, TextInput, View } from "react-native";
+import Svg, { Path, Circle } from "react-native-svg";
 import { AppText as Text } from "../../components/ui/AppText";
 import { Button as MaterialButton } from "../../components/ui/Button";
 import { serverEnvironment } from "../../state/server";
@@ -224,6 +226,17 @@ function PluginPanel({
         <Text accessibilityRole="alert">This plugin view could not be loaded.</Text>
       )}
       {content?.blocks.map((block) => {
+        if (block.kind === "graph")
+          return (
+            <PluginGraph
+              key={block.id}
+              block={block}
+              environmentId={environmentId}
+              plugin={plugin}
+              busy={busy}
+              run={run}
+            />
+          );
         if (block.kind === "collection")
           return (
             <PluginCollection
@@ -497,5 +510,84 @@ function PluginCollection({
           <MaterialButton key={item.id} label={item.label} onPress={() => select(item.input)} />
         ))}
     </View>
+  );
+}
+
+function PluginGraph({
+  block,
+  ...props
+}: {
+  block: Extract<import("@t3tools/contracts").PluginBlock, { kind: "graph" }>;
+  environmentId: EnvironmentId;
+  plugin: Entry;
+  busy: boolean;
+  run: (action: PluginAction) => Promise<boolean>;
+}) {
+  const layout = pluginGraphLayout(block.nodes);
+  return (
+    <ScrollView horizontal accessibilityLabel={block.label}>
+      <View style={{ width: layout.width + 360 }}>
+        {block.nodes.map((node, i) => (
+          <PluginGraphRow
+            key={node.id}
+            node={node}
+            row={layout.rows[i]!}
+            width={layout.width}
+            {...props}
+          />
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+function PluginGraphRow({
+  node,
+  row,
+  width,
+  environmentId,
+  plugin,
+  busy,
+  run,
+}: {
+  node: Extract<import("@t3tools/contracts").PluginBlock, { kind: "graph" }>["nodes"][number];
+  row: ReturnType<typeof pluginGraphLayout>["rows"][number];
+  width: number;
+  environmentId: EnvironmentId;
+  plugin: Entry;
+  busy: boolean;
+  run: (action: PluginAction) => Promise<boolean>;
+}) {
+  const allowed = useCommandAllowed(environmentId, plugin, node.action.command);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${node.action.label}: ${node.label}`}
+      disabled={busy || !allowed}
+      onPress={() => void run(node.action)}
+      style={{
+        height: 44,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        opacity: busy || !allowed ? 0.5 : 1,
+      }}
+    >
+      <Svg width={width} height={44} accessible={false}>
+        {row.paths.map((path) => (
+          <Path key={path.d} d={path.d} stroke={path.color} strokeWidth={2} fill="none" />
+        ))}
+        <Circle cx={10 + row.column * 16} cy={22} r={4} fill={row.color} />
+      </Svg>
+      <View style={{ flex: 1 }}>
+        <Text numberOfLines={1}>
+          {node.badges.map((badge) => `[${badge}] `).join("")}
+          {node.label}
+        </Text>
+        <Text numberOfLines={1} className="text-xs text-foreground-muted">
+          {node.detail}
+        </Text>
+      </View>
+      <Text className="text-xs text-foreground-muted">{node.annotation}</Text>
+    </Pressable>
   );
 }

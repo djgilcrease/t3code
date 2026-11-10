@@ -377,6 +377,7 @@ const make = Effect.gen(function* () {
           "supervised-processes",
           "thread-details",
           "portable-collections",
+          "portable-graphs",
           ...(Option.isSome(projection) ? ["environment-activity"] : []),
           "thread-portability",
           "plugin-commands",

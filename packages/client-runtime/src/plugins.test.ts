@@ -10,6 +10,7 @@ import {
   pluginLink,
   pluginSecretResult,
   pluginViewResult,
+  pluginGraphLayout,
   type PluginForm,
 } from "./plugins.ts";
 
@@ -247,4 +248,20 @@ it("decodes bounded client-local navigation and rejects malformed pages", () => 
     }),
   ).toBeNull();
   expect(pluginViewResult({ $t3: "notice", text: "hello" })).toBeNull();
+});
+
+it("keeps branch colors through merges, joins parents once, and ends independent roots", () => {
+  const graph = pluginGraphLayout([
+    { id: "merge", parents: ["main", "side"] },
+    { id: "side", parents: ["root"] },
+    { id: "main", parents: ["root"] },
+    { id: "root", parents: [] },
+    { id: "other", parents: [] },
+  ]);
+  expect(graph.rows.map((row) => row.column)).toEqual([0, 1, 0, 0, 0]);
+  expect(graph.rows[0]!.paths).toHaveLength(2);
+  expect(graph.rows[1]!.color).not.toBe(graph.rows[2]!.color);
+  expect(graph.rows[3]!.paths).toHaveLength(1);
+  expect(graph.rows[4]!.paths).toEqual([]);
+  expect(graph.width).toBe(36);
 });

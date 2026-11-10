@@ -22,7 +22,8 @@ import {
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { useState } from "react";
-import { View } from "react-native";
+import { Modal, ScrollView, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import * as Dialog from "../../components/ui/Dialog";
 import { ListRow } from "../../components/ui/ListRow";
@@ -113,14 +114,32 @@ export function PluginThreadRows({
             }
           />
           {expanded === `${plugin.id}:${view.id}` ? (
-            <PluginPanels
-              key={threadId}
-              environmentId={environmentId}
-              pluginId={plugin.id}
-              viewId={view.id}
-              location="thread-panel"
-              context={{ threadId }}
-            />
+            view.presentation === "dialog" ? (
+              <Modal visible animationType="slide" onRequestClose={() => setExpanded(null)}>
+                <SafeAreaView className="flex-1 bg-background">
+                  <MaterialButton label="Close" onPress={() => setExpanded(null)} />
+                  <ScrollView>
+                    <PluginPanels
+                      key={threadId}
+                      environmentId={environmentId}
+                      pluginId={plugin.id}
+                      viewId={view.id}
+                      location="thread-panel"
+                      context={{ threadId }}
+                    />
+                  </ScrollView>
+                </SafeAreaView>
+              </Modal>
+            ) : (
+              <PluginPanels
+                key={threadId}
+                environmentId={environmentId}
+                pluginId={plugin.id}
+                viewId={view.id}
+                location="thread-panel"
+                context={{ threadId }}
+              />
+            )
           ) : null}
         </View>
       ))}
