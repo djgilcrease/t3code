@@ -34,6 +34,8 @@ import {
 } from "@t3tools/contracts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as NotificationJournal from "./NotificationJournal.ts";
+import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import { summarizePluginActivity } from "./pluginActivity.ts";
 import * as Context from "effect/Context";
@@ -104,6 +106,9 @@ export class PluginRegistry extends Context.Service<
     readonly restart: (id: string) => Effect.Effect<boolean>;
     readonly setHttpOrigin: (origin: string) => Effect.Effect<void>;
     /** Thread services depend on this registry through Git, so they are handed over later. */
+    readonly setNotificationDelivery: (
+      deliver: (threadId: string) => Effect.Effect<void>,
+    ) => Effect.Effect<void>;
     readonly setThreads: (host: PluginThreadHost) => Effect.Effect<void>;
     readonly setTerminalInputActivity: (
       source: Effect.Effect<ReadonlyMap<string, number>>,
@@ -164,6 +169,8 @@ const authorize = (permission: AuthEnvironmentScope, scopes: readonly AuthEnviro
 const make = Effect.gen(function* () {
   const identity = yield* Effect.serviceOption(ServerEnvironment.ServerEnvironmentIdentity);
   const notifications = yield* Effect.serviceOption(NotificationJournal.NotificationJournal);
+  const projects = yield* Effect.serviceOption(ProjectStore.ProjectStoreV2);
+  const settings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
   const projection = yield* Effect.serviceOption(ProjectionStore.ProjectionStoreV2);
   const config = yield* ServerConfig.ServerConfig;
   const fs = yield* FileSystem.FileSystem;
@@ -175,6 +182,7 @@ const make = Effect.gen(function* () {
   const active = new Map<string, PluginContributions>();
   const restartLimits = new Map<string, (limit: number) => Effect.Effect<void>>();
   let httpOrigin: string | undefined;
+  let notificationDelivery: ((threadId: string) => Effect.Effect<void>) | undefined;
   let threadHost: PluginThreadHost | undefined;
   let terminalInputActivity: Effect.Effect<ReadonlyMap<string, number>> = Effect.succeed(new Map());
   const entries = new Map<string, PluginCatalog["plugins"][number]>();
@@ -267,7 +275,46 @@ const make = Effect.gen(function* () {
               Effect.mapError((cause) => new PluginError({ operation: "environment-id", cause })),
             )
           : undefined,
-        ...(Option.isSome(notifications) ? { notifications: notifications.value } : {}),
+        ...(Option.isSome(notifications)
+          ? {
+              notifications: {
+                targets: Effect.gen(function* () {
+                  const projectRows = Option.isSome(projects) ? yield* projects.value.list() : [];
+                  const configuration = Option.isSome(settings)
+                    ? (yield* settings.value.getSettings).providerInstances
+                    : {};
+                  const providerRows = Object.entries(configuration ?? {}).map(([id, value]) => ({
+                    id,
+                    label: (value.displayName ?? `${value.driver} (${id})`).slice(0, 200),
+                  }));
+                  return {
+                    projects: projectRows.slice(0, 99).map((project) => ({
+                      id: project.projectId,
+                      label: project.title.slice(0, 200),
+                    })),
+                    providers: providerRows.slice(0, 99),
+                    truncated: projectRows.length > 99 || providerRows.length > 99,
+                  };
+                }).pipe(
+                  Effect.mapError(
+                    (cause) => new PluginError({ operation: "notification-targets", cause }),
+                  ),
+                ),
+                read: notifications.value.read,
+                refreshNative: (threadId: string) =>
+                  Effect.suspend(() =>
+                    notificationDelivery
+                      ? notificationDelivery(threadId)
+                      : Effect.fail(
+                          new PluginError({
+                            operation: "native-notifications-not-ready",
+                            cause: null,
+                          }),
+                        ),
+                  ),
+              },
+            }
+          : {}),
         activity: Option.isSome(projection)
           ? projection.value.getShellSnapshot().pipe(
               Effect.flatMap(({ threads }) =>
@@ -330,7 +377,9 @@ const make = Effect.gen(function* () {
           "thread-portability",
           "plugin-commands",
           "notification-routing",
-          ...(Option.isSome(notifications) ? ["notification-journal"] : []),
+          ...(Option.isSome(notifications)
+            ? ["notification-journal", "native-notification-delivery", "notification-targets"]
+            : []),
         ],
         httpBasePath: `/api/plugins/${item.id}`,
         httpBaseUrl: Effect.suspend(() =>
@@ -632,6 +681,11 @@ const make = Effect.gen(function* () {
     setTerminalInputActivity: Effect.fn("PluginRegistry.setTerminalInputActivity")((source) =>
       Effect.sync(() => {
         terminalInputActivity = source;
+      }),
+    ),
+    setNotificationDelivery: Effect.fn("PluginRegistry.setNotificationDelivery")((deliver) =>
+      Effect.sync(() => {
+        notificationDelivery = deliver;
       }),
     ),
     setThreads: Effect.fn("PluginRegistry.setThreads")((host) =>

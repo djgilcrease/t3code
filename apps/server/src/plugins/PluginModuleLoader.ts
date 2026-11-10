@@ -9,6 +9,7 @@ import {
   IsExecutable as HostProcessIsExecutable,
 } from "@t3tools/shared/HostProcess";
 import {
+  PluginNotificationTargets,
   PluginNotificationRoutes,
   PluginActivity,
   PluginNotificationBatch,
@@ -76,8 +77,12 @@ const Activated = Schema.Struct({
   http: Schema.Boolean,
   httpResponseTimeoutMs: PluginHttpResponseTimeout,
 });
+const decodeNotificationTargets = Schema.decodeSync(PluginNotificationTargets);
 const decodeNotificationRoutes = Schema.decodeUnknownSync(PluginNotificationRoutes);
 const decodeNotificationBatch = Schema.decodeSync(PluginNotificationBatch);
+const decodeNativeNotification = Schema.decodeUnknownSync(
+  Schema.Struct({ threadId: Schema.String }),
+);
 const decodeNotificationRead = Schema.decodeUnknownSync(PluginNotificationRead);
 const decodeProcessInput = Schema.decodeUnknownSync(PluginProcessInput);
 const decodeThreadFile = Schema.decodeUnknownSync(
@@ -308,6 +313,13 @@ const make = Effect.gen(function* () {
             }
             if (method === "secret-remove") {
               await run(hostContext.secrets.remove(String(payload.key)));
+              return null;
+            }
+            if (method === "notification-targets" && hostContext.notifications)
+              return decodeNotificationTargets(await run(hostContext.notifications.targets));
+            if (method === "notification-native" && hostContext.notifications) {
+              const { threadId } = decodeNativeNotification(value);
+              await run(hostContext.notifications.refreshNative(threadId));
               return null;
             }
             if (method === "notifications-read" && hostContext.notifications)

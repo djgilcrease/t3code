@@ -1,3 +1,4 @@
+import { clientNoticeInApp, deliverClientNotice, nextClientNoticeId } from "./clientNoticeRouter";
 import { NativeThemeHost } from "./NativeThemeHost.android";
 import {
   AlertDialog,
@@ -81,6 +82,14 @@ function getPresented() {
 }
 
 export function alert(...[title, message, buttons, options]: Parameters<typeof Alert.alert>): void {
+  const notice = {
+    id: nextClientNoticeId(),
+    title: title ?? "T3 Code",
+    ...(message ? { description: message } : {}),
+    interactive: true,
+  };
+  deliverClientNotice(notice);
+  if (!clientNoticeInApp(notice)) return;
   const actions = buttons?.length ? buttons.slice(0, 3) : [{ text: m(msg("OK")) }];
   const normalized = actions.map((action, index) =>
     index === actions.length - 1 ? { ...action, text: action.text || m(msg("OK")) } : action,

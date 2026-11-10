@@ -405,19 +405,26 @@ export const PluginNotificationKind = Schema.Literals([
   "failure",
   "usage-limit",
   "guest-request",
+  "activity",
+  "clear",
+  "notice",
+  "review-ready",
+  "review-failure",
 ]);
 export type PluginNotificationKind = typeof PluginNotificationKind.Type;
 export const PluginNotification = Schema.Struct({
   id: Label,
   sequence: Schema.Int,
   kind: PluginNotificationKind,
-  threadId: Label,
-  sourceThreadId: Schema.optionalKey(Label),
-  targetEnvironmentId: Schema.optionalKey(Label),
-  projectId: Label,
+  threadId: Schema.String,
+  sourceThreadId: Schema.optionalKey(Schema.String),
+  targetEnvironmentId: Schema.optionalKey(Schema.String),
+  projectId: Schema.String,
   provider: Label,
   title: Label,
   occurredAt: Schema.String,
+  description: Schema.optionalKey(Text),
+  path: Schema.optionalKey(Text),
 });
 export type PluginNotification = typeof PluginNotification.Type;
 export const PluginNotificationRead = Schema.Struct({
@@ -433,10 +440,12 @@ export type PluginNotificationBatch = typeof PluginNotificationBatch.Type;
 export const PluginNotificationRoute = Schema.Struct({
   id: PluginLocalId,
   events: Schema.Array(PluginNotificationKind).check(Schema.isMaxLength(20)),
-  projects: Schema.Array(Label).check(Schema.isMaxLength(100)),
-  providers: Schema.Array(Label).check(Schema.isMaxLength(100)),
+  projects: Schema.Array(Schema.String).check(Schema.isMaxLength(100)),
+  providers: Schema.Array(Schema.String).check(Schema.isMaxLength(100)),
   inApp: Schema.Boolean,
-  mode: Schema.Literals(["off", "notifications", "sound", "notifications-and-sound"]),
+  mode: Schema.Literals(["inherit", "off", "notifications", "sound", "notifications-and-sound"]),
+  forwardCommand: Schema.optionalKey(PluginLocalId),
+  includeDescription: Schema.optionalKey(Schema.Boolean),
 });
 export type PluginNotificationRoute = typeof PluginNotificationRoute.Type;
 export const PluginNotificationRoutes = Schema.Array(PluginNotificationRoute).check(
@@ -444,9 +453,23 @@ export const PluginNotificationRoutes = Schema.Array(PluginNotificationRoute).ch
 );
 export type PluginNotificationRoutes = typeof PluginNotificationRoutes.Type;
 
+export const PluginNotificationTargets = Schema.Struct({
+  projects: Schema.Array(Schema.Struct({ id: Schema.String, label: Label })).check(
+    Schema.isMaxLength(99),
+  ),
+  providers: Schema.Array(Schema.Struct({ id: Schema.String, label: Label })).check(
+    Schema.isMaxLength(99),
+  ),
+  truncated: Schema.Boolean,
+});
+export type PluginNotificationTargets = typeof PluginNotificationTargets.Type;
+
 export interface PluginContext {
   /** Null starts at the current tail; persist the returned cursor with the delivery outbox. */
   readonly notifications?: {
+    readonly targets: Effect.Effect<PluginNotificationTargets, PluginError>;
+    /** Refresh the owning environment's native/mobile presentation from committed state. */
+    readonly refreshNative: (threadId: string) => Effect.Effect<void, PluginError>;
     readonly read: (
       input: PluginNotificationRead,
     ) => Effect.Effect<PluginNotificationBatch, PluginError>;
