@@ -11,7 +11,7 @@ import {
   playNotificationSound,
 } from "~/threadNotifications";
 
-import { toastManager } from "../../ui/toast";
+import { routeClientToastNotification, toastManager } from "../../ui/toast";
 import { readPullRequestListPreferences } from "../pullRequestListPreferences";
 import { useGuideRunStore, type GuideRunWatch } from "./guideRunStore";
 
@@ -108,18 +108,33 @@ function watchGuideRun(
         },
       });
     };
-    const mode = getClientSettings().notificationMode;
+    const routed = routeClientToastNotification({
+      id: `guide:${runKey}`,
+      type: failure === null ? "success" : "error",
+      title,
+      description: failure === null ? body : `${body}: ${failure}`,
+      data: {
+        notificationKind: failure === null ? "review-ready" : "review-failure",
+        notificationEnvironmentId: watch.environmentId,
+        notificationProjectId: watch.reference.projectId,
+        notificationAction: open,
+        notificationNativeDescription: body,
+        notificationPath: `/pull-requests?${new URLSearchParams({ repository: watch.reference.repository, number: String(watch.reference.number), selectedEnvironmentId: watch.environmentId, ...(watch.reference.projectId ? { selectedProjectId: watch.reference.projectId } : {}), ...(watch.reference.host ? { selectedHost: watch.reference.host } : {}) })}`,
+      },
+    });
+    const mode = routed === undefined ? getClientSettings().notificationMode : "off";
     if (hasNotificationSound(mode)) {
       void playNotificationSound(failure === null ? "completion" : "input", () =>
         hasNotificationSound(getClientSettings().notificationMode),
       );
     }
-    if (looking) {
+    if (looking && routed !== false) {
       const toastId = toastManager.add({
         type: failure === null ? "success" : "error",
         title,
         description: failure === null ? body : `${body}: ${failure}`,
         data: {
+          notificationOrigin: "plugin",
           hideCopyButton: true,
           leadingIcon:
             failure === null ? (
@@ -138,6 +153,7 @@ function watchGuideRun(
       });
       return;
     }
+    if (routed !== undefined) return;
     if (
       !hasDesktopNotifications(mode) ||
       typeof Notification === "undefined" ||

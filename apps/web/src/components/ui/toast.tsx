@@ -1,6 +1,7 @@
 import { Spinner } from "~/components/ui/spinner";
 
-import { Toast } from "@base-ui/react/toast";
+import { randomUUID } from "../../lib/utils";
+import { Toast, type ToastObject, type ToastManagerUpdateOptions } from "@base-ui/react/toast";
 import {
   useEffect,
   useState,
@@ -36,6 +37,13 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "./tooltip";
 import { useThreadRouteTarget } from "~/hooks/useThreadRouteTarget";
 
 export type ThreadToastData = {
+  notificationKind?: "notice" | "review-ready" | "review-failure";
+  notificationEnvironmentId?: string;
+  notificationProjectId?: string;
+  notificationAction?: () => void;
+  notificationPath?: string;
+  notificationNativeDescription?: string;
+  notificationOrigin?: "thread" | "plugin";
   threadRef?: ScopedThreadRef | null;
   threadId?: ThreadId | null;
   leadingIcon?: ReactNode;
@@ -79,6 +87,20 @@ type ToastManagerEvent = Parameters<ToastManagerListener>[0];
  * from before the first render (and while the root error view replaces the providers), so hold
  * those until a provider listens.
  */
+type ToastOptions = Parameters<BaseToastManager["add"]>[0];
+let routeToastNotification: ((options: ToastOptions) => boolean | undefined) | undefined;
+export function setToastNotificationRouter(
+  router: ((options: ToastOptions) => boolean | undefined) | undefined,
+) {
+  routeToastNotification = router;
+}
+export function routeClientToastNotification(options: ToastOptions) {
+  try {
+    return routeToastNotification?.(options);
+  } catch {
+    return undefined;
+  }
+}
 function createBufferedToastManager(): BaseToastManager {
   const manager = Toast.createToastManager<ThreadToastData>();
   const listeners = new Set<ToastManagerListener>();
@@ -92,6 +114,26 @@ function createBufferedToastManager(): BaseToastManager {
   });
   return {
     ...manager,
+    update<T extends ThreadToastData = ThreadToastData>(
+      id: string,
+      updates:
+        | ToastManagerUpdateOptions<T>
+        | ((previous: ToastObject<T>) => ToastManagerUpdateOptions<T>),
+    ) {
+      manager.update<T>(id, (previous) => {
+        const changed = typeof updates === "function" ? updates(previous) : updates;
+        routeClientToastNotification({ ...previous, ...changed });
+        return changed;
+      });
+    },
+    add(options) {
+      try {
+        if (routeToastNotification?.(options) === false) return options.id ?? randomUUID();
+      } catch {
+        // A routing integration cannot hide the original notice on failure.
+      }
+      return manager.add(options);
+    },
     " subscribe"(listener) {
       listeners.add(listener);
       for (const event of pending.splice(0)) listener(event);

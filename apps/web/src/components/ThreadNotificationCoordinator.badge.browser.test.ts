@@ -1,5 +1,5 @@
 import type { AnyRouter } from "@tanstack/react-router";
-import { EnvironmentId } from "@t3tools/contracts";
+import { EnvironmentId, type PluginCatalog } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 import { Atom, AtomRegistry } from "effect/reactivity";
@@ -19,6 +19,10 @@ const state = vi.hoisted(() => ({
   badge: vi.fn(),
   settingsListeners: new Set<() => void>(),
 }));
+vi.mock(import("../state/plugins"), async () => {
+  const { Atom } = await import("effect/reactivity");
+  return { pluginCatalogsAtom: Atom.make([]) };
+});
 vi.mock(import("./ui/toast"), async (original) => {
   const actual = await original();
   return {
@@ -84,11 +88,16 @@ vi.mock(import("../threadNotifications"), async (original) => ({
   setNotificationBadge: state.badge,
 }));
 
+import { pluginCatalogsAtom } from "../state/plugins";
 import { startThreadNotifications } from "./ThreadNotificationCoordinator";
 
 let registry: AtomRegistry.AtomRegistry;
 const shellAtom = Atom.family((_id: string) => Atom.make<unknown>(null));
 const environmentIdsAtom = Atom.make<ReadonlyArray<string>>([]);
+const catalogsAtom = pluginCatalogsAtom as unknown as Atom.Writable<
+  readonly { environmentId: string; catalog: PluginCatalog | null }[],
+  readonly { environmentId: string; catalog: PluginCatalog | null }[]
+>;
 const noRequestsAtom = Atom.make(new Map());
 const noDelegatedAtom = Atom.make<ReadonlySet<string>>(new Set<string>());
 state.shells = { set: (id, value) => registry.set(shellAtom(id), value) };
@@ -200,6 +209,7 @@ function setup() {
   state.inApp = false;
   state.settingsListeners.clear();
   registry.set(environmentIdsAtom, ["one", "two"]);
+  registry.set(catalogsAtom, []);
   state.shells.set("one", shell());
   state.shells.set("two", shell());
   focused = false;
@@ -451,5 +461,61 @@ it("opening a thread closes only its in-app toasts, and disabling notifications 
   expect(state.closeToast.mock.calls.slice(2).flat().toSorted()).toEqual([
     "one-other",
     "two-completed",
+  ]);
+});
+
+it("keeps builtin pending alerts when plugin sound policy changes and restores preferences when disabled", async () => {
+  await using app = setup();
+  app.start();
+  state.shells.set("one", shell({ hasPendingApprovals: true }));
+  const pending = TestNotification.sent[0]!;
+  const plugin = {
+    id: "router",
+    name: "Router",
+    version: "1",
+    status: "active" as const,
+    commands: [],
+    views: [],
+    notificationRoutes: [
+      {
+        id: "client",
+        events: ["completion" as const],
+        projects: [],
+        providers: [],
+        inApp: false,
+        mode: "sound" as const,
+      },
+    ],
+  };
+  registry.set(catalogsAtom, [
+    { environmentId: "one", catalog: { configurationError: false, plugins: [plugin] } },
+  ]);
+  expect(pending.close).not.toHaveBeenCalled();
+  expect(state.badge).toHaveBeenLastCalledWith(1);
+  state.shells.set(
+    "one",
+    shell({
+      latestTurn: { turnId: "turn", state: "completed", completedAt: "2026-09-13T07:05:00.000Z" },
+    }),
+  );
+  expect(TestNotification.sent).toHaveLength(1);
+  expect(state.sound).toHaveBeenCalledWith("completion", expect.any(Function));
+  registry.set(catalogsAtom, [
+    {
+      environmentId: "one",
+      catalog: { configurationError: false, plugins: [{ ...plugin, status: "disabled" }] },
+    },
+  ]);
+  state.shells.set("one", shell({ id: "next" }));
+  state.shells.set(
+    "one",
+    shell({
+      id: "next",
+      latestTurn: { turnId: "turn", state: "completed", completedAt: "2026-09-13T07:05:01.000Z" },
+    }),
+  );
+  expect(TestNotification.sent.map((item) => item.title)).toEqual([
+    "Approval needed",
+    "Thread completed",
   ]);
 });

@@ -6,6 +6,7 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import {
   PluginError,
+  PluginNotificationTargets,
   PluginNotificationRoutes,
   PluginActivity,
   PluginNotificationBatch,
@@ -31,6 +32,7 @@ import {
   MAX_PLUGIN_MESSAGE_BYTES,
   type PluginMessage,
 } from "./pluginProtocol.ts";
+const decodeNotificationTargets = Schema.decodeUnknownSync(PluginNotificationTargets);
 const decodeNotificationRoutes = Schema.decodeSync(PluginNotificationRoutes);
 const decodeNotificationBatch = Schema.decodeUnknownSync(PluginNotificationBatch);
 const decodeProcessResult = Schema.decodeUnknownSync(PluginProcessResult);
@@ -128,6 +130,11 @@ export async function runPluginWorker(): Promise<void> {
             : [],
           environmentId: hostEffect("environment-id", null).pipe(Effect.map(String)),
           notifications: {
+            targets: hostEffect("notification-targets", {}).pipe(
+              Effect.map(decodeNotificationTargets),
+            ),
+            refreshNative: (threadId) =>
+              hostEffect("notification-native", { threadId }).pipe(Effect.asVoid),
             read: (input) =>
               hostEffect("notifications-read", input).pipe(Effect.map(decodeNotificationBatch)),
           },

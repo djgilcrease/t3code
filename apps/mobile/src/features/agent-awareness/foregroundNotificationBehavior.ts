@@ -20,6 +20,16 @@ export function foregroundNotificationBehavior(
   notification: Notification,
   deepLinkOnScreen: string | null,
 ): NotificationBehavior {
+  const data = notification.request.content.data;
+  if (data?.t3PluginNotice === true) {
+    const mode = data.mode;
+    return {
+      shouldShowBanner: mode === "notifications" || mode === "notifications-and-sound",
+      shouldShowList: mode === "notifications" || mode === "notifications-and-sound",
+      shouldPlaySound: mode === "sound" || mode === "notifications-and-sound",
+      shouldSetBadge: false,
+    };
+  }
   const target = extractAgentNotificationDeepLink({ notification });
   if (target !== null && target === deepLinkOnScreen) {
     return SUPPRESS;

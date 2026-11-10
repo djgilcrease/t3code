@@ -1,6 +1,7 @@
-import type { NotificationResponse } from "expo-notifications";
+import type { Notification, NotificationResponse } from "expo-notifications";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { foregroundNotificationBehavior } from "./foregroundNotificationBehavior";
 import { consumeLastAgentNotificationResponse } from "./notificationResponseConsumer";
 
 import {
@@ -176,4 +177,65 @@ describe("routeAgentNotificationResponseOnce", () => {
 
     expect(navigations).toEqual(["/threads/env/thread"]);
   });
+});
+
+it("accepts owned extension notice links without widening builtin payload navigation", () => {
+  expect(
+    extractAgentNotificationDeepLink(
+      responseWithData({ t3PluginNotice: true, pluginNoticePath: "/settings/extensions" }),
+    ),
+  ).toBe("/settings/extensions");
+  expect(
+    extractAgentNotificationDeepLink(
+      responseWithData({ t3PluginNotice: true, pluginNoticePath: "/threads/env/thread" }),
+    ),
+  ).toBe("/threads/env/thread");
+  for (const path of [
+    "https://example.com",
+    "//example.com",
+    "/settings?token=secret",
+    "/settings/../threads",
+    "/settings\\evil",
+    "/threads/env/thread?x=1",
+  ]) {
+    expect(
+      extractAgentNotificationDeepLink(
+        responseWithData({ t3PluginNotice: true, pluginNoticePath: path }),
+      ),
+    ).toBeNull();
+  }
+  expect(
+    extractAgentNotificationDeepLink(responseWithData({ pluginNoticePath: "/settings" })),
+  ).toBeNull();
+});
+it("preserves builtin foreground suppression and separates extension sound from visible alerts", () => {
+  const notification = (data: Record<string, unknown>) =>
+    responseWithData(data).notification as Notification;
+  expect(
+    foregroundNotificationBehavior(
+      notification({ deepLink: "/threads/env/thread" }),
+      "/threads/env/thread",
+    ),
+  ).toEqual({
+    shouldShowBanner: false,
+    shouldShowList: false,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  });
+  expect(
+    foregroundNotificationBehavior(
+      notification({ deepLink: "/threads/env/other" }),
+      "/threads/env/thread",
+    ).shouldShowBanner,
+  ).toBe(true);
+  for (const mode of ["off", "sound", "notifications", "notifications-and-sound"]) {
+    expect(
+      foregroundNotificationBehavior(notification({ t3PluginNotice: true, mode }), null),
+    ).toEqual({
+      shouldShowBanner: mode === "notifications" || mode === "notifications-and-sound",
+      shouldShowList: mode === "notifications" || mode === "notifications-and-sound",
+      shouldPlaySound: mode === "sound" || mode === "notifications-and-sound",
+      shouldSetBadge: false,
+    });
+  }
 });

@@ -1,6 +1,14 @@
+import { uuidv4 } from "../../lib/uuid";
+import {
+  clientNoticeInApp,
+  deliverClientNotice,
+  clientNoticeRevisionId,
+  subscribeClientNoticeRouting,
+  clientNoticeRoutingRevision,
+} from "./clientNoticeRouter";
 import { cn } from "../../lib/cn";
 import { MOBILE_MOTION, MOBILE_SHAPE } from "../../lib/designTokens";
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { AccessibilityInfo, Platform, StyleSheet, View, useWindowDimensions } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Animated, {
@@ -36,6 +44,29 @@ export type ToastProps = {
 );
 
 export function Toast(props: ToastProps) {
+  const [id] = useState(uuidv4);
+  useSyncExternalStore(
+    subscribeClientNoticeRouting,
+    clientNoticeRoutingRevision,
+    clientNoticeRoutingRevision,
+  );
+  const key = clientNoticeRevisionId(id, `${props.message}:${props.description ?? ""}`);
+  const notice = {
+    id: key.slice(0, 200),
+    title: props.message,
+    ...(props.description ? { description: props.description } : {}),
+    interactive: Boolean(props.action || props.busy),
+  };
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- sends a mounted notice to optional native and external notification destinations
+  useEffect(() => {
+    deliverClientNotice({
+      id: key.slice(0, 200),
+      title: props.message,
+      ...(props.description ? { description: props.description } : {}),
+      interactive: Boolean(props.action || props.busy),
+    });
+  }, [key, props.message, props.description, props.action, props.busy]);
+  if (!clientNoticeInApp(notice)) return null;
   return props.dismissMode === "swipe" ? (
     <SwipeableToast {...props} />
   ) : (

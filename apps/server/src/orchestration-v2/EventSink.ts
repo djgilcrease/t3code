@@ -409,6 +409,9 @@ const layerBase: Layer.Layer<
           storedEvents
             .filter(
               ({ event }) =>
+                event.type === "thread.archived" ||
+                event.type === "thread.deleted" ||
+                event.type === "thread.metadata-updated" ||
                 event.type === "run.updated" ||
                 event.type === "runtime-request.updated" ||
                 event.type === "subagent.updated" ||
@@ -431,19 +434,26 @@ const layerBase: Layer.Layer<
         for (const [threadId, stored] of candidates) {
           const after = yield* projectionStore.getThreadShell(threadId);
           const transition = notificationTransition(before.get(threadId) ?? null, after);
-          if (transition === null || after === null) continue;
+          if (transition === null) continue;
+          const target = after ?? before.get(threadId);
+          if (target == null) continue;
           const notification = {
-            id: `${stored.event.id}:${transition.kind}:${transition.identity}`.slice(0, 200),
+            id: `committed:${stored.sequence}:${transition.kind}`,
             sequence: 0,
             kind: transition.kind,
-            threadId: after.delegatedFrom?.threadId ?? after.lineage.parentThreadId ?? threadId,
+            threadId:
+              target.delegatedFrom?.threadId ??
+              (target.lineage.relationshipToParent === "subagent" ||
+              target.lineage.sideChat === true
+                ? (target.lineage.parentThreadId ?? threadId)
+                : threadId),
             sourceThreadId: threadId,
-            ...(after.delegatedFrom
-              ? { targetEnvironmentId: after.delegatedFrom.environmentId }
+            ...(target.delegatedFrom
+              ? { targetEnvironmentId: target.delegatedFrom.environmentId }
               : {}),
-            projectId: after.projectId,
-            provider: after.providerInstanceId,
-            title: after.title.slice(0, 200),
+            projectId: target.projectId,
+            provider: target.providerInstanceId,
+            title: target.title.slice(0, 200),
             occurredAt: DateTime.formatIso(stored.event.occurredAt),
           };
           const payload = yield* encodeNotification(notification);
