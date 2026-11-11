@@ -8,6 +8,7 @@ import * as Path from "effect/Path";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import { migrationManifest, runMigrations } from "./Migrations.ts";
+import notificationJournal from "./Migrations/086_NotificationJournal.ts";
 
 const v2Migrations = migrationManifest.filter(([id]) => id >= 55);
 const newerMigrationId = Math.max(...migrationManifest.map(([id]) => id)) + 1;
@@ -34,7 +35,7 @@ describe("runMigrations", () => {
       const sql = yield* SqlClient.SqlClient;
       yield* runMigrations({ toMigrationInclusive: 54 });
       yield* sql`
-        INSERT INTO effect_sql_migrations (migration_id, name) VALUES (55, 'FutureMainMigration')
+        INSERT INTO effect_sql_migrations (migration_id, name) VALUES (55, 'FutureMainMigration'), (81, 'NotificationJournal')
       `;
       const before = yield* history;
 
@@ -67,6 +68,34 @@ describe("runMigrations", () => {
       assert.deepStrictEqual(yield* history, before);
       assert.strictEqual(yield* v2TableCount, 0);
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
+  );
+
+  it.effect.each([81, 82])(
+    "upgrades the published notification journal at id %s without losing events",
+    (id) =>
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* runMigrations({ toMigrationInclusive: id - 1 });
+        yield* notificationJournal;
+        yield* sql`INSERT INTO effect_sql_migrations (migration_id, name) VALUES (${id}, 'NotificationJournal')`;
+        yield* sql`INSERT INTO notification_journal (event_id, payload_json) VALUES ('retained', '{}')`;
+
+        assert.deepStrictEqual(
+          yield* runMigrations(),
+          migrationManifest.filter(([migrationId]) => migrationId >= id),
+        );
+        assert.deepStrictEqual(yield* history, migrationManifest);
+        const columns = yield* sql<{
+          readonly name: string;
+        }>`PRAGMA table_info(orchestration_v2_projection_messages)`;
+        assert.include(
+          columns.map((column) => column.name),
+          "search_text",
+        );
+        const events = yield* sql`SELECT event_id, payload_json FROM notification_journal`;
+        assert.deepStrictEqual(events, [{ event_id: "retained", payload_json: "{}" }]);
+        assert.deepStrictEqual(yield* runMigrations(), []);
+      }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
 
   it.effect("upgrades a database at exactly 54", () =>

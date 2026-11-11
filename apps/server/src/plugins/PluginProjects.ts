@@ -42,7 +42,7 @@ export const layerBinding = Layer.effectDiscard(
       readSource: Effect.fn("PluginProjects.readSource")(function* (input) {
         // Relative paths cannot replace the credential's origin or normalize outside its API root.
         if (
-          !/^[a-zA-Z0-9][a-zA-Z0-9_./%\-]*(?:\?[^#]*)?$/.test(input.path) ||
+          !/^[a-zA-Z0-9][a-zA-Z0-9_./%-]*(?:\?[^#]*)?$/.test(input.path) ||
           input.path.includes("\\") ||
           /(^|\/)\.{1,2}(\/|\?|$)/.test(input.path) ||
           /%2e|%5c/i.test(input.path.split("?")[0] ?? "")

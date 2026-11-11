@@ -98,6 +98,36 @@ it.layer(NodeServices.layer)("service preflight database", (it) => {
           .status,
       ).toBe("ready");
 
+      for (const journalId of [81, 82]) {
+        const journalPath = path.join(path.dirname(databasePath), `journal-${journalId}.sqlite`);
+        const journalDb = new NodeSqlite.DatabaseSync(journalPath);
+        journalDb.exec(
+          "CREATE TABLE effect_sql_migrations (migration_id INTEGER PRIMARY KEY, name TEXT)",
+        );
+        const insertJournal = journalDb.prepare("INSERT INTO effect_sql_migrations VALUES (?, ?)");
+        for (const [id, name] of migrationManifest.filter(([id]) => id < journalId))
+          insertJournal.run(id, name);
+        insertJournal.run(journalId, "NotificationJournal");
+        const journalPreflight = () =>
+          runServicePreflight({
+            databasePath: journalPath,
+            launcherProtocol: SERVICE_LAUNCHER_PROTOCOL,
+          });
+        expect(journalPreflight().status).toBe("ready");
+        journalDb
+          .prepare(
+            "UPDATE effect_sql_migrations SET name = 'ForkMigration' WHERE migration_id = 55",
+          )
+          .run();
+        expect(journalPreflight().status).toBe("blocked");
+        expect(
+          journalDb
+            .prepare("SELECT name FROM effect_sql_migrations WHERE migration_id = ?")
+            .get(journalId),
+        ).toEqual({ name: "NotificationJournal" });
+        journalDb.close();
+      }
+
       const newerId = Math.max(...migrationManifest.map(([id]) => id)) + 1;
       insert.run(newerId, "FromNightly");
       db.close();

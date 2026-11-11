@@ -423,12 +423,7 @@ export function startThreadNotifications(
                 ),
             ),
       );
-<<<<<<< HEAD
-    const enabled = notificationMode !== "off" || inAppNotificationsEnabled || pluginRouting;
-    if (!enabled) closeToasts(() => true);
-    const environmentIds = enabled ? registry.get(environmentSummaries.environmentIdsAtom) : [];
-=======
->>>>>>> 349db669ae (feat(plugins): route client notices and reuse native notification delivery)
+    if (environmentIds.length === 0) closeToasts(() => true);
     const activeIds = new Set(environmentIds);
     for (const [environmentId, entry] of watched) {
       if (activeIds.has(environmentId)) continue;
