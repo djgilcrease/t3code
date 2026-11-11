@@ -13,6 +13,8 @@ import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import { splitsSurrogatePair } from "@t3tools/shared/assistantCitations";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Console from "effect/Console";
+import * as HostProcess from "@t3tools/shared/HostProcess";
+import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -151,32 +153,6 @@ export class ProjectNotFoundError extends Schema.TaggedError<ProjectNotFoundErro
   }
 }
 
-export class ProjectAlreadyExistsError extends Schema.TaggedError<ProjectAlreadyExistsError>()(
-  "ProjectAlreadyExistsError",
-  {
-    operation: Schema.Literal("addProject"),
-    projectId: ProjectId,
-    workspaceRoot: Schema.String,
-  },
-) {
-  override get message(): string {
-    return `An active project already exists for '${this.workspaceRoot}'.`;
-  }
-}
-
-export class ProjectTooManyTrackedFoldersError extends Schema.TaggedError<ProjectTooManyTrackedFoldersError>()(
-  "ProjectTooManyTrackedFoldersError",
-  {
-    operation: Schema.Literal("addProject"),
-    count: Schema.Number,
-    max: Schema.Number,
-  },
-) {
-  override get message(): string {
-    return `--track names ${this.count} folders, but a project tracks at most ${this.max}.`;
-  }
-}
-
 export const ProjectCommandError = Schema.Union([
   ProjectCommandIdGenerationError,
   ProjectLiveServerDeclaredResponseError,
@@ -184,8 +160,6 @@ export const ProjectCommandError = Schema.Union([
   ProjectTitleEmptyError,
   ProjectIdentifierEmptyError,
   ProjectNotFoundError,
-  ProjectAlreadyExistsError,
-  ProjectTooManyTrackedFoldersError,
 ]);
 export type ProjectCommandError = typeof ProjectCommandError.Type;
 
@@ -337,7 +311,7 @@ const runProjectMutation = Effect.fn("runProjectMutation")(function* (
     readonly snapshot: ProjectSnapshot;
     readonly dispatch: (
       command: ProjectCliDispatchCommand,
-    ) => Effect.Effect<void, Error, FileSystem.FileSystem | HttpClient.HttpClient | Path.Path>;
+    ) => Effect.Effect<Project, Error, FileSystem.FileSystem | HttpClient.HttpClient | Path.Path>;
   }) => Effect.Effect<
     string,
     Error,
@@ -371,7 +345,7 @@ const runProjectMutation = Effect.fn("runProjectMutation")(function* (
             return yield* run({
               snapshot: yield* projects.snapshot,
               dispatch: (command) =>
-                projectMutationOperation(projects, command).pipe(Effect.asVoid),
+                projectMutationOperation(projects, command),
             });
           }).pipe(
             Effect.provide(
@@ -424,115 +398,27 @@ const projectAddCommand = Command.make("add", {
             Effect.mapError((cause) => new ProjectGroupingIdentityInvalidError({ cause })),
           )
         : undefined;
-    return yield* runProjectMutation(
-      flags,
-      Effect.fn("projectAddMutation")(function* ({
-        snapshot,
-        dispatch,
-      }: {
-        readonly snapshot: ProjectSnapshot;
-        readonly dispatch: (
-          command: ProjectCliDispatchCommand,
-        ) => Effect.Effect<void, Error, FileSystem.FileSystem | HttpClient.HttpClient | Path.Path>;
-      }) {
-        const workspaceRoot = yield* normalizeWorkspaceRootForProjectCommand(flags.workspaceRoot);
-        const existingProject = snapshot.projects.find(
-          (project) => project.deletedAt === null && project.workspaceRoot === workspaceRoot,
-        );
-        const path = yield* Path.Path;
-        const home = yield* HostProcess.HomeDirectory;
-        const named = flags.track
-          .map((folder) => {
-            const resolved = path.resolve(expandHomePath(folder, home));
-            const name = (path.basename(resolved) || resolved).trimStart();
-            return {
-              path: resolved,
-              name: name.slice(0, splitsSurrogatePair(name, 128) ? 127 : 128).trim(),
-            };
-          })
-          .filter(
-            (folder, index, all) => all.findIndex((other) => other.path === folder.path) === index,
+      return yield* runProjectMutation(
+        flags,
+        Effect.fn("projectAddMutation")(function* ({ dispatch }) {
+          const path = yield* Path.Path;
+          const workspaceRoot = path.resolve(
+            expandHomePath(flags.workspaceRoot.trim(), yield* HostProcess.HomeDirectory),
           );
-        // Re-adding an archived project's folder restores it, matching the clients.
-        if (existingProject?.archivedAt != null) {
-          const title = Option.isSome(flags.title)
-            ? yield* resolveProjectTitle(workspaceRoot, flags.title.value)
-            : undefined;
-          // An update replaces the whole list of added folders.
-          const kept = (existingProject.trackedFolders ?? [])
-            .filter((folder) => folder.discovered !== true)
-            .map((folder) => ({ path: folder.path, name: folder.name }));
-          const added = named.filter(
-            (folder) => !kept.some((existing) => existing.path === folder.path),
-          );
-          if (kept.length + added.length > PROJECT_TRACKED_FOLDERS_MAX) {
-            return yield* new ProjectTooManyTrackedFoldersError({
-              operation: "addProject",
-              count: kept.length + added.length,
-              max: PROJECT_TRACKED_FOLDERS_MAX,
-            });
-          }
-          yield* dispatch({
-            type: "project.update",
+          const projectId = ProjectId.make(yield* projectCommandUuid);
+          const project = yield* dispatch({
+            type: "project.register",
             commandId: CommandId.make(yield* projectCommandUuid),
-            projectId: existingProject.id,
-            archived: false,
-            ...(title === undefined ? {} : { title }),
-            ...(added.length === 0 ? {} : { trackedFolders: [...kept, ...added] }),
+            projectId,
+            workspaceRoot,
+            ...Option.match(flags.title, { onNone: () => ({}), onSome: (title) => ({ title }) }),
             ...(groupingIdentity === undefined ? {} : { groupingIdentity }),
           });
-          const unarchived = `Unarchived project ${existingProject.id} (${title ?? existingProject.title}) at ${workspaceRoot}.`;
-          return added.length === 0
-            ? unarchived
-            : `${unarchived} It now also covers ${added.length} more ${added.length === 1 ? "folder" : "folders"}.`;
-        }
-        if (existingProject && groupingIdentity !== undefined) {
-          if (existingProject.groupingIdentity === groupingIdentity)
-            return `Project ${existingProject.id} already has this grouping identity.`;
-          yield* dispatch({
-            type: "project.update",
-            commandId: CommandId.make(yield* projectCommandUuid),
-            projectId: existingProject.id,
-            groupingIdentity: groupingIdentity,
-          });
-          return `Updated grouping identity for project ${existingProject.id}.`;
-        }
-        if (existingProject) {
-          return yield* new ProjectAlreadyExistsError({
-            operation: "addProject",
-            projectId: existingProject.id,
-            workspaceRoot,
-          });
-        }
-
-        const title = yield* resolveProjectTitle(workspaceRoot, Option.getOrUndefined(flags.title));
-        // Found here, not by a running server: this command runs on the server's machine.
-        const found = yield* discoverFolders(workspaceRoot);
-        if (named.length > PROJECT_TRACKED_FOLDERS_MAX) {
-          return yield* new ProjectTooManyTrackedFoldersError({
-            operation: "addProject",
-            count: named.length,
-            max: PROJECT_TRACKED_FOLDERS_MAX,
-          });
-        }
-        const trackedFolders = mergeProjectFolders(found, named);
-        const projectId = ProjectId.make(yield* projectCommandUuid);
-        yield* dispatch({
-          type: "project.create",
-          commandId: CommandId.make(yield* projectCommandUuid),
-          projectId,
-          title,
-          workspaceRoot,
-          ...(trackedFolders.length === 0 ? {} : { trackedFolders }),
-          ...(groupingIdentity === undefined ? {} : { groupingIdentity }),
-        });
-        const added = `Added project ${projectId} (${title}) at ${workspaceRoot}.`;
-        if (trackedFolders.length > 0) {
-          return `${added} It also covers ${trackedFolders.length} other ${trackedFolders.length === 1 ? "folder" : "folders"}.`;
-        }
-        return added;
-      }),
-    );
+          return project.id === projectId
+            ? `Added project ${project.id} (${project.title}) at ${project.workspaceRoot}.`
+            : `Set grouping identity for project ${project.id}.`;
+        }),
+      );
     }),
   ),
 );
@@ -558,7 +444,11 @@ const projectRemoveCommand = Command.make("remove", {
         readonly snapshot: ProjectSnapshot;
         readonly dispatch: (
           command: ProjectCliDispatchCommand,
-        ) => Effect.Effect<void, Error, FileSystem.FileSystem | HttpClient.HttpClient | Path.Path>;
+        ) => Effect.Effect<
+          Project,
+          Error,
+          FileSystem.FileSystem | HttpClient.HttpClient | Path.Path
+        >;
       }) {
         const project = yield* findActiveProjectTarget({
           snapshot,
@@ -594,7 +484,11 @@ const projectRenameCommand = Command.make("rename", {
         readonly snapshot: ProjectSnapshot;
         readonly dispatch: (
           command: ProjectCliDispatchCommand,
-        ) => Effect.Effect<void, Error, FileSystem.FileSystem | HttpClient.HttpClient | Path.Path>;
+        ) => Effect.Effect<
+          Project,
+          Error,
+          FileSystem.FileSystem | HttpClient.HttpClient | Path.Path
+        >;
       }) {
         const project = yield* findActiveProjectTarget({
           snapshot,
@@ -660,23 +554,19 @@ const projectGroupingCommand = Command.make("grouping", {
           : undefined;
       return yield* runProjectMutation(
         flags,
-        Effect.fn("projectGroupingMutation")(function* ({ snapshot, dispatch }) {
-          const project = yield* findActiveProjectTarget({ snapshot, identifier: flags.project });
-          if (groupingIdentity === undefined) {
-            return yield* encodeGroupingResult({
-              projectId: project.id,
-              groupingIdentity:
-                snapshot.projects.find((entry) => entry.id === project.id)?.groupingIdentity ??
-                null,
-            });
-          }
-          yield* dispatch({
-            type: "project.update",
+        Effect.fn("projectGroupingMutation")(function* ({ dispatch }) {
+          const path = yield* Path.Path;
+          const project = yield* dispatch({
+            type: "project.grouping",
             commandId: CommandId.make(yield* projectCommandUuid),
-            projectId: project.id,
-            groupingIdentity,
+            identifier: flags.project,
+            cwd: path.resolve("."),
+            ...(groupingIdentity === undefined ? {} : { groupingIdentity }),
           });
-          return yield* encodeGroupingResult({ projectId: project.id, groupingIdentity });
+          return yield* encodeGroupingResult({
+            projectId: project.id,
+            groupingIdentity: project.groupingIdentity ?? null,
+          });
         }),
       );
     }),
