@@ -2380,18 +2380,19 @@ const newThreadRequests = (calls: ReadonlyArray<Call>) =>
   });
 
 /** Whether every expected value can take a different request it matches. */
-const matchesDistinct = (
-  expected: ReadonlyArray<unknown>,
-  requests: ReturnType<typeof newThreadRequests>,
+const matchesDistinct = <Expected, Actual>(
+  expected: ReadonlyArray<Expected>,
+  requests: ReadonlyArray<Actual>,
+  match: (expected: Expected, actual: Actual) => boolean,
   taken: ReadonlySet<number> = new Set(),
 ): boolean => {
   const [first, ...rest] = expected;
   if (expected.length === 0) return true;
   return requests.some(
-    ({ request, brief }, i) =>
+    (request, i) =>
       !taken.has(i) &&
-      matches(first, typeof first === "string" ? brief : request) &&
-      matchesDistinct(rest, requests, new Set([...taken, i])),
+      match(first!, request) &&
+      matchesDistinct(rest, requests, match, new Set([...taken, i])),
   );
 };
 
@@ -2468,28 +2469,28 @@ export const gradeSample = (
   // `tool` may list alternatives, as in "link_pull_request|watch_pull_request"; counts add up.
   const count = (tool: string) =>
     calls.filter((call) => tool.split("|").includes(call.tool)).length;
-  const found = ({ tool, args = {}, argsAnyOf, success, allowedArgs, requiredArgs }: McpToolUseCall, among = calls) =>
-    among.some(
-      (call) =>
-        tool.split("|").includes(call.tool) &&
-        (success === undefined || call.failed === false) &&
-        matches(args, call.input) &&
-        (argsAnyOf === undefined || argsAnyOf.some((alternative) => matches(alternative, call.input))) &&
-        (requiredArgs === undefined || (isRecord(call.input) && requiredArgs.every((key) => call.input[key] !== undefined))) &&
-        (allowedArgs === undefined ||
-          (isRecord(call.input) && Object.keys(call.input).every((key) => allowedArgs.includes(key)))),
-    );
+  const matchesCall = (
+    { tool, args = {}, argsAnyOf, success, allowedArgs, requiredArgs }: McpToolUseCall,
+    { tool: callTool, input, failed }: Call,
+  ) =>
+    tool.split("|").includes(callTool) &&
+    (success === undefined || failed === false) &&
+    matches(args, input) &&
+    (argsAnyOf === undefined || argsAnyOf.some((alternative) => matches(alternative, input))) &&
+    (requiredArgs === undefined ||
+      (isRecord(input) && requiredArgs.every((key) => input[key] !== undefined))) &&
+    (allowedArgs === undefined ||
+      (isRecord(input) && Object.keys(input).every((key) => allowedArgs.includes(key))));
+  const found = (expected: McpToolUseCall, among = calls) =>
+    among.some((call) => matchesCall(expected, call));
   const label = ({ tool, args }: McpToolUseCall) => (args ? `${tool} ${valueText(args)}` : tool);
   for (const call of expect.calls ?? []) add(`calls ${label(call)}`, found(call));
   if (expect.distinctCalls !== undefined) {
-    const expected = expect.distinctCalls.map(({ tool, args }) => ({ tool, input: args ?? {} }));
+    const expected = expect.distinctCalls;
     add(
       "distinctCalls",
-      calls.every((call) => expected.filter((entry) => matches(entry, call)).length <= 1) &&
-        matchesDistinct(
-          expected,
-          calls.map((request) => ({ request, brief: "" })),
-        ),
+      calls.every((call) => expected.filter((entry) => matchesCall(entry, call)).length <= 1) &&
+        matchesDistinct(expected, calls, matchesCall),
     );
   }
   if (expect.anyOf !== undefined) {
@@ -2526,7 +2527,10 @@ export const gradeSample = (
     const requests = newThreadRequests(calls);
     add(
       `newThreads ${valueText(expect.newThreads)}`,
-      requests.length === expect.newThreads.length && matchesDistinct(expect.newThreads, requests),
+      requests.length === expect.newThreads.length &&
+        matchesDistinct(expect.newThreads, requests, (expected, { request, brief }) =>
+          matches(expected, typeof expected === "string" ? brief : request),
+        ),
     );
   }
   if (expect.endsTurnAfter !== undefined) {
