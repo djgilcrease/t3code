@@ -9,13 +9,21 @@ export function PluginAssociationsView({
   busy,
   run,
   search,
+  canRun,
+  submittedQuery,
 }: {
   block: PluginAssociations;
   busy: boolean;
   run: (action: PluginAction) => Promise<boolean>;
   search: (query: string, cursor?: string) => void;
+  canRun: (action: PluginAction) => boolean;
+  submittedQuery: string;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(submittedQuery);
+  const submitted = submittedQuery;
+  const submit = () => {
+    search(query);
+  };
   const [expanded, setExpanded] = useState(false);
   const [searching, setSearching] = useState(false);
   return (
@@ -24,16 +32,23 @@ export function PluginAssociationsView({
         <View key={item.id} className="gap-1">
           <Button
             label={item.label}
-            disabled={busy || !item.open}
+            disabled={busy || !item.open || !canRun(item.open)}
             onPress={() => item.open && void run(item.open)}
           />
           <Button
             label={`Remove ${item.label}`}
-            disabled={busy}
+            disabled={busy || !canRun(item.select)}
             onPress={() => void run(item.select)}
           />
         </View>
       ))}
+      {block.clear && block.selected.length > 0 && (
+        <Button
+          label={block.clear.label}
+          disabled={busy || !canRun(block.clear)}
+          onPress={() => block.clear && void run(block.clear)}
+        />
+      )}
       {block.selected.length > 1 && (
         <Button
           label={expanded ? "Show less" : `Show ${block.selected.length - 1} more`}
@@ -48,14 +63,14 @@ export function PluginAssociationsView({
             value={query}
             maxLength={200}
             onChangeText={setQuery}
-            onSubmitEditing={() => search(query)}
+            onSubmitEditing={submit}
           />
-          <Button label="Search" disabled={busy} onPress={() => search(query)} />
+          <Button label="Search" disabled={busy} onPress={submit} />
           {block.options.map((item) => (
             <Button
               key={item.id}
               label={item.label}
-              disabled={busy}
+              disabled={busy || !canRun(item.select)}
               onPress={() => void run(item.select)}
             />
           ))}
@@ -63,8 +78,8 @@ export function PluginAssociationsView({
           {block.nextCursor && (
             <Button
               label="Next page"
-              disabled={busy}
-              onPress={() => search(query, block.nextCursor)}
+              disabled={busy || query !== submitted}
+              onPress={() => search(submitted, block.nextCursor)}
             />
           )}
         </View>
