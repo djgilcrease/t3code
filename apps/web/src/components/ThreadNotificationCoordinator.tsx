@@ -428,6 +428,7 @@ export function startThreadNotifications(
                 ),
             ),
       );
+    if (environmentIds.length === 0) closeToasts(() => true);
     const activeIds = new Set(environmentIds);
     for (const [environmentId, entry] of watched) {
       if (activeIds.has(environmentId)) continue;

@@ -207,6 +207,7 @@ function Panel({
         handle={fixture.handle}
         environmentId={threadRef.environmentId}
         threadId={threadRef.threadId}
+        hasRepository={false}
         projectId={ProjectId.make("project")}
         composerDraftTarget={threadRef}
         worktreePath={draftEnvMode === undefined ? state.folder : null}

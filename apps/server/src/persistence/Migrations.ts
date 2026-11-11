@@ -288,6 +288,22 @@ export function skippedV2Migrations(
   });
 }
 
+export function reconciledPluginMigrationHistory(
+  recorded: ReadonlyArray<{ readonly id: number; readonly name: string }>,
+) {
+  const latestId = Math.max(0, ...recorded.map((row) => row.id));
+  const journal = recorded.find(
+    (row) => row.name === "NotificationJournal" && (row.id === 81 || row.id === 82),
+  );
+  if (!journal || journal.id !== latestId) return recorded;
+  const replacement = migrationManifest.find(([id]) => id === journal.id);
+  if (!replacement) return recorded;
+  const reconciled = recorded.map((row) =>
+    row === journal ? { id: row.id, name: replacement[1] } : row,
+  );
+  return skippedV2Migrations(reconciled).length === 0 ? reconciled : recorded;
+}
+
 // Migrators skip ids up to the highest recorded; reject collisions that would skip V2 schema.
 const assertV2MigrationsCanRun = Effect.fn("assertV2MigrationsCanRun")(function* (
   throughId?: number,
@@ -311,6 +327,41 @@ const assertV2MigrationsCanRun = Effect.fn("assertV2MigrationsCanRun")(function*
     kind: "BadState",
     message: `This database's migration history would skip required schema migrations: ${skipped.join(", ")}. The migrator skips every id up to the highest recorded id (${latestRecordedId}), regardless of name. It was probably written by a different build. Start the build that wrote it, or report this migration history so an upgrade path can be added.`,
   });
+});
+
+const reconcileNotificationJournal = Effect.fn("reconcileNotificationJournal")(function* (
+  throughId?: number,
+) {
+  const sql = yield* SqlClient.SqlClient;
+  return yield* sql.withTransaction(
+    Effect.gen(function* () {
+      const tables =
+        yield* sql`SELECT name FROM sqlite_master WHERE name = 'effect_sql_migrations' AND type = 'table'`;
+      if (tables.length === 0) return [];
+      const recorded = yield* sql<{
+        readonly id: number;
+        readonly name: string;
+      }>`SELECT migration_id AS id, name FROM effect_sql_migrations`;
+      const latestId = Math.max(0, ...recorded.map((row) => row.id));
+      const journal = recorded.find(
+        (row) => row.name === "NotificationJournal" && (row.id === 81 || row.id === 82),
+      );
+      if (
+        !journal ||
+        journal.id !== latestId ||
+        (throughId !== undefined && throughId < journal.id)
+      )
+        return [];
+      const replacement = reconciledPluginMigrationHistory(recorded).find(
+        (row) => row.id === journal.id,
+      )?.name;
+      if (!replacement || replacement === "NotificationJournal") return [];
+      // Released plugin hosts occupied these ids before upstream assigned them.
+      yield* journal.id === 81 ? Migration0081 : Migration0082;
+      yield* sql`UPDATE effect_sql_migrations SET name = ${replacement} WHERE migration_id = ${journal.id}`;
+      return [[journal.id, replacement] as const];
+    }),
+  );
 });
 
 const latestMigrationId = Math.max(...migrationEntries.map(([id]) => id));
@@ -349,6 +400,9 @@ export const runMigrations = Effect.fn("runMigrations")(function* ({
     toMigrationInclusive === undefined || toMigrationInclusive >= FIRST_V2_MIGRATION_ID;
   // The reconcile takes the write lock; CLI startup must not contend with the server for a no-op.
   const previewMigrations = includesV2 && hasPending ? yield* reconcileV2PreviewMigration() : [];
+  const journalMigrations = includesV2 && hasPending
+    ? yield* reconcileNotificationJournal(toMigrationInclusive)
+    : [];
   if (includesV2) {
     yield* assertV2MigrationsCanRun(toMigrationInclusive);
   }
@@ -369,7 +423,7 @@ export const runMigrations = Effect.fn("runMigrations")(function* ({
   );
   // One transaction per migration: an index build on a large database can take minutes, and a
   // restart then resumes after the last finished migration instead of rolling all of them back.
-  const executedMigrations: Array<readonly [id: number, name: string]> = [...previewMigrations];
+  const executedMigrations: Array<readonly [id: number, name: string]> = [...previewMigrations, ...journalMigrations];
   yield* Effect.gen(function* () {
     for (const [index, [id, name]] of pending.entries()) {
       if (Option.isSome(progress)) {

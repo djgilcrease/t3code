@@ -456,7 +456,9 @@ export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activ
     {...${JSON.stringify(descriptor("describe"))}, run: (input) => host.threads.describe(input.threadId).pipe(${shown})},
     {...${JSON.stringify(descriptor("export"))}, run: (input) => host.threads.export({ threadId: "known", file: input.file }).pipe(${shown})},
     {...${JSON.stringify(descriptor("peer"))}, run: (input) => host.plugins.run({ pluginId: "healthy", commandId: input.commandId, input: {} }).pipe(${shown})},
+    {...${JSON.stringify(descriptor("source"))}, run: (input) => host.projects.readSource(input)},
   ],
+  taskContext: ({projectId, threadId}) => host.projects.describe(projectId).pipe(Effect.map(project => project.directory + ":" + threadId)),
 })};`,
       (temp) =>
         Effect.gen(function* () {
@@ -486,6 +488,29 @@ export default {apiVersion: 1, id: "test", name: "Test", version: "1.0.0", activ
             import: () => Effect.fail({ message: "unused" }),
             archive: () => Effect.void,
           });
+          yield* host.setProjects({
+            describe: (projectId) =>
+              Effect.succeed({
+                projectId,
+                directory: "/repo",
+                provider: "gitlab",
+                remoteUrl: "https://gitlab.example/team/app.git",
+                baseUrl: "https://gitlab.example",
+                apiReads: true,
+              }),
+            readSource: (input) => Effect.succeed(JSON.stringify(input)),
+          });
+          expect(
+            yield* run("source", {
+              projectId: "project",
+              path: "projects/team%2Fapp/issues?page=2",
+            }),
+          ).toBe(
+            JSON.stringify({ projectId: "project", path: "projects/team%2Fapp/issues?page=2" }),
+          );
+          expect(yield* host.taskContext({ projectId: "project", threadId: "known" })).toBe(
+            "Reference material from test:\n/repo:known",
+          );
           expect(yield* run("describe", { threadId: "known" })).toEqual(summary);
           expect(yield* run("describe", { threadId: "missing" })).toEqual({
             shown: "This thread does not exist on this environment.",
