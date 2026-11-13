@@ -2897,7 +2897,11 @@ it.effect("queued-message commands read a long thread's history without walking 
             (/^SEARCH .*(node|turn_item).* \(thread_id=\?\)$/.test(detail) &&
               !detail.includes("USING COVERING INDEX") &&
               // That full ordering pass, through an index that holds only message items.
-              !(detail.includes("message_ordinal_idx") && !query.includes("json_each"))) ||
+              !(detail.includes("message_ordinal_idx") && !query.includes("json_each")) &&
+              // This partial index contains only waiting link cards, never completed history.
+              !detail.includes(
+                "USING INDEX orchestration_v2_projection_turn_items_waiting_link_idx ",
+              )) ||
             // Every active run in the environment, not only this thread's.
             /^SEARCH .*runs.* \(status=\?\)$/.test(detail) ||
             // A status-filtered read that fetches every typed row to check its status.
