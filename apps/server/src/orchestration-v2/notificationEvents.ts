@@ -81,4 +81,3 @@ export function shouldRefreshNotificationPresentation(
       return false;
   }
 }
-
