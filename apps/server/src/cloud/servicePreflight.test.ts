@@ -98,7 +98,7 @@ it.layer(NodeServices.layer)("service preflight database", (it) => {
           .status,
       ).toBe("ready");
 
-      for (const journalId of [81, 82]) {
+      for (const journalId of [81, 82, 86]) {
         const journalPath = path.join(path.dirname(databasePath), `journal-${journalId}.sqlite`);
         const journalDb = new NodeSqlite.DatabaseSync(journalPath);
         journalDb.exec(
