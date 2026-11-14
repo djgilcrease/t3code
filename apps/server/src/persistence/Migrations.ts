@@ -294,7 +294,8 @@ export function reconciledPluginMigrationHistory(
   const latestId = Math.max(0, ...recorded.map((row) => row.id));
   const journal = recorded.find(
     (row) =>
-      row.name === "NotificationJournal" && (row.id === 81 || row.id === 82 || row.id === 86),
+      row.name === "NotificationJournal" &&
+      (row.id === 81 || row.id === 82 || row.id === 86 || row.id === 90),
   );
   if (!journal || journal.id !== latestId) return recorded;
   const replacement = migrationManifest.find(([id]) => id === journal.id);
@@ -346,7 +347,8 @@ const reconcileNotificationJournal = Effect.fn("reconcileNotificationJournal")(f
       const latestId = Math.max(0, ...recorded.map((row) => row.id));
       const journal = recorded.find(
         (row) =>
-          row.name === "NotificationJournal" && (row.id === 81 || row.id === 82 || row.id === 86),
+          row.name === "NotificationJournal" &&
+          (row.id === 81 || row.id === 82 || row.id === 86 || row.id === 90),
       );
       if (
         !journal ||
@@ -359,7 +361,13 @@ const reconcileNotificationJournal = Effect.fn("reconcileNotificationJournal")(f
       )?.name;
       if (!replacement || replacement === "NotificationJournal") return [];
       // Released plugin hosts occupied these ids before upstream assigned them.
-      yield* journal.id === 81 ? Migration0081 : journal.id === 82 ? Migration0082 : Migration0086;
+      yield* journal.id === 81
+        ? Migration0081
+        : journal.id === 82
+          ? Migration0082
+          : journal.id === 86
+            ? Migration0086
+            : Migration0090;
       yield* sql`UPDATE effect_sql_migrations SET name = ${replacement} WHERE migration_id = ${journal.id}`;
       return [[journal.id, replacement] as const];
     }),
