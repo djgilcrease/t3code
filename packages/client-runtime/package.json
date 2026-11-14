@@ -681,9 +681,9 @@
     "effect": "catalog:",
     "gt-i18n": "1.0.40",
     "jszip": "3.10.1",
+    "react": "catalog:",
     "remark-gfm": "catalog:",
     "remark-parse": "catalog:",
-    "react": "catalog:",
     "three": "0.180.0",
     "unbash": "^5.0.0",
     "unified": "catalog:"
