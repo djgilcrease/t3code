@@ -729,7 +729,6 @@ export const make = Effect.gen(function* () {
             conflictingProjectId: existing.value.id,
           });
         }
-        if (existing.value.groupingIdentity === input.groupingIdentity) return existing.value;
         return yield* update({
           commandId: input.commandId,
           projectId: existing.value.id,
