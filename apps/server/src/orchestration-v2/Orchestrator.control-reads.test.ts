@@ -2042,6 +2042,9 @@ it.effect("starts, finishes and follows up a task without reading the parent's h
         return Effect.succeed(statement);
       },
     );
+    const [journalBefore] = yield* sql<{ readonly cursor: number }>`
+      SELECT COALESCE(MAX(sequence), 0) AS cursor FROM notification_journal
+    `;
     yield* orchestrator
       .dispatch({
         type: "delegated_task.request",
@@ -2102,6 +2105,17 @@ it.effect("starts, finishes and follows up a task without reading the parent's h
         finished.runs[0]?.delegatedCompletion?.delivery?.taskIds,
       ],
       ["completed", "claimed", "completed", "completed", [task.id]],
+    );
+
+    const notifications = yield* sql<{ readonly kind: string }>`
+      SELECT json_extract(payload_json, '$.kind') AS kind FROM notification_journal
+      WHERE sequence > ${journalBefore!.cursor}
+        AND json_extract(payload_json, '$.sourceThreadId') = ${parentThreadId}
+      ORDER BY sequence
+    `;
+    assert.deepEqual(
+      notifications.map((row) => row.kind),
+      ["activity", "activity"],
     );
 
     // A person's follow-up to the finished child binds a new task to the parent's running run.
@@ -2183,6 +2197,26 @@ it.effect("starts, finishes and follows up a task without reading the parent's h
     addHistory("messages", "message_id");
     addHistory("provider_turns", "provider_turn_id", ["run_attempt_id"]);
     assert.isAtMost(readSteps(), shortSteps * 1.1);
+    const completedParent = yield* projections.getRun(parentThreadId, parentRun.id);
+    assert.isDefined(completedParent);
+    yield* eventSink.write({
+      events: [
+        {
+          id: EventId.make("event:long-parent:completed"),
+          type: "run.updated",
+          threadId: parentThreadId,
+          runId: parentRun.id,
+          occurredAt: now,
+          payload: { ...completedParent!, status: "completed", completedAt: now },
+        },
+      ],
+    });
+    const [completion] = yield* sql<{ readonly kind: string }>`
+      SELECT json_extract(payload_json, '$.kind') AS kind FROM notification_journal
+      WHERE json_extract(payload_json, '$.sourceThreadId') = ${parentThreadId}
+      ORDER BY sequence DESC LIMIT 1
+    `;
+    assert.equal(completion?.kind, "completion");
   }).pipe(Effect.provide(layerTest)),
 );
 
