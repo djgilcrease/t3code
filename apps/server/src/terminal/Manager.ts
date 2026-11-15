@@ -3803,7 +3803,8 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       if (input.data.length > 0) {
         terminalInputs.delete(input.threadId);
         terminalInputs.set(input.threadId, DateTime.toEpochMillis(yield* DateTime.now));
-        if (terminalInputs.size > 10_000) terminalInputs.delete(terminalInputs.keys().next().value!);
+        if (terminalInputs.size > 10_000)
+          terminalInputs.delete(terminalInputs.keys().next().value!);
       }
     },
   );

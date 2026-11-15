@@ -258,7 +258,7 @@ export function reconciledPluginMigrationHistory(
   const journal = recorded.find(
     (row) =>
       row.name === "NotificationJournal" &&
-      (row.id === 81 || row.id === 82 || row.id === 86 || row.id === 90),
+      (row.id === 81 || row.id === 82 || row.id === 86 || row.id === 90 || row.id === 92),
   );
   if (!journal || journal.id !== latestId) return recorded;
   const replacement = migrationManifest.find(([id]) => id === journal.id);
@@ -311,7 +311,7 @@ const reconcileNotificationJournal = Effect.fn("reconcileNotificationJournal")(f
       const journal = recorded.find(
         (row) =>
           row.name === "NotificationJournal" &&
-          (row.id === 81 || row.id === 82 || row.id === 86 || row.id === 90),
+          (row.id === 81 || row.id === 82 || row.id === 86 || row.id === 90 || row.id === 92),
       );
       if (
         !journal ||
@@ -330,7 +330,9 @@ const reconcileNotificationJournal = Effect.fn("reconcileNotificationJournal")(f
           ? Migration0082
           : journal.id === 86
             ? Migration0086
-            : Migration0090;
+            : journal.id === 90
+              ? Migration0090
+              : Migration0092;
       yield* sql`UPDATE effect_sql_migrations SET name = ${replacement} WHERE migration_id = ${journal.id}`;
       return [[journal.id, replacement] as const];
     }),
