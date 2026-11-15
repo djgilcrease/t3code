@@ -112,6 +112,7 @@ export const layerProjectService = ProjectService.layer.pipe(
       ProjectStore.layer,
       ProjectionStore.layer,
       layerEventSink,
+      layerCommandReceiptStoreProvided,
       IdAllocator.layer,
       layerLegacyV1ThreadImporterProvided,
     ),
