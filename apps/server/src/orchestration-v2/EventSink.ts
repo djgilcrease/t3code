@@ -81,6 +81,18 @@ interface ProviderBatchPublication {
   projectedSequence: number | undefined;
   eventCount: number;
 }
+function subagentActivityRunId(event: OrchestrationV2DomainEvent) {
+  if (
+    event.type === "run.updated" &&
+    ["preparing", "starting", "running", "waiting"].includes(event.payload.status)
+  )
+    return event.payload.id;
+  return event.type === "subagent.updated" ||
+    (event.type === "turn-item.updated" && event.payload.type === "subagent")
+    ? event.payload.runId
+    : null;
+}
+
 const encodeNotification = Schema.encodeEffect(Schema.fromJsonString(PluginNotification));
 const CurrentProviderBatch = Context.Reference<ProviderBatchPublication | undefined>(
   "t3/orchestration-v2/EventSink/CurrentProviderBatch",
@@ -455,34 +467,62 @@ const layerBase: Layer.Layer<
       /* This helper runs for individual orchestration events; the enclosing operation owns the span. */
       Effect.fnUntraced(function* (storedEvents: ReadonlyArray<OrchestrationV2StoredEvent>) {
         // Transcript chunks cannot change alert eligibility; read shells only for state transitions.
-        const candidates = new Map(
-          storedEvents
-            .filter(
-              ({ event }) =>
-                shouldRefreshNotificationPresentation(event) ||
-                event.type === "thread.guest-share-updated",
-            )
-            .map((stored) => [stored.event.threadId, stored] as const),
+        const changes = storedEvents.filter(
+          ({ event }) =>
+            shouldRefreshNotificationPresentation(event) ||
+            event.type === "thread.guest-share-updated",
         );
+        const candidates = new Map(
+          changes.map((stored) => [stored.event.threadId, stored] as const),
+        );
+        const activityOnly = new Set<ThreadId>();
+        for (const [threadId, stored] of candidates) {
+          const runId = subagentActivityRunId(stored.event);
+          if (
+            !changes.some(
+              ({ event }) => event.threadId === threadId && event.type === "subagent.updated",
+            )
+          )
+            continue;
+          if (
+            runId === null ||
+            changes.some(
+              ({ event }) => event.threadId === threadId && subagentActivityRunId(event) !== runId,
+            )
+          )
+            continue;
+          const run = yield* projectionStore.getRun(threadId, runId);
+          // Subagent-only changes cannot alter an active parent's alert eligibility.
+          if (run && ["preparing", "starting", "running", "waiting"].includes(run.status))
+            activityOnly.add(threadId);
+        }
         const before = new Map(
-          yield* Effect.forEach([...candidates.keys()], (threadId) =>
-            projectionStore
-              .getThreadShell(threadId)
-              .pipe(Effect.map((shell) => [threadId, shell] as const)),
+          yield* Effect.forEach(
+            [...candidates.keys()].filter((threadId) => !activityOnly.has(threadId)),
+            (threadId) =>
+              projectionStore
+                .getThreadShell(threadId)
+                .pipe(Effect.map((shell) => [threadId, shell] as const)),
           ),
         );
         yield* Effect.forEach(storedEvents, (stored) => projectionStore.apply(stored.event), {
           concurrency: 1,
         });
         for (const [threadId, stored] of candidates) {
-          const after = yield* projectionStore.getThreadShell(threadId);
+          const activeParent = activityOnly.has(threadId)
+            ? yield* projectionStore.getThread(threadId)
+            : undefined;
+          if (activeParent && activeParent.deletedAt !== null) continue;
+          const after = activeParent ? null : yield* projectionStore.getThreadShell(threadId);
           const transition =
-            notificationTransition(before.get(threadId) ?? null, after) ??
+            (activeParent
+              ? { kind: "activity" as const }
+              : notificationTransition(before.get(threadId) ?? null, after)) ??
             (shouldRefreshNotificationPresentation(stored.event)
               ? { kind: "activity" as const }
               : null);
           if (transition === null) continue;
-          const target = after ?? before.get(threadId);
+          const target = activeParent ?? after ?? before.get(threadId);
           if (target == null) continue;
           const notification = {
             id: `committed:${stored.sequence}:${transition.kind}`,
