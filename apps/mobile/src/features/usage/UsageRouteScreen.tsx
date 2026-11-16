@@ -306,14 +306,18 @@ function UsageScreen(props: {
               {showingLimits ? (
                 <>
                   {selectedEnvironments.map((environment) => (
-                    <PluginPanels key={environment.environmentId} environmentId={environment.environmentId} location="usage" />
+                    <PluginPanels
+                      key={environment.environmentId}
+                      environmentId={environment.environmentId}
+                      location="usage"
+                    />
                   ))}
-                <UsageLimitsSection
-                  now={limits.now}
-                  failedLabels={limits.failedLabels}
-                  selectedEnvironmentIds={selectedEnvironmentIds}
-                  wide={wide}
-                />
+                  <UsageLimitsSection
+                    now={limits.now}
+                    failedLabels={limits.failedLabels}
+                    selectedEnvironmentIds={selectedEnvironmentIds}
+                    wide={wide}
+                  />
                 </>
               ) : (
                 <>
