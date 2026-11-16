@@ -258,7 +258,12 @@ export function reconciledPluginMigrationHistory(
   const journal = recorded.find(
     (row) =>
       row.name === "NotificationJournal" &&
-      (row.id === 81 || row.id === 82 || row.id === 86 || row.id === 90 || row.id === 92),
+      (row.id === 81 ||
+        row.id === 82 ||
+        row.id === 86 ||
+        row.id === 90 ||
+        row.id === 92 ||
+        row.id === 96),
   );
   if (!journal || journal.id !== latestId) return recorded;
   const replacement = migrationManifest.find(([id]) => id === journal.id);
@@ -311,7 +316,12 @@ const reconcileNotificationJournal = Effect.fn("reconcileNotificationJournal")(f
       const journal = recorded.find(
         (row) =>
           row.name === "NotificationJournal" &&
-          (row.id === 81 || row.id === 82 || row.id === 86 || row.id === 90 || row.id === 92),
+          (row.id === 81 ||
+            row.id === 82 ||
+            row.id === 86 ||
+            row.id === 90 ||
+            row.id === 92 ||
+            row.id === 96),
       );
       if (
         !journal ||
@@ -332,7 +342,9 @@ const reconcileNotificationJournal = Effect.fn("reconcileNotificationJournal")(f
             ? Migration0086
             : journal.id === 90
               ? Migration0090
-              : Migration0092;
+              : journal.id === 92
+                ? Migration0092
+                : Migration0096;
       yield* sql`UPDATE effect_sql_migrations SET name = ${replacement} WHERE migration_id = ${journal.id}`;
       return [[journal.id, replacement] as const];
     }),
@@ -374,9 +386,8 @@ export const runMigrations = Effect.fn("runMigrations")(function* ({
     toMigrationInclusive === undefined || toMigrationInclusive >= FIRST_V2_MIGRATION_ID;
   // The reconcile takes the write lock; CLI startup must not contend with the server for a no-op.
   const previewMigrations = includesV2 && hasPending ? yield* reconcileV2PreviewMigration() : [];
-  const journalMigrations = includesV2 && hasPending
-    ? yield* reconcileNotificationJournal(toMigrationInclusive)
-    : [];
+  const journalMigrations =
+    includesV2 && hasPending ? yield* reconcileNotificationJournal(toMigrationInclusive) : [];
   if (includesV2) {
     yield* assertV2MigrationsCanRun(toMigrationInclusive);
   }
