@@ -263,7 +263,8 @@ export function reconciledPluginMigrationHistory(
         row.id === 86 ||
         row.id === 90 ||
         row.id === 92 ||
-        row.id === 96),
+        row.id === 96 ||
+        row.id === 97),
   );
   if (!journal || journal.id !== latestId) return recorded;
   const replacement = migrationManifest.find(([id]) => id === journal.id);
@@ -321,7 +322,8 @@ const reconcileNotificationJournal = Effect.fn("reconcileNotificationJournal")(f
             row.id === 86 ||
             row.id === 90 ||
             row.id === 92 ||
-            row.id === 96),
+            row.id === 96 ||
+            row.id === 97),
       );
       if (
         !journal ||
@@ -344,7 +346,9 @@ const reconcileNotificationJournal = Effect.fn("reconcileNotificationJournal")(f
               ? Migration0090
               : journal.id === 92
                 ? Migration0092
-                : Migration0096;
+                : journal.id === 96
+                  ? Migration0096
+                  : Migration0097;
       yield* sql`UPDATE effect_sql_migrations SET name = ${replacement} WHERE migration_id = ${journal.id}`;
       return [[journal.id, replacement] as const];
     }),
