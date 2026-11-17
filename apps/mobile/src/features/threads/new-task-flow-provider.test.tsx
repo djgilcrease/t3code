@@ -290,11 +290,12 @@ function setup() {
 
 it("keeps the draft on a project the screen picks as it mounts", async () => {
   using screen = setup();
-  await screen.render(true, screen.projects[2]);
-  expect(screen.current.selectedProject).toEqual(screen.projects[2]);
+  const selectedProject = screen.projects[2]!;
+  await screen.render(true, selectedProject);
+  expect(screen.current.selectedProject).toEqual(selectedProject);
   expect(screen.snapshot(screen.current.draftKey).project).toEqual({
-    environmentId: "two",
-    projectId: "b",
+    environmentId: selectedProject.environmentId,
+    projectId: selectedProject.id,
   });
 });
 
