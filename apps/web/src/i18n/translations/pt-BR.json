@@ -3238,7 +3238,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "no computador que abriu esta página"]
+      "c": [
+        " ",
+        "no computador que abriu esta página"
+      ]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3250,7 +3253,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "· quem executar recebe este acesso"]
+      "c": [
+        " ",
+        "· quem executar recebe este acesso"
+      ]
     }
   ],
   "c54cc9c75db9dc58": "Aprove apenas um login que você acabou de iniciar.",
@@ -4296,7 +4302,7 @@
   ],
   "159ddd0d146a0f22": "Acompanhando: o agente é ativado quando as verificações terminam, alguém comenta ou o branch entra em conflito. Clique para parar.",
   "1cbc8b5db51b4c77": "Mesclar",
-  "353b08f4363dbb2c": "Pending",
+  "353b08f4363dbb2c": "Pendente",
   "7342bfc328008926": "Running",
   "fae3639874428042": "Tasks",
   "291bc7eb04e08b2e": "All done",
@@ -12144,7 +12150,6 @@
   "37ffec8201f153c1": "Falhou",
   "984b361806ce8d25": "Despertou",
   "c6e8abc00ae470d2": "Pronta",
-  "353b08f4363dbb2c": "Pendente",
   "f31a95961de19433": "Issue {key}: {title}, {state}",
   "2dd9d295c882ef65": "{count, plural, one {{count} issue vinculada} other {{count} issues vinculadas}}",
   "8cf699ae75fd8067": "Fixadas",
@@ -13068,5 +13073,6 @@
   "0d50b5bfe7151ece": "Não foi possível baixar o arquivo",
   "eb1fd384ad5919dd": "Nota interna",
   "b45f0b467e9406d0": "Responder ao cliente",
-  "d454bfdeea6f1129": "Abrir pré-visualização"
+  "d454bfdeea6f1129": "Abrir pré-visualização",
+  "c1b7649ac731ed07": "Plugins"
 }

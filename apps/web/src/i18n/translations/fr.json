@@ -3238,7 +3238,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "sur l’ordinateur qui a ouvert cette page"]
+      "c": [
+        " ",
+        "sur l’ordinateur qui a ouvert cette page"
+      ]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3250,7 +3253,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "· quiconque l’exécute obtient cet accès"]
+      "c": [
+        " ",
+        "· quiconque l’exécute obtient cet accès"
+      ]
     }
   ],
   "c54cc9c75db9dc58": "N’approuvez qu’une connexion que vous venez de lancer.",
@@ -4297,7 +4303,7 @@
   ],
   "159ddd0d146a0f22": "Surveillance : l’agent se réveille quand les checks se terminent, que quelqu’un commente ou que la branche entre en conflit. Cliquez pour arrêter.",
   "1cbc8b5db51b4c77": "Fusionner",
-  "353b08f4363dbb2c": "Pending",
+  "353b08f4363dbb2c": "En attente",
   "7342bfc328008926": "Running",
   "fae3639874428042": "Tasks",
   "291bc7eb04e08b2e": "All done",
@@ -12144,7 +12150,6 @@
   "37ffec8201f153c1": "Échec",
   "984b361806ce8d25": "Réveillé",
   "c6e8abc00ae470d2": "Terminé",
-  "353b08f4363dbb2c": "En attente",
   "f31a95961de19433": "Ticket {key} : {title}, {state}",
   "2dd9d295c882ef65": "{count, plural, one {{count} ticket lié} other {{count} tickets liés}}",
   "8cf699ae75fd8067": "Épinglés",
@@ -13068,5 +13073,6 @@
   "0d50b5bfe7151ece": "Impossible de télécharger le fichier",
   "eb1fd384ad5919dd": "Note interne",
   "b45f0b467e9406d0": "Répondre au client",
-  "d454bfdeea6f1129": "Ouvrir l’aperçu"
+  "d454bfdeea6f1129": "Ouvrir l’aperçu",
+  "c1b7649ac731ed07": "Modules complémentaires"
 }

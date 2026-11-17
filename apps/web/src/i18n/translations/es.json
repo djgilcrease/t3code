@@ -3238,7 +3238,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "en el ordenador que abrió esta página"]
+      "c": [
+        " ",
+        "en el ordenador que abrió esta página"
+      ]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3250,7 +3253,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "· quien lo ejecute obtiene este acceso"]
+      "c": [
+        " ",
+        "· quien lo ejecute obtiene este acceso"
+      ]
     }
   ],
   "c54cc9c75db9dc58": "Aprueba solo un inicio de sesión que acabes de iniciar.",
@@ -4296,7 +4302,7 @@
   ],
   "159ddd0d146a0f22": "Siguiendo: el agente se activa cuando terminan las comprobaciones, alguien comenta o la rama tiene conflictos. Haz clic para dejar de seguir.",
   "1cbc8b5db51b4c77": "Fusionar",
-  "353b08f4363dbb2c": "Pending",
+  "353b08f4363dbb2c": "Pendiente",
   "7342bfc328008926": "Running",
   "fae3639874428042": "Tasks",
   "291bc7eb04e08b2e": "All done",
@@ -12139,7 +12145,6 @@
   "37ffec8201f153c1": "Falló",
   "984b361806ce8d25": "Reactivado",
   "c6e8abc00ae470d2": "Hecho",
-  "353b08f4363dbb2c": "Pendiente",
   "f31a95961de19433": "Incidencia {key}: {title}, {state}",
   "2dd9d295c882ef65": "{count, plural, one {{count} incidencia vinculada} other {{count} incidencias vinculadas}}",
   "8cf699ae75fd8067": "Fijados",
@@ -13063,5 +13068,6 @@
   "0d50b5bfe7151ece": "No se pudo descargar el archivo",
   "eb1fd384ad5919dd": "Nota interna",
   "b45f0b467e9406d0": "Responder al cliente",
-  "d454bfdeea6f1129": "Abrir vista previa"
+  "d454bfdeea6f1129": "Abrir vista previa",
+  "c1b7649ac731ed07": "Complementos"
 }
