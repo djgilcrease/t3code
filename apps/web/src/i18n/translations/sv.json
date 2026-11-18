@@ -3238,7 +3238,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "på datorn som öppnade den här sidan"]
+      "c": [
+        " ",
+        "på datorn som öppnade den här sidan"
+      ]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3250,7 +3253,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "· den som kör den får den här åtkomsten"]
+      "c": [
+        " ",
+        "· den som kör den får den här åtkomsten"
+      ]
     }
   ],
   "c54cc9c75db9dc58": "Godkänn bara en inloggning som du själv precis har startat.",
@@ -4297,7 +4303,7 @@
   ],
   "159ddd0d146a0f22": "Bevakar: agenten vaknar när kontrollerna är klara, någon kommenterar eller grenen får konflikter. Klicka för att sluta.",
   "1cbc8b5db51b4c77": "Merga",
-  "353b08f4363dbb2c": "Pending",
+  "353b08f4363dbb2c": "Väntar",
   "7342bfc328008926": "Running",
   "fae3639874428042": "Tasks",
   "291bc7eb04e08b2e": "All done",
@@ -12152,7 +12158,6 @@
   "37ffec8201f153c1": "Misslyckades",
   "984b361806ce8d25": "Väckt",
   "c6e8abc00ae470d2": "Klar",
-  "353b08f4363dbb2c": "Väntar",
   "f31a95961de19433": "Ärende {key}: {title}, {state}",
   "2dd9d295c882ef65": "{count, plural, one {{count} länkat ärende} other {{count} länkade ärenden}}",
   "8cf699ae75fd8067": "Fäst",
@@ -13075,5 +13080,6 @@
   "0d50b5bfe7151ece": "Det gick inte att ladda ned filen",
   "eb1fd384ad5919dd": "Intern anteckning",
   "b45f0b467e9406d0": "Svara kunden",
-  "d454bfdeea6f1129": "Öppna förhandsvisning"
+  "d454bfdeea6f1129": "Öppna förhandsvisning",
+  "c1b7649ac731ed07": "Insticksprogram"
 }

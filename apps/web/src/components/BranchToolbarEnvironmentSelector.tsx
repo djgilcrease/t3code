@@ -121,10 +121,10 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
 
   return (
     <>
-    <Select
-      modal={false}
-      value={autoEnvironmentLabel ? AUTO_VALUE : environmentValue(environmentId)}
-      onValueChange={(value) => {
+      <Select
+        modal={false}
+        value={autoEnvironmentLabel ? AUTO_VALUE : environmentValue(environmentId)}
+        onValueChange={(value) => {
           const launcher = launchers.find((item) => item.value === value);
           if (launcher && launchContext) {
             setLaunch({
@@ -206,17 +206,17 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
                 {launcher.title}
               </SelectItem>
             ))}
-          {onAddToMachine ? (
-            <SelectItem value={ADD_MACHINE_VALUE}>
-              <span className={ADD_TO_MACHINE_LABEL_CLASS}>
-                <PlusIcon aria-hidden="true" className="size-3" />
-                <T>Add to another machine</T>
-              </span>
-            </SelectItem>
-          ) : null}
-        </SelectGroup>
-      </SelectPopup>
-    </Select>
+            {onAddToMachine ? (
+              <SelectItem value={ADD_MACHINE_VALUE}>
+                <span className={ADD_TO_MACHINE_LABEL_CLASS}>
+                  <PlusIcon aria-hidden="true" className="size-3" />
+                  <T>Add to another machine</T>
+                </span>
+              </SelectItem>
+            ) : null}
+          </SelectGroup>
+        </SelectPopup>
+      </Select>
       {launch && (
         <PluginEnvironmentLaunchDialog
           environmentId={environmentId}
