@@ -1,3 +1,4 @@
+import { useGT } from "gt-react-native";
 import { useAtomValue } from "@effect/atom-react";
 import { pluginSettingsPages } from "@t3tools/client-runtime/plugins";
 import { AsyncResult } from "effect/reactivity";
@@ -15,6 +16,7 @@ export function SettingsPluginPageRouteScreen({
   pluginId: string;
   viewId: string;
 }>) {
+  const gt = useGT();
   const { environmentId, pluginId, viewId } = route.params;
   const result = useAtomValue(serverEnvironment.pluginCatalog({ environmentId, input: {} }));
   const catalog = AsyncResult.getOrElse(result, () => null);
@@ -24,7 +26,7 @@ export function SettingsPluginPageRouteScreen({
       (page) => page.pluginId === pluginId && page.viewId === viewId,
     );
   return (
-    <SettingsScreen title={page?.title ?? "Extension"}>
+    <SettingsScreen title={page?.title ?? gt("Extension")}>
       <ScreenScrollView className="flex-1" contentContainerClassName="gap-4 px-5 py-4">
         <PluginPanels
           environmentId={environmentId}

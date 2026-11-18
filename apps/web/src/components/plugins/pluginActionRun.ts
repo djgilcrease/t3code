@@ -1,3 +1,5 @@
+import { msg } from "gt-react";
+import { m } from "../../i18n/messages";
 import {
   pluginStatusActionInput,
   runPluginAction,
@@ -55,7 +57,12 @@ async function execute(run: PluginActionRun, step: PluginActionStep): Promise<Pl
           ?.catalog?.plugins.find((candidate) => candidate.id === run.plugin.id);
   const command = entry?.commands.find((candidate) => candidate.id === step.commandId);
   if (!command)
-    return { ok: false, message: `${run.plugin.name} cannot run this step on that environment.` };
+    return {
+      ok: false,
+      message: m(
+        msg("{value0} cannot run this step on that environment.", { value0: run.plugin.name }),
+      ),
+    };
   const outcome = await runAtomCommand(
     appAtomRegistry,
     serverEnvironment.executePluginCommand,
@@ -71,7 +78,7 @@ async function execute(run: PluginActionRun, step: PluginActionStep): Promise<Pl
     { label: "plugin-thread-action", reportFailure: false },
   );
   if (outcome._tag === "Success") return { ok: true, value: outcome.value };
-  if (isAtomCommandInterrupted(outcome)) return { ok: false, message: "Cancelled." };
+  if (isAtomCommandInterrupted(outcome)) return { ok: false, message: m(msg("Cancelled.")) };
   const failure = squashAtomCommandFailure(outcome);
   return { ok: false, message: failure instanceof Error ? failure.message : null };
 }
@@ -88,6 +95,7 @@ export function startPluginAction(destination: EnvironmentId | null) {
     return now?.phase === "running" && !controller.signal.aborted ? now : null;
   };
   void runPluginAction({
+    resolve: m,
     start: {
       environmentId: run.environmentId,
       commandId: run.action.command,

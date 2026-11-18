@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react";
 import type { PluginAction, PluginAssociations } from "@t3tools/contracts";
 import { useState } from "react";
 import { Button } from "../ui/button";
@@ -18,6 +19,7 @@ export function PluginAssociationsView({
   canRun: (action: PluginAction) => boolean;
   submittedQuery: string;
 }) {
+  const gt = useGT();
   const [query, setQuery] = useState(submittedQuery);
   const submitted = submittedQuery;
   const submit = () => {
@@ -43,9 +45,9 @@ export function PluginAssociationsView({
             size="sm"
             disabled={busy || !canRun(item.select)}
             onClick={() => void run(item.select)}
-            aria-label={`Remove ${item.label}`}
+            aria-label={gt("Remove {value0}", { value0: item.label })}
           >
-            Remove
+            <T>Remove</T>
           </Button>
         </div>
       ))}
@@ -61,7 +63,9 @@ export function PluginAssociationsView({
       )}
       {block.selected.length > 1 && (
         <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)}>
-          {expanded ? "Show less" : `Show ${block.selected.length - 1} more`}
+          {expanded
+            ? gt("Show less")
+            : gt("Show {value0} more", { value0: block.selected.length - 1 })}
         </Button>
       )}
       <details>
@@ -74,13 +78,13 @@ export function PluginAssociationsView({
           }}
         >
           <Input
-            aria-label={`Search ${block.label}`}
+            aria-label={gt("Search {value0}", { value0: block.label })}
             value={query}
             maxLength={200}
             onChange={(event) => setQuery(event.target.value)}
           />
           <Button variant="outline" size="sm" type="submit" disabled={busy}>
-            Search
+            <T>Search</T>
           </Button>
         </form>
         <div role="group" aria-label={block.label} className="flex max-h-64 flex-col overflow-auto">
@@ -99,7 +103,7 @@ export function PluginAssociationsView({
           ))}
           {block.options.length === 0 && (
             <p role="status" className="px-2 py-1 text-sm text-muted-foreground">
-              No matching items.
+              <T>No matching items.</T>
             </p>
           )}
         </div>
@@ -110,7 +114,7 @@ export function PluginAssociationsView({
             disabled={busy || query !== submitted}
             onClick={() => search(submitted, block.nextCursor)}
           >
-            Next page
+            <T>Next page</T>
           </Button>
         )}
       </details>

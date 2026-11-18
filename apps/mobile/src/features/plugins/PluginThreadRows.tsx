@@ -1,3 +1,4 @@
+import { useMessages, useGT } from "gt-react-native";
 import { useAtomValue } from "@effect/atom-react";
 import {
   pluginActionDestinations,
@@ -82,6 +83,7 @@ export function PluginThreadRows({
   threadId: ThreadId;
   hasRepository: boolean;
 }) {
+  const gt = useGT();
   const catalogs = useAtomValue(pluginCatalogsAtom);
   const views = catalogs.flatMap(({ environmentId: sourceId, catalog }) =>
     catalog ? pluginThreadDetailsViews(catalog).map((view) => ({ ...view, sourceId })) : [],
@@ -96,7 +98,7 @@ export function PluginThreadRows({
     <ListSection
       title={
         environments.find((environment) => environment.environmentId === environmentId)?.label ??
-        "This machine"
+        gt("This machine")
       }
     >
       {panels.map(({ plugin, view }) => (
@@ -111,7 +113,7 @@ export function PluginThreadRows({
             view.presentation === "dialog" ? (
               <Modal visible animationType="slide" onRequestClose={() => setExpanded(null)}>
                 <SafeAreaView className="flex-1 bg-background">
-                  <MaterialButton label="Close" onPress={() => setExpanded(null)} />
+                  <MaterialButton label={gt("Close")} onPress={() => setExpanded(null)} />
                   <ScrollView>
                     <PluginPanels
                       key={threadId}
@@ -164,6 +166,8 @@ function PluginThreadView({
   plugin: Entry;
   viewId: string;
 }) {
+  const gt = useGT();
+  const resolve = useMessages();
   const result = useAtomValue(
     serverEnvironment.pluginView({ environmentId, input: { pluginId: plugin.id, viewId } }),
   );
@@ -184,7 +188,10 @@ function PluginThreadView({
             ?.catalog?.plugins.find((candidate) => candidate.id === plugin.id);
     const command = entry?.commands.find((candidate) => candidate.id === step.commandId);
     if (!command)
-      return { ok: false, message: `${plugin.name} cannot run this step on that environment.` };
+      return {
+        ok: false,
+        message: gt("{value0} cannot run this step on that environment.", { value0: plugin.name }),
+      };
     const outcome = await execute({
       environmentId: target,
       input: {
@@ -195,13 +202,14 @@ function PluginThreadView({
       },
     });
     if (outcome._tag === "Success") return { ok: true, value: outcome.value };
-    if (isAtomCommandInterrupted(outcome)) return { ok: false, message: "Cancelled." };
+    if (isAtomCommandInterrupted(outcome)) return { ok: false, message: gt("Cancelled.") };
     const failure = squashAtomCommandFailure(outcome);
     return { ok: false, message: failure instanceof Error ? failure.message : null };
   };
   const start = (action: PluginStatusAction, destination: EnvironmentId | null) => {
     setRun({ action, phase: "running", status: null });
     void runPluginAction({
+      resolve,
       start: {
         environmentId,
         commandId: action.command,
@@ -220,10 +228,10 @@ function PluginThreadView({
         notice.text,
         target
           ? [
-              { text: "Close", style: "cancel" },
-              { text: "Open thread", onPress: () => openThread(target) },
+              { text: gt("Close"), style: "cancel" },
+              { text: gt("Open thread"), onPress: () => openThread(target) },
             ]
-          : [{ text: "OK" }],
+          : [{ text: gt("OK") }],
       );
     });
   };
@@ -233,7 +241,7 @@ function PluginThreadView({
       Dialog.confirm({
         title: action.label.replace(/(…|\.\.\.)$/u, ""),
         message: action.confirm,
-        confirmText: "Continue",
+        confirmText: gt("Continue"),
         onConfirm: () => start(action, destination),
         onCancel: () => setRun(null),
       });
@@ -348,6 +356,7 @@ function Destinations({
   onPick: (destination: EnvironmentId) => void;
   onCancel: () => void;
 }) {
+  const gt = useGT();
   const catalogs = useAtomValue(pluginCatalogsAtom);
   const { environments } = useEnvironments();
   const destinations = pluginActionDestinations(catalogs, environmentId, plugin.id);
@@ -360,7 +369,9 @@ function Destinations({
       {destinations.length === 0 ? (
         <View className="bg-grouped-card">
           <ListRowLayout
-            label={`No other connected environment has ${plugin.name} installed.`}
+            label={gt("No other connected environment has {value0} installed.", {
+              value0: plugin.name,
+            })}
             disabled
           />
         </View>
@@ -380,7 +391,7 @@ function Destinations({
           />
         ))
       )}
-      <ListRow icon="xmark" label="Cancel" onPress={onCancel} />
+      <ListRow icon="xmark" label={gt("Cancel")} onPress={onCancel} />
     </View>
   );
 }

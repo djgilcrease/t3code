@@ -1,3 +1,4 @@
+import { T, Var, useGT } from "gt-react";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -17,6 +18,7 @@ export function PluginManagement({
   environmentId: EnvironmentId;
   catalog: PluginCatalog;
 }) {
+  const gt = useGT();
   const registry = useContext(RegistryContext);
   const manage = useAtomCommand(serverEnvironment.managePlugins);
   const allowed = useAtomValue(serverEnvironment.managePlugins.permissionAtom(environmentId));
@@ -34,7 +36,9 @@ export function PluginManagement({
         if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
           const failure = squashAtomCommandFailure(result);
           setError(
-            failure instanceof Error ? failure.message : "The plugin operation failed. Try again.",
+            failure instanceof Error
+              ? failure.message
+              : gt("The plugin operation failed. Try again."),
           );
         }
       })
@@ -46,8 +50,10 @@ export function PluginManagement({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Actions below affect this machine only. Updates are checked daily and installed only when
-        you choose Update.
+        <T>
+          Actions below affect this machine only. Updates are checked daily and installed only when
+          you choose Update.
+        </T>
       </p>
       <Button
         size="sm"
@@ -55,7 +61,7 @@ export function PluginManagement({
         disabled={!allowed || busy}
         onClick={() => void run({ operation: "check" })}
       >
-        Check for updates
+        <T>Check for updates</T>
       </Button>
       {error && (
         <p role="alert" className="text-sm text-destructive">
@@ -63,7 +69,9 @@ export function PluginManagement({
         </p>
       )}
       {catalog.plugins.length === 0 && (
-        <p className="text-sm text-muted-foreground">No plugins installed.</p>
+        <p className="text-sm text-muted-foreground">
+          <T>No plugins installed.</T>
+        </p>
       )}
       {catalog.plugins.map((plugin) => (
         <div key={plugin.id} className="space-y-2 rounded-lg border p-3">
@@ -73,8 +81,10 @@ export function PluginManagement({
           </p>
           {!plugin.source && (
             <p className="text-xs text-muted-foreground">
-              Local registration. Install from a repository above to use a portable package; local
-              paths and data are never synced.
+              <T>
+                Local registration. Install from a repository above to use a portable package; local
+                paths and data are never synced.
+              </T>
             </p>
           )}
           {plugin.source && (
@@ -82,8 +92,10 @@ export function PluginManagement({
               <p className="break-all text-xs text-muted-foreground">{plugin.source.repository}</p>
               <p className="text-xs text-muted-foreground">
                 {plugin.source.checkFailed
-                  ? "Update check failed. Try again when the repository is reachable."
-                  : `Last checked ${new Date(plugin.source.checkedAt).toLocaleString()}`}
+                  ? gt("Update check failed. Try again when the repository is reachable.")
+                  : gt("Last checked {value0}", {
+                      value0: new Date(plugin.source.checkedAt).toLocaleString(),
+                    })}
               </p>
             </>
           )}
@@ -94,7 +106,9 @@ export function PluginManagement({
                 disabled={!allowed || busy}
                 onClick={() => void run({ operation: "update", pluginId: plugin.id })}
               >
-                Update to {plugin.source.latestTag}
+                <T>
+                  Update to <Var>{plugin.source.latestTag}</Var>
+                </T>
               </Button>
             )}
             <Button
@@ -109,7 +123,7 @@ export function PluginManagement({
                 })
               }
             >
-              {plugin.status === "disabled" ? "Enable" : "Disable"}
+              {plugin.status === "disabled" ? gt("Enable") : gt("Disable")}
             </Button>
             {(plugin.status === "stopped" || plugin.status === "failed") && (
               <Button
@@ -118,7 +132,7 @@ export function PluginManagement({
                 disabled={!allowed || busy}
                 onClick={() => void run({ operation: "restart", pluginId: plugin.id })}
               >
-                Retry plugin
+                <T>Retry plugin</T>
               </Button>
             )}
             <Button
@@ -127,7 +141,7 @@ export function PluginManagement({
               disabled={!allowed || busy}
               onClick={() => void run({ operation: "remove", pluginId: plugin.id })}
             >
-              Remove
+              <T>Remove</T>
             </Button>
           </div>
           <RestartLimit
@@ -139,16 +153,20 @@ export function PluginManagement({
           />
           {plugin.status === "stopped" && (
             <p role="status" className="text-sm">
-              Stopped after {plugin.restartAttempts ?? plugin.restartLimit ?? 5} failed attempts.
-              Retry explicitly to start again.
+              <T>
+                Stopped after <Var>{plugin.restartAttempts ?? plugin.restartLimit ?? 5}</Var> failed
+                attempts. Retry explicitly to start again.
+              </T>
             </p>
           )}
         </div>
       ))}
       {catalog.plugins.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Remove clears the plugin's saved settings, data, and credentials. Manually registered
-          source folders are kept.
+          <T>
+            Remove clears the plugin's saved settings, data, and credentials. Manually registered
+            source folders are kept.
+          </T>
         </p>
       )}
     </div>
@@ -171,7 +189,9 @@ function RestartLimit({
   return (
     <div className="flex flex-wrap items-end gap-2">
       <label className="space-y-1 text-sm">
-        <span>Restart attempt limit</span>
+        <span>
+          <T>Restart attempt limit</T>
+        </span>
         <Input
           type="number"
           min={1}
@@ -193,7 +213,7 @@ function RestartLimit({
         }
         onClick={() => void run({ operation: "set-restart-limit", pluginId, attempts })}
       >
-        Save limit
+        <T>Save limit</T>
       </Button>
     </div>
   );

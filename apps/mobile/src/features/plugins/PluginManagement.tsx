@@ -1,3 +1,4 @@
+import { T, Var, useGT } from "gt-react-native";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -18,6 +19,7 @@ export function PluginManagement({
   environmentId: EnvironmentId;
   catalog: PluginCatalog;
 }) {
+  const gt = useGT();
   const registry = useContext(RegistryContext);
   const manage = useAtomCommand(serverEnvironment.managePlugins);
   const allowed = useAtomValue(serverEnvironment.managePlugins.permissionAtom(environmentId));
@@ -35,7 +37,9 @@ export function PluginManagement({
         if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
           const failure = squashAtomCommandFailure(result);
           setError(
-            failure instanceof Error ? failure.message : "The plugin operation failed. Try again.",
+            failure instanceof Error
+              ? failure.message
+              : gt("The plugin operation failed. Try again."),
           );
         }
       })
@@ -47,16 +51,22 @@ export function PluginManagement({
   return (
     <View className="gap-4">
       <Text>
-        Actions below affect this machine only. Updates are checked daily and installed only when
-        you choose Update.
+        <T>
+          Actions below affect this machine only. Updates are checked daily and installed only when
+          you choose Update.
+        </T>
       </Text>
       <MaterialButton
-        label="Check for updates"
+        label={gt("Check for updates")}
         disabled={!allowed || busy}
         onPress={() => void run({ operation: "check" })}
       />
       {error && <Text accessibilityRole="alert">{error}</Text>}
-      {catalog.plugins.length === 0 && <Text>No plugins installed.</Text>}
+      {catalog.plugins.length === 0 && (
+        <Text>
+          <T>No plugins installed.</T>
+        </Text>
+      )}
       {catalog.plugins.map((plugin) => (
         <View key={plugin.id} className="gap-2 rounded-xl border border-border p-3">
           <Text className="font-t3-medium text-foreground">
@@ -64,27 +74,31 @@ export function PluginManagement({
             {plugin.failure ? ` (${plugin.failure})` : ""}
           </Text>
           {!plugin.source && (
-            <Text>Local registration. Local paths and data are never synced.</Text>
+            <Text>
+              <T>Local registration. Local paths and data are never synced.</T>
+            </Text>
           )}
           {plugin.source && (
             <>
               <Text selectable>{plugin.source.repository}</Text>
               <Text>
                 {plugin.source.checkFailed
-                  ? "Update check failed. Try again when the repository is reachable."
-                  : `Last checked ${new Date(plugin.source.checkedAt).toLocaleString()}`}
+                  ? gt("Update check failed. Try again when the repository is reachable.")
+                  : gt("Last checked {value0}", {
+                      value0: new Date(plugin.source.checkedAt).toLocaleString(),
+                    })}
               </Text>
             </>
           )}
           {plugin.source && plugin.source.latestCommit !== plugin.source.commit && (
             <MaterialButton
-              label={`Update to ${plugin.source.latestTag}`}
+              label={gt("Update to {value0}", { value0: plugin.source.latestTag })}
               disabled={!allowed || busy}
               onPress={() => void run({ operation: "update", pluginId: plugin.id })}
             />
           )}
           <MaterialButton
-            label={plugin.status === "disabled" ? "Enable" : "Disable"}
+            label={plugin.status === "disabled" ? gt("Enable") : gt("Disable")}
             disabled={!allowed || busy}
             onPress={() =>
               void run({
@@ -96,7 +110,7 @@ export function PluginManagement({
           />
           {(plugin.status === "stopped" || plugin.status === "failed") && (
             <MaterialButton
-              label="Retry plugin"
+              label={gt("Retry plugin")}
               disabled={!allowed || busy}
               onPress={() => void run({ operation: "restart", pluginId: plugin.id })}
             />
@@ -110,12 +124,14 @@ export function PluginManagement({
           />
           {plugin.status === "stopped" && (
             <Text>
-              Stopped after {plugin.restartAttempts ?? plugin.restartLimit ?? 5} failed attempts.
-              Retry explicitly to start again.
+              <T>
+                Stopped after <Var>{plugin.restartAttempts ?? plugin.restartLimit ?? 5}</Var> failed
+                attempts. Retry explicitly to start again.
+              </T>
             </Text>
           )}
           <MaterialButton
-            label="Remove"
+            label={gt("Remove")}
             tone="danger"
             disabled={!allowed || busy}
             onPress={() => void run({ operation: "remove", pluginId: plugin.id })}
@@ -124,8 +140,10 @@ export function PluginManagement({
       ))}
       {catalog.plugins.length > 0 && (
         <Text>
-          Remove clears saved settings, data, and credentials. Manually registered source folders
-          are kept.
+          <T>
+            Remove clears saved settings, data, and credentials. Manually registered source folders
+            are kept.
+          </T>
         </Text>
       )}
     </View>
@@ -143,13 +161,16 @@ function RestartLimit({
   disabled: boolean;
   run: (input: PluginManageInput) => Promise<void>;
 }) {
+  const gt = useGT();
   const [value, setValue] = useState(String(limit));
   const attempts = Number(value);
   return (
     <View className="gap-2">
-      <Text>Restart attempt limit</Text>
+      <Text>
+        <T>Restart attempt limit</T>
+      </Text>
       <TextInput
-        accessibilityLabel="Restart attempt limit"
+        accessibilityLabel={gt("Restart attempt limit")}
         keyboardType="number-pad"
         value={value}
         editable={!disabled}
@@ -157,7 +178,7 @@ function RestartLimit({
         className="min-h-12 rounded-lg border border-border px-3 text-foreground"
       />
       <MaterialButton
-        label="Save limit"
+        label={gt("Save limit")}
         disabled={
           disabled ||
           !Number.isInteger(attempts) ||

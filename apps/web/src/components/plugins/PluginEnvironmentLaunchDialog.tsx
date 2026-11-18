@@ -1,3 +1,4 @@
+import { T } from "gt-react";
 import { useAtomValue } from "@effect/atom-react";
 import { EnvironmentId, ThreadId, type PluginInput } from "@t3tools/contracts";
 import { pluginEnvironmentLaunchResult } from "@t3tools/client-runtime/plugins";
@@ -55,7 +56,9 @@ export function PluginEnvironmentLaunchDialog(props: {
     >
       <DialogPopup>
         <DialogHeader>
-          <DialogTitle>New environment</DialogTitle>
+          <DialogTitle>
+            <T>New environment</T>
+          </DialogTitle>
         </DialogHeader>
         <DialogPanel>
           <PluginPanels

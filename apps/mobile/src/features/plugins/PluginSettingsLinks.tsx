@@ -1,3 +1,4 @@
+import { useGT } from "gt-react-native";
 import { useAtomValue } from "@effect/atom-react";
 import { pluginSettingsPages } from "@t3tools/client-runtime/plugins";
 import type { EnvironmentId } from "@t3tools/contracts";
@@ -32,6 +33,7 @@ export function usePluginSettingsPages() {
 }
 
 export function PluginSettingsLinks({ query }: { query: string }) {
+  const gt = useGT();
   const { selectedTargets } = useSettingsEnvironmentFilter();
   const navigation = useNavigation();
   const pages = usePluginSettingsPages();
@@ -40,7 +42,7 @@ export function PluginSettingsLinks({ query }: { query: string }) {
   );
   if (visible.length === 0) return null;
   return (
-    <SettingsSection title="Extensions">
+    <SettingsSection title={gt("Extensions")}>
       {visible.map((page) => (
         <SettingsRow
           key={`${page.environmentId}:${page.pluginId}:${page.viewId}`}
