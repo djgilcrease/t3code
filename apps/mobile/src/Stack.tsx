@@ -182,6 +182,8 @@ const ROUTE_TITLES: Readonly<Record<string, string>> = {
   SettingsWorktrees: msg("Worktrees"),
   SettingsLabs: msg("Labs"),
   SettingsProviderAccounts: msg("Providers"),
+  SettingsPluginPage: msg("Extension"),
+  SettingsPlugins: msg("Plugins"),
   SettingsEnvironmentMaintenance: msg("Maintenance"),
   SettingsNotifications: msg("Notifications"),
   SettingsThreads: msg("Threads"),
@@ -296,12 +298,12 @@ const SETTINGS_SCREENS = {
   SettingsPluginPage: createNativeStackScreen({
     screen: SettingsPluginPageRouteScreen,
     linking: "settings/extensions/:environmentId/:pluginId/:viewId",
-    options: settingsPage("Extension"),
+    options: settingsPage(),
   }),
   SettingsPlugins: createNativeStackScreen({
     screen: SettingsPluginsRouteScreen,
     linking: "settings/plugins",
-    options: settingsPage("Plugins"),
+    options: settingsPage(),
   }),
   SettingsEnvironmentMaintenance: createNativeStackScreen({
     screen: SettingsEnvironmentMaintenanceRouteScreen,

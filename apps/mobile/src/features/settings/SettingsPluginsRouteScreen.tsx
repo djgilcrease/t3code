@@ -1,3 +1,4 @@
+import { T, Var, useGT } from "gt-react-native";
 import { useState } from "react";
 import { TextInput, View } from "react-native";
 import type { EnvironmentId } from "@t3tools/contracts";
@@ -12,6 +13,7 @@ import { useEnvironments } from "../../state/environments";
 import { serverEnvironment } from "../../state/server";
 
 export function SettingsPluginsRouteScreen() {
+  const gt = useGT();
   const { environments } = useEnvironments();
   const machines = environments.map((entry) => ({
     ...entry,
@@ -29,15 +31,15 @@ export function SettingsPluginsRouteScreen() {
   );
   return (
     <SettingsScreen
-      title="Plugins"
+      title={gt("Plugins")}
       menus={[
         {
-          title: "Plugin machines",
+          title: gt("Plugin machines"),
           icon: "desktopcomputer",
           items: [
             {
               id: "all",
-              title: "All connected machines",
+              title: gt("All connected machines"),
               selected: machine === null,
               onPress: () => setMachine(null),
             },
@@ -57,24 +59,32 @@ export function SettingsPluginsRouteScreen() {
         contentContainerClassName="gap-4 px-5 py-4"
       >
         <Text>
-          Installing plugins on{" "}
-          {machine === null
-            ? "All connected machines"
-            : (machines.find((entry) => entry.environmentId === machine)?.label ??
-              "Offline machine")}
+          <T>
+            Installing plugins on<Var> </Var>
+            <Var>
+              {machine === null
+                ? gt("All connected machines")
+                : (machines.find((entry) => entry.environmentId === machine)?.label ??
+                  gt("Offline machine"))}
+            </Var>
+          </T>
         </Text>
         <Text>
-          All installs on machines connected when you press Install. Newly connected machines need
-          another All install. Reconnect failed machines and retry below. Existing installs keep
-          their versions and settings.
+          <T>
+            All installs on machines connected when you press Install. Newly connected machines need
+            another All install. Reconnect failed machines and retry below. Existing installs keep
+            their versions and settings.
+          </T>
         </Text>
         <Text>
-          Plugins run trusted code. Each machine verifies its latest stable repository version with
-          its own Git credentials. Versions may differ. Data, secrets, settings, and local paths are
-          never copied.
+          <T>
+            Plugins run trusted code. Each machine verifies its latest stable repository version
+            with its own Git credentials. Versions may differ. Data, secrets, settings, and local
+            paths are never copied.
+          </T>
         </Text>
         <TextInput
-          accessibilityLabel="Plugin repository URL"
+          accessibilityLabel={gt("Plugin repository URL")}
           placeholder="https://github.com/owner/plugin"
           value={installation.repository}
           onChangeText={installation.setRepository}
@@ -87,10 +97,10 @@ export function SettingsPluginsRouteScreen() {
         <Button
           label={
             installation.busy
-              ? "Installing…"
+              ? gt("Installing…")
               : machine === null
-                ? "Install on All"
-                : "Install on this machine"
+                ? gt("Install on All")
+                : gt("Install on this machine")
           }
           disabled={installation.busy || !installation.repository.trim() || targets.length === 0}
           onPress={() => void installation.run(targets.map((target) => target.environmentId))}
@@ -104,21 +114,27 @@ export function SettingsPluginsRouteScreen() {
             </Text>
             {result.state !== "installed" && result.state !== "preserved" && (
               <Button
-                label="Retry this machine"
+                label={gt("Retry this machine")}
                 disabled={installation.busy}
                 onPress={() => void installation.run([result.environmentId], true)}
               />
             )}
           </View>
         ))}
-        {targets.length === 0 && <Text>No machines connected.</Text>}
+        {targets.length === 0 && (
+          <Text>
+            <T>No machines connected.</T>
+          </Text>
+        )}
         {targets.map((target) => (
           <View key={target.environmentId} className="gap-3">
             <Text className="font-t3-medium text-foreground">{target.label}</Text>
             {target.connection.phase === "connected" ? (
               <PluginPanels environmentId={target.environmentId} location="settings" />
             ) : (
-              <Text>Offline. Reconnect to manage plugins.</Text>
+              <Text>
+                <T>Offline. Reconnect to manage plugins.</T>
+              </Text>
             )}
           </View>
         ))}

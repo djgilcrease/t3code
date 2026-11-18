@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react-native";
 import type { PluginAction, PluginAssociations } from "@t3tools/contracts";
 import { useState } from "react";
 import { View, TextInput } from "react-native";
@@ -19,6 +20,7 @@ export function PluginAssociationsView({
   canRun: (action: PluginAction) => boolean;
   submittedQuery: string;
 }) {
+  const gt = useGT();
   const [query, setQuery] = useState(submittedQuery);
   const submitted = submittedQuery;
   const submit = () => {
@@ -36,7 +38,7 @@ export function PluginAssociationsView({
             onPress={() => item.open && void run(item.open)}
           />
           <Button
-            label={`Remove ${item.label}`}
+            label={gt("Remove {value0}", { value0: item.label })}
             disabled={busy || !canRun(item.select)}
             onPress={() => void run(item.select)}
           />
@@ -51,7 +53,11 @@ export function PluginAssociationsView({
       )}
       {block.selected.length > 1 && (
         <Button
-          label={expanded ? "Show less" : `Show ${block.selected.length - 1} more`}
+          label={
+            expanded
+              ? gt("Show less")
+              : gt("Show {value0} more", { value0: block.selected.length - 1 })
+          }
           onPress={() => setExpanded(!expanded)}
         />
       )}
@@ -59,13 +65,13 @@ export function PluginAssociationsView({
       {searching && (
         <View className="gap-2">
           <TextInput
-            accessibilityLabel={`Search ${block.label}`}
+            accessibilityLabel={gt("Search {value0}", { value0: block.label })}
             value={query}
             maxLength={200}
             onChangeText={setQuery}
             onSubmitEditing={submit}
           />
-          <Button label="Search" disabled={busy} onPress={submit} />
+          <Button label={gt("Search")} disabled={busy} onPress={submit} />
           {block.options.map((item) => (
             <Button
               key={item.id}
@@ -74,10 +80,14 @@ export function PluginAssociationsView({
               onPress={() => void run(item.select)}
             />
           ))}
-          {block.options.length === 0 && <Text>No results</Text>}
+          {block.options.length === 0 && (
+            <Text>
+              <T>No results</T>
+            </Text>
+          )}
           {block.nextCursor && (
             <Button
-              label="Next page"
+              label={gt("Next page")}
               disabled={busy || query !== submitted}
               onPress={() => search(submitted, block.nextCursor)}
             />

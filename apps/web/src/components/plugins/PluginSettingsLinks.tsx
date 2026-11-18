@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react";
 import { pluginSettingsPages } from "@t3tools/client-runtime/plugins";
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
@@ -42,6 +43,7 @@ export function PluginSettingsLinks({
   query: string;
   compact?: boolean;
 }) {
+  const gt = useGT();
   const connectedEnvironments = useOptionalSettingsScope()?.connectedEnvironments ?? [];
   const pages = usePluginSettingsPages();
   const visible = pages.filter((page) =>
@@ -49,11 +51,11 @@ export function PluginSettingsLinks({
   );
   if (visible.length === 0) return null;
   return (
-    <section aria-label="Extensions" className="flex flex-col gap-1 px-2">
+    <section aria-label={gt("Extensions")} className="flex flex-col gap-1 px-2">
       <h3
         className={`px-2 text-xs text-sidebar-muted-foreground ${compact ? "max-md:sr-only" : ""}`}
       >
-        Extensions
+        <T>Extensions</T>
       </h3>
       {visible.map((page) => (
         <Link

@@ -3239,7 +3239,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "auf dem Computer, der diese Seite geöffnet hat"]
+      "c": [
+        " ",
+        "auf dem Computer, der diese Seite geöffnet hat"
+      ]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3251,7 +3254,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "· wer es ausführt, erhält diesen Zugriff"]
+      "c": [
+        " ",
+        "· wer es ausführt, erhält diesen Zugriff"
+      ]
     }
   ],
   "c54cc9c75db9dc58": "Genehmige nur eine Anmeldung, die du gerade selbst gestartet hast.",
@@ -13068,5 +13074,84 @@
   "eb1fd384ad5919dd": "Interne Notiz",
   "b45f0b467e9406d0": "Dem Kunden antworten",
   "d454bfdeea6f1129": "Vorschau öffnen",
-  "c1b7649ac731ed07": "Plugins"
+  "c1b7649ac731ed07": "Plugins",
+  "76834f5b4867367a": "Der Plugin-Befehl ist fehlgeschlagen. Versuchen Sie es erneut.",
+  "2137cace496ae66b": "Das Plugin wurde nicht fertig. Versuchen Sie es erneut.",
+  "24184df32e50ef31": "Plugin installieren",
+  "078816e3a6d3ac8d": "Auf allen installieren",
+  "f1fef6061b0c99b6": "Auf diesem Rechner installieren",
+  "ee7e03a905d24a95": "Plugins installieren auf",
+  "fe20254a15a882b3": "„Alle“ installiert auf den Rechnern, die beim Drücken von „Installieren“ verbunden sind. Für später verbundene Rechner müssen Sie erneut „Alle“ wählen. Verbinden Sie fehlgeschlagene Rechner erneut und versuchen Sie es unten noch einmal. Vorhandene Installationen einschließlich Versionen und Einstellungen bleiben erhalten.",
+  "0c02187c53cf3592": "Plugins führen vertrauenswürdigen Code aus. Jeder Rechner prüft und installiert die neueste stabile Repository-Version mit seinen eigenen Git-Zugangsdaten. Versionen können abweichen. Plugin-Daten, Geheimnisse, Einstellungen und lokale Pfade werden niemals kopiert.",
+  "9f9460b68c84c88b": "Repository-URL",
+  "4bc03c89ed2be0ce": "Diesen Rechner erneut versuchen",
+  "f92a03b2cdb9b634": "Keine Rechner verbunden.",
+  "98eb98dbb13e1361": "Offline. Zum Verwalten der Plugins erneut verbinden.",
+  "1862bb59eb706a6c": "{value0} entfernen",
+  "40373579e50b95d0": "{value0} weitere anzeigen",
+  "966b7afa24d469bd": "{value0} durchsuchen",
+  "d05f56d2129e990b": "Suchen",
+  "3e68352e1e1358e3": "Keine passenden Einträge.",
+  "d109f7bbda29eaab": "Nächste Seite",
+  "1f327b3c5c2d7b83": "Neue Umgebung",
+  "8456ce20857fc111": "Die Plugin-Aktion ist fehlgeschlagen. Versuchen Sie es erneut.",
+  "d320c0dab8881b72": "Die Update-Prüfung ist fehlgeschlagen. Versuchen Sie es erneut, wenn das Repository erreichbar ist.",
+  "5329ab53a6bf1e41": "Zuletzt geprüft: {value0}",
+  "3c93930dc6359ab1": "Die folgenden Aktionen betreffen nur diesen Rechner. Updates werden täglich geprüft und nur installiert, wenn Sie „Aktualisieren“ wählen.",
+  "cb7e37cc5c7f83de": "Nach Updates suchen",
+  "38323dafff7d21f9": "Keine Plugins installiert.",
+  "14dcebb11d013b6c": "Lokale Registrierung. Installieren Sie über ein Repository oben, um ein portables Paket zu verwenden; lokale Pfade und Daten werden niemals synchronisiert.",
+  "da5040a9be452676": [
+    "Aktualisieren auf ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "16dc92ac15b0d8d0": "Plugin erneut versuchen",
+  "48dcbb3f7b3d787d": [
+    "Nach ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " fehlgeschlagenen Versuchen gestoppt. Zum Neustarten ausdrücklich erneut versuchen."
+  ],
+  "ac20809c1f564343": "Entfernen löscht gespeicherte Einstellungen, Daten und Zugangsdaten. Manuell registrierte Quellordner bleiben erhalten.",
+  "8dc7cd9d0b18dfda": "Höchstzahl der Neustartversuche",
+  "89b900d5ca14b19b": "Limit speichern",
+  "00d06fd5d3c1d5f2": "Schlüssel kopieren",
+  "efcdc60134ea4bdc": "Plugins konnten nicht geladen werden.",
+  "59371671219a20de": "Diese Erweiterungsseite ist nicht verfügbar. Aktivieren oder installieren Sie das Plugin unter Plugins erneut.",
+  "103dcfa02f5619d0": "Mehrere Erweiterungen oder Umgebungen beanspruchen Client-Benachrichtigungen. Aktivieren Sie die Benachrichtigungsweiterleitung nur an einer Stelle; die integrierte Anzeige bleibt zuständig.",
+  "5a38f6e7bbe5d24a": "Die Plugin-Konfiguration konnte nicht geladen werden. Prüfen Sie plugins.json in dieser Umgebung.",
+  "21bf86292b61a814": "Nach 30 Sekunden wieder ausgeblendet. Nur an ein vertrauenswürdiges Ziel kopieren.",
+  "4726ae698b34dbcd": "Schlüssel ausblenden",
+  "b77572e2f722ba4b": "Diese Plugin-Ansicht konnte nicht geladen werden.",
+  "8fd76fb760f07d7b": "Aktionen",
+  "f46ecacebab6bfd5": "Auswählen…",
+  "191507060fd7ad3e": "Füllen Sie die Pflichtfelder mit gültigen Werten aus.",
+  "73c069ec896b5f3d": "Erweiterungen",
+  "3ee00b25e193ba8a": "Erweiterungen",
+  "1a0fa5450cf484ed": [
+    "In keiner anderen verbundenen Umgebung ist ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " installiert."
+  ],
+  "8316aabd0f7efe88": "{value0} kann diesen Schritt in dieser Umgebung nicht ausführen.",
+  "298863d82706d076": "Abgebrochen.",
+  "4e6ca6dd604f59d6": "Erweiterungen",
+  "6d6bc081a119be50": "github",
+  "4e0a97750503d3b7": "gitlab",
+  "ccfc51915b213f0e": "installieren",
+  "a5b6a6a68d78abdc": "aktualisieren",
+  "d13e8d51c8e3627c": "entfernen",
+  "3c1e19e9f1d6c33c": "neu starten",
+  "574cb3631c2a2860": "Absturz"
 }

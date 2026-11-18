@@ -3238,7 +3238,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "en el ordenador que abrió esta página"]
+      "c": [
+        " ",
+        "en el ordenador que abrió esta página"
+      ]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3250,7 +3253,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "· quien lo ejecute obtiene este acceso"]
+      "c": [
+        " ",
+        "· quien lo ejecute obtiene este acceso"
+      ]
     }
   ],
   "c54cc9c75db9dc58": "Aprueba solo un inicio de sesión que acabes de iniciar.",
@@ -13063,5 +13069,84 @@
   "eb1fd384ad5919dd": "Nota interna",
   "b45f0b467e9406d0": "Responder al cliente",
   "d454bfdeea6f1129": "Abrir vista previa",
-  "c1b7649ac731ed07": "Complementos"
+  "c1b7649ac731ed07": "Complementos",
+  "76834f5b4867367a": "El comando del complemento falló. Vuelve a intentarlo.",
+  "2137cace496ae66b": "El complemento no terminó. Vuelve a intentarlo.",
+  "24184df32e50ef31": "Instalar complemento",
+  "078816e3a6d3ac8d": "Instalar en Todos",
+  "f1fef6061b0c99b6": "Instalar en este equipo",
+  "ee7e03a905d24a95": "Instalar complementos en",
+  "fe20254a15a882b3": "«Todos» instala en los equipos conectados al pulsar Instalar. Para los que se conecten después, debes volver a instalar en Todos. Reconecta los equipos que fallaron y reinténtalo abajo. Se conservan las instalaciones existentes, incluidas sus versiones y ajustes.",
+  "0c02187c53cf3592": "Los complementos ejecutan código de confianza. Cada equipo verifica e instala la última versión estable del repositorio con sus propias credenciales de Git. Las versiones pueden variar. Los datos, secretos, ajustes y rutas locales del complemento nunca se copian.",
+  "9f9460b68c84c88b": "URL del repositorio",
+  "4bc03c89ed2be0ce": "Reintentar este equipo",
+  "f92a03b2cdb9b634": "No hay equipos conectados.",
+  "98eb98dbb13e1361": "Sin conexión. Reconecta para gestionar complementos.",
+  "1862bb59eb706a6c": "Eliminar {value0}",
+  "40373579e50b95d0": "Mostrar {value0} más",
+  "966b7afa24d469bd": "Buscar en {value0}",
+  "d05f56d2129e990b": "Buscar",
+  "3e68352e1e1358e3": "No hay elementos coincidentes.",
+  "d109f7bbda29eaab": "Página siguiente",
+  "1f327b3c5c2d7b83": "Nuevo entorno",
+  "8456ce20857fc111": "La operación del complemento falló. Vuelve a intentarlo.",
+  "d320c0dab8881b72": "Falló la búsqueda de actualizaciones. Reinténtalo cuando el repositorio esté accesible.",
+  "5329ab53a6bf1e41": "Última comprobación: {value0}",
+  "3c93930dc6359ab1": "Las siguientes acciones afectan solo a este equipo. Las actualizaciones se buscan a diario y solo se instalan cuando eliges Actualizar.",
+  "cb7e37cc5c7f83de": "Buscar actualizaciones",
+  "38323dafff7d21f9": "No hay complementos instalados.",
+  "14dcebb11d013b6c": "Registro local. Instala desde un repositorio arriba para usar un paquete portable; las rutas y los datos locales nunca se sincronizan.",
+  "da5040a9be452676": [
+    "Actualizar a ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "16dc92ac15b0d8d0": "Reintentar complemento",
+  "48dcbb3f7b3d787d": [
+    "Detenido tras ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " intentos fallidos. Vuelve a intentarlo explícitamente para reiniciar."
+  ],
+  "ac20809c1f564343": "Eliminar borra los ajustes, datos y credenciales guardados. Se conservan las carpetas de código registradas manualmente.",
+  "8dc7cd9d0b18dfda": "Límite de intentos de reinicio",
+  "89b900d5ca14b19b": "Guardar límite",
+  "00d06fd5d3c1d5f2": "Copiar clave",
+  "efcdc60134ea4bdc": "No se pudieron cargar los complementos.",
+  "59371671219a20de": "Esta página de extensión no está disponible. Activa o reinstala su complemento en los ajustes de Complementos.",
+  "103dcfa02f5619d0": "Varias extensiones o entornos reclaman las notificaciones del cliente. Activa su enrutamiento en un solo lugar; la presentación integrada mantiene el control.",
+  "5a38f6e7bbe5d24a": "No se pudo cargar la configuración del complemento. Revisa plugins.json en este entorno.",
+  "21bf86292b61a814": "Se oculta de nuevo tras 30 segundos. Cópiala solo a un destino de confianza.",
+  "4726ae698b34dbcd": "Ocultar clave",
+  "b77572e2f722ba4b": "No se pudo cargar esta vista del complemento.",
+  "8fd76fb760f07d7b": "Acciones",
+  "f46ecacebab6bfd5": "Seleccionar…",
+  "191507060fd7ad3e": "Completa los campos obligatorios con valores válidos.",
+  "73c069ec896b5f3d": "Extensiones",
+  "3ee00b25e193ba8a": "Extensiones",
+  "1a0fa5450cf484ed": [
+    "Ningún otro entorno conectado tiene ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " instalado."
+  ],
+  "8316aabd0f7efe88": "{value0} no puede ejecutar este paso en ese entorno.",
+  "298863d82706d076": "Cancelado.",
+  "4e6ca6dd604f59d6": "extensiones",
+  "6d6bc081a119be50": "github",
+  "4e0a97750503d3b7": "gitlab",
+  "ccfc51915b213f0e": "instalar",
+  "a5b6a6a68d78abdc": "actualizar",
+  "d13e8d51c8e3627c": "eliminar",
+  "3c1e19e9f1d6c33c": "reiniciar",
+  "574cb3631c2a2860": "fallo"
 }

@@ -3238,7 +3238,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "on the computer that opened this page"]
+      "c": [
+        " ",
+        "on the computer that opened this page"
+      ]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3250,7 +3253,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "· whoever runs it gets this access"]
+      "c": [
+        " ",
+        "· whoever runs it gets this access"
+      ]
     }
   ],
   "c54cc9c75db9dc58": "Only approve a sign-in you just started.",
@@ -13076,5 +13082,84 @@
   "eb1fd384ad5919dd": "Internal note",
   "b45f0b467e9406d0": "Reply to customer",
   "d454bfdeea6f1129": "Open preview",
-  "c1b7649ac731ed07": "Plugins"
+  "c1b7649ac731ed07": "Plugins",
+  "76834f5b4867367a": "The plugin command failed. Try again.",
+  "2137cace496ae66b": "The plugin did not finish. Try again.",
+  "24184df32e50ef31": "Install plugin",
+  "078816e3a6d3ac8d": "Install on All",
+  "f1fef6061b0c99b6": "Install on this machine",
+  "ee7e03a905d24a95": "Installing plugins on",
+  "fe20254a15a882b3": "All installs on machines connected when you press Install. Newly connected machines need another All install. Reconnect failed machines and retry below. Existing installs are kept, including their versions and settings.",
+  "0c02187c53cf3592": "Plugins run trusted code. Each machine verifies and installs its latest stable repository version using its own Git credentials. Versions may differ. Plugin data, secrets, settings, and local paths are never copied.",
+  "9f9460b68c84c88b": "Repository URL",
+  "4bc03c89ed2be0ce": "Retry this machine",
+  "f92a03b2cdb9b634": "No machines connected.",
+  "98eb98dbb13e1361": "Offline. Reconnect to manage plugins.",
+  "1862bb59eb706a6c": "Remove {value0}",
+  "40373579e50b95d0": "Show {value0} more",
+  "966b7afa24d469bd": "Search {value0}",
+  "d05f56d2129e990b": "Search",
+  "3e68352e1e1358e3": "No matching items.",
+  "d109f7bbda29eaab": "Next page",
+  "1f327b3c5c2d7b83": "New environment",
+  "8456ce20857fc111": "The plugin operation failed. Try again.",
+  "d320c0dab8881b72": "Update check failed. Try again when the repository is reachable.",
+  "5329ab53a6bf1e41": "Last checked {value0}",
+  "3c93930dc6359ab1": "Actions below affect this machine only. Updates are checked daily and installed only when you choose Update.",
+  "cb7e37cc5c7f83de": "Check for updates",
+  "38323dafff7d21f9": "No plugins installed.",
+  "14dcebb11d013b6c": "Local registration. Install from a repository above to use a portable package; local paths and data are never synced.",
+  "da5040a9be452676": [
+    "Update to ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "16dc92ac15b0d8d0": "Retry plugin",
+  "48dcbb3f7b3d787d": [
+    "Stopped after ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " failed attempts. Retry explicitly to start again."
+  ],
+  "ac20809c1f564343": "Remove clears the plugin's saved settings, data, and credentials. Manually registered source folders are kept.",
+  "8dc7cd9d0b18dfda": "Restart attempt limit",
+  "89b900d5ca14b19b": "Save limit",
+  "00d06fd5d3c1d5f2": "Copy key",
+  "efcdc60134ea4bdc": "Plugins could not be loaded.",
+  "59371671219a20de": "This extension page is unavailable. Enable or reinstall its plugin in Plugins settings.",
+  "103dcfa02f5619d0": "Multiple extensions or environments claim client notices. Keep notice routing enabled in one place; builtin presentation remains in control.",
+  "5a38f6e7bbe5d24a": "Plugin configuration could not be loaded. Check plugins.json on this environment.",
+  "21bf86292b61a814": "Hidden again after 30 seconds. Copy only to a destination you trust.",
+  "4726ae698b34dbcd": "Dismiss key",
+  "b77572e2f722ba4b": "This plugin view could not be loaded.",
+  "8fd76fb760f07d7b": "Actions",
+  "f46ecacebab6bfd5": "Select…",
+  "191507060fd7ad3e": "Complete the required fields with valid values.",
+  "73c069ec896b5f3d": "Extensions",
+  "3ee00b25e193ba8a": "Extensions",
+  "1a0fa5450cf484ed": [
+    "No other connected environment has ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " installed."
+  ],
+  "8316aabd0f7efe88": "{value0} cannot run this step on that environment.",
+  "298863d82706d076": "Cancelled.",
+  "4e6ca6dd604f59d6": "extensions",
+  "6d6bc081a119be50": "github",
+  "4e0a97750503d3b7": "gitlab",
+  "ccfc51915b213f0e": "install",
+  "a5b6a6a68d78abdc": "update",
+  "d13e8d51c8e3627c": "remove",
+  "3c1e19e9f1d6c33c": "restart",
+  "574cb3631c2a2860": "crash"
 }

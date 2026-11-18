@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import type { EnvironmentId } from "@t3tools/contracts";
@@ -12,6 +13,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 
 function PluginsSettings() {
+  const gt = useGT();
   const { environments } = useEnvironments();
   const machines = environments.map((entry) => ({
     ...entry,
@@ -32,7 +34,9 @@ function PluginsSettings() {
   return (
     <SettingsPageContainer>
       <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-        <span>Installing plugins on</span>
+        <span>
+          <T>Installing plugins on</T>
+        </span>
         <EnvironmentScopeMenu
           value={machine ? { machine } : {}}
           groups={[]}
@@ -41,17 +45,21 @@ function PluginsSettings() {
           onChange={(next) => setMachine(next.machine ? (next.machine as EnvironmentId) : null)}
         />
       </div>
-      <SettingsSection title="Install plugin">
+      <SettingsSection title={gt("Install plugin")}>
         <div className="space-y-4 p-4">
           <p className="text-sm text-muted-foreground">
-            All installs on machines connected when you press Install. Newly connected machines need
-            another All install. Reconnect failed machines and retry below. Existing installs are
-            kept, including their versions and settings.
+            <T>
+              All installs on machines connected when you press Install. Newly connected machines
+              need another All install. Reconnect failed machines and retry below. Existing installs
+              are kept, including their versions and settings.
+            </T>
           </p>
           <p className="text-sm text-muted-foreground">
-            Plugins run trusted code. Each machine verifies and installs its latest stable
-            repository version using its own Git credentials. Versions may differ. Plugin data,
-            secrets, settings, and local paths are never copied.
+            <T>
+              Plugins run trusted code. Each machine verifies and installs its latest stable
+              repository version using its own Git credentials. Versions may differ. Plugin data,
+              secrets, settings, and local paths are never copied.
+            </T>
           </p>
           <form
             className="flex flex-wrap items-end gap-2"
@@ -61,7 +69,9 @@ function PluginsSettings() {
             }}
           >
             <label className="min-w-48 flex-1 space-y-1 text-sm">
-              <span>Repository URL</span>
+              <span>
+                <T>Repository URL</T>
+              </span>
               <Input
                 type="url"
                 required
@@ -79,10 +89,10 @@ function PluginsSettings() {
               }
             >
               {installation.busy
-                ? "Installing…"
+                ? gt("Installing…")
                 : machine === null
-                  ? "Install on All"
-                  : "Install on this machine"}
+                  ? gt("Install on All")
+                  : gt("Install on this machine")}
             </Button>
           </form>
           <div aria-live="polite" className="space-y-2">
@@ -100,7 +110,7 @@ function PluginsSettings() {
                     disabled={installation.busy}
                     onClick={() => void installation.run([result.environmentId], true)}
                   >
-                    Retry this machine
+                    <T>Retry this machine</T>
                   </Button>
                 )}
               </div>
@@ -109,7 +119,9 @@ function PluginsSettings() {
         </div>
       </SettingsSection>
       {targets.length === 0 && (
-        <p className="text-sm text-muted-foreground">No machines connected.</p>
+        <p className="text-sm text-muted-foreground">
+          <T>No machines connected.</T>
+        </p>
       )}
       {targets.map((environment) => (
         <SettingsSection key={environment.environmentId} title={environment.label}>
@@ -118,7 +130,9 @@ function PluginsSettings() {
               <PluginPanels environmentId={environment.environmentId} location="settings" />
             </div>
           ) : (
-            <p>Offline. Reconnect to manage plugins.</p>
+            <p>
+              <T>Offline. Reconnect to manage plugins.</T>
+            </p>
           )}
         </SettingsSection>
       ))}

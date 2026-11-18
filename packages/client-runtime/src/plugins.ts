@@ -1,3 +1,5 @@
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 import type {
   PluginBlock,
   PluginInput,
@@ -158,10 +160,10 @@ const decodeNoticeResult = Schema.decodeUnknownOption(PluginNoticeResult);
 export function pluginNoticeResult(value: unknown): PluginNoticeResult | null {
   return Option.getOrNull(decodeNoticeResult(value));
 }
-const failed = (message: string | null): PluginNoticeResult => ({
+const failed = (message: string | null, resolve: MFunctionType): PluginNoticeResult => ({
   $t3: "notice",
   tone: "danger",
-  text: message ?? "The plugin command failed. Try again.",
+  text: message ?? resolve(msg("The plugin command failed. Try again.")),
 });
 
 const decodeRelayResult = Schema.decodeUnknownOption(PluginRelayResult);
@@ -173,6 +175,7 @@ const MAX_PLUGIN_RELAY_STEPS = 5_000;
  * Null means it finished with nothing to show, or was cancelled.
  */
 export async function runPluginAction(options: {
+  readonly resolve?: MFunctionType;
   readonly start: PluginActionStep;
   readonly execute: (step: PluginActionStep) => Promise<PluginActionReply>;
   readonly onStatus?: (status: string) => void;
@@ -182,7 +185,7 @@ export async function runPluginAction(options: {
   for (let count = 0; count < MAX_PLUGIN_RELAY_STEPS; count++) {
     if (options.signal?.aborted) return null;
     const reply = await options.execute(step);
-    if (!reply.ok) return failed(reply.message);
+    if (!reply.ok) return failed(reply.message, options.resolve ?? mFallback);
     const relay = Option.getOrNull(decodeRelayResult(reply.value));
     if (relay === null) return Option.getOrNull(decodeNoticeResult(reply.value));
     if (relay.status !== undefined) options.onStatus?.(relay.status);
@@ -192,7 +195,10 @@ export async function runPluginAction(options: {
       input: relay.input,
     };
   }
-  return failed("The plugin did not finish. Try again.");
+  return failed(
+    (options.resolve ?? mFallback)(msg("The plugin did not finish. Try again.")),
+    options.resolve ?? mFallback,
+  );
 }
 
 const GRAPH_COLORS = ["#0284c7", "#c026d3", "#16a34a", "#ea580c", "#7c3aed", "#0891b2"];

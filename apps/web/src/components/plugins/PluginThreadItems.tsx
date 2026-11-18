@@ -1,3 +1,4 @@
+import { T, Var, useGT } from "gt-react";
 import { useAtomValue } from "@effect/atom-react";
 import {
   pluginActionDestinations,
@@ -259,6 +260,7 @@ export function PluginActionDialogHost() {
 }
 
 function PluginStatusActionDialog({ run }: { run: PluginActionRun }) {
+  const gt = useGT();
   const { environmentId, plugin } = run;
   const onClose = closePluginAction;
   const onStart = startPluginAction;
@@ -345,14 +347,16 @@ function PluginStatusActionDialog({ run }: { run: PluginActionRun }) {
                   </Select>
                 ) : (
                   <p id={`${id}-destination`} className="text-sm">
-                    No other connected environment has {plugin.name} installed.
+                    <T>
+                      No other connected environment has <Var>{plugin.name}</Var> installed.
+                    </T>
                   </p>
                 )}
               </div>
             ) : null}
             {run.phase === "running" ? (
               <p role="status" className="text-muted-foreground text-sm">
-                {run.status ?? "Working…"}
+                {run.status ?? gt("Working…")}
               </p>
             ) : null}
             {run.notice ? (
@@ -369,11 +373,11 @@ function PluginStatusActionDialog({ run }: { run: PluginActionRun }) {
           </DialogPanel>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
-              {run.phase === "done" ? "Close" : "Cancel"}
+              {run.phase === "done" ? gt("Close") : gt("Cancel")}
             </Button>
             {run.phase !== "done" ? (
               <Button type="submit" disabled={blocked || run.phase === "running"}>
-                {run.phase === "running" ? "Working…" : title}
+                {run.phase === "running" ? gt("Working…") : title}
               </Button>
             ) : thread ? (
               <Button
@@ -389,7 +393,7 @@ function PluginStatusActionDialog({ run }: { run: PluginActionRun }) {
                   });
                 }}
               >
-                Open thread
+                <T>Open thread</T>
               </Button>
             ) : null}
           </DialogFooter>

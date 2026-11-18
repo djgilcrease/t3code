@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react-native";
 import { PluginAssociationsView } from "./PluginAssociationsView";
 import { launchImageLibraryAsync } from "expo-image-picker";
 import { clientNoticeRoutingConflicted } from "@t3tools/client-runtime/notificationRouting";
@@ -68,7 +69,12 @@ export function PluginPanels({
   const query = serverEnvironment.pluginCatalog({ environmentId, input: {} });
   const result = useAtomValue(query);
   const catalog = Option.getOrNull(AsyncResult.value(result));
-  if (!catalog) return result._tag === "Failure" ? <Text>Plugins could not be loaded.</Text> : null;
+  if (!catalog)
+    return result._tag === "Failure" ? (
+      <Text>
+        <T>Plugins could not be loaded.</T>
+      </Text>
+    ) : null;
   const available = catalog.plugins.some(
     (plugin) =>
       plugin.status === "active" &&
@@ -78,20 +84,24 @@ export function PluginPanels({
   if ((location === "settings-page" || location === "environment-launcher") && !available)
     return (
       <Text>
-        This extension page is unavailable. Enable or reinstall its plugin in Plugins settings.
+        <T>
+          This extension page is unavailable. Enable or reinstall its plugin in Plugins settings.
+        </T>
       </Text>
     );
   return (
     <View className="gap-4">
       {location === "settings-page" && routingConflict && (
         <Text>
-          Multiple extensions or environments claim client notices. Keep notice routing enabled in
-          one place; builtin presentation remains in control.
+          <T>
+            Multiple extensions or environments claim client notices. Keep notice routing enabled in
+            one place; builtin presentation remains in control.
+          </T>
         </Text>
       )}
       {catalog.configurationError && (
         <Text>
-          Plugin configuration could not be loaded. Check plugins.json on this environment.
+          <T>Plugin configuration could not be loaded. Check plugins.json on this environment.</T>
         </Text>
       )}
       {location === "settings" && (
@@ -134,6 +144,7 @@ function PluginPanel({
   onCommandResult?: (result: unknown) => void;
   context?: PluginInput;
 }) {
+  const gt = useGT();
   const [selection, setSelection] = useState<PluginInput>({});
   const query = serverEnvironment.pluginView({
     environmentId,
@@ -208,7 +219,9 @@ function PluginPanel({
         if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
           const failure = squashAtomCommandFailure(outcome);
           setError(
-            failure instanceof Error ? failure.message : "The plugin command failed. Try again.",
+            failure instanceof Error
+              ? failure.message
+              : gt("The plugin command failed. Try again."),
           );
         }
         registry.refresh(query);
@@ -227,7 +240,7 @@ function PluginPanel({
     <View className="gap-3 rounded-xl border border-border p-4">
       <Text className="font-t3-medium text-foreground">{content?.title ?? view.title}</Text>
       <MaterialButton
-        label={page ? "Back" : "Refresh"}
+        label={page ? gt("Back") : gt("Refresh")}
         onPress={() => {
           setPage(null);
           registry.refresh(query);
@@ -247,20 +260,24 @@ function PluginPanel({
             value={secret.value}
             className="min-h-12 rounded-lg border border-border px-3 text-foreground"
           />
-          <Text>Hidden again after 30 seconds. Copy only to a destination you trust.</Text>
+          <Text>
+            <T>Hidden again after 30 seconds. Copy only to a destination you trust.</T>
+          </Text>
           <MaterialButton
-            label={copied ? "Copied" : "Copy key"}
+            label={copied ? gt("Copied") : gt("Copy key")}
             onPress={() =>
               void Clipboard.setStringAsync(secret.value)
                 .then(() => setCopied(true))
                 .catch(() => setCopied(false))
             }
           />
-          <MaterialButton label="Dismiss key" onPress={() => setSecret(null)} />
+          <MaterialButton label={gt("Dismiss key")} onPress={() => setSecret(null)} />
         </View>
       )}
       {result._tag === "Failure" && (
-        <Text accessibilityRole="alert">This plugin view could not be loaded.</Text>
+        <Text accessibilityRole="alert">
+          <T>This plugin view could not be loaded.</T>
+        </Text>
       )}
       {content?.blocks.map((block) => {
         if (block.kind === "toggle")
@@ -450,6 +467,7 @@ function PluginFormView({
   busy: boolean;
   run: (action: PluginAction) => Promise<boolean>;
 }) {
+  const gt = useGT();
   const [snapshot, setSnapshot] = useState<PluginForm | null>(null);
   const form = snapshot ?? incoming;
   const [draft, setValues] = useState<PluginInput | null>(null);
@@ -487,7 +505,7 @@ function PluginFormView({
             </View>
           ) : field.kind === "image" ? (
             <MaterialButton
-              label="Choose image (at most 64 KiB)"
+              label={gt("Choose image (at most 64 KiB)")}
               disabled={busy || !allowed}
               onPress={() => {
                 void launchImageLibraryAsync({ mediaTypes: ["images"], base64: true })
@@ -525,7 +543,9 @@ function PluginFormView({
         </View>
       ))}
       {invalid && (
-        <Text accessibilityRole="alert">Complete the required fields with valid values.</Text>
+        <Text accessibilityRole="alert">
+          <T>Complete the required fields with valid values.</T>
+        </Text>
       )}
       <MaterialButton
         label={form.label}
@@ -555,12 +575,13 @@ function PluginCollection({
   block: Extract<import("@t3tools/contracts").PluginBlock, { kind: "collection" }>;
   select: (input: PluginInput) => void;
 }) {
+  const gt = useGT();
   const [search, setSearch] = useState("");
   return (
     <View className="gap-2">
       <TextInput
-        accessibilityLabel={`Search ${block.label}`}
-        placeholder={`Search ${block.label}`}
+        accessibilityLabel={gt("Search {value0}", { value0: block.label })}
+        placeholder={gt("Search {value0}", { value0: block.label })}
         value={search}
         onChangeText={(value) => {
           setSearch(value);

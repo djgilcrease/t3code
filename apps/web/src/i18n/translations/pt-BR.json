@@ -3238,7 +3238,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "no computador que abriu esta página"]
+      "c": [
+        " ",
+        "no computador que abriu esta página"
+      ]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3250,7 +3253,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "· quem executar recebe este acesso"]
+      "c": [
+        " ",
+        "· quem executar recebe este acesso"
+      ]
     }
   ],
   "c54cc9c75db9dc58": "Aprove apenas um login que você acabou de iniciar.",
@@ -13068,5 +13074,84 @@
   "eb1fd384ad5919dd": "Nota interna",
   "b45f0b467e9406d0": "Responder ao cliente",
   "d454bfdeea6f1129": "Abrir pré-visualização",
-  "c1b7649ac731ed07": "Plugins"
+  "c1b7649ac731ed07": "Plugins",
+  "76834f5b4867367a": "O comando do plugin falhou. Tente novamente.",
+  "2137cace496ae66b": "O plugin não terminou. Tente novamente.",
+  "24184df32e50ef31": "Instalar plugin",
+  "078816e3a6d3ac8d": "Instalar em Todas",
+  "f1fef6061b0c99b6": "Instalar nesta máquina",
+  "ee7e03a905d24a95": "Instalar plugins em",
+  "fe20254a15a882b3": "“Todas” instala nas máquinas conectadas quando você pressiona Instalar. Máquinas conectadas depois precisam de outra instalação em Todas. Reconecte as máquinas que falharam e tente novamente abaixo. As instalações existentes, incluindo versões e configurações, são mantidas.",
+  "0c02187c53cf3592": "Plugins executam código confiável. Cada máquina verifica e instala a versão estável mais recente do repositório usando suas próprias credenciais Git. As versões podem variar. Dados, segredos, configurações e caminhos locais dos plugins nunca são copiados.",
+  "9f9460b68c84c88b": "URL do repositório",
+  "4bc03c89ed2be0ce": "Tentar esta máquina novamente",
+  "f92a03b2cdb9b634": "Nenhuma máquina conectada.",
+  "98eb98dbb13e1361": "Offline. Reconecte para gerenciar plugins.",
+  "1862bb59eb706a6c": "Remover {value0}",
+  "40373579e50b95d0": "Mostrar mais {value0}",
+  "966b7afa24d469bd": "Pesquisar em {value0}",
+  "d05f56d2129e990b": "Pesquisar",
+  "3e68352e1e1358e3": "Nenhum item correspondente.",
+  "d109f7bbda29eaab": "Próxima página",
+  "1f327b3c5c2d7b83": "Novo ambiente",
+  "8456ce20857fc111": "A operação do plugin falhou. Tente novamente.",
+  "d320c0dab8881b72": "A verificação de atualizações falhou. Tente novamente quando o repositório estiver acessível.",
+  "5329ab53a6bf1e41": "Última verificação: {value0}",
+  "3c93930dc6359ab1": "As ações abaixo afetam apenas esta máquina. As atualizações são verificadas diariamente e instaladas somente quando você escolhe Atualizar.",
+  "cb7e37cc5c7f83de": "Verificar atualizações",
+  "38323dafff7d21f9": "Nenhum plugin instalado.",
+  "14dcebb11d013b6c": "Registro local. Instale de um repositório acima para usar um pacote portátil; caminhos e dados locais nunca são sincronizados.",
+  "da5040a9be452676": [
+    "Atualizar para ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "16dc92ac15b0d8d0": "Tentar o plugin novamente",
+  "48dcbb3f7b3d787d": [
+    "Interrompido após ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " tentativas com falha. Tente novamente explicitamente para reiniciar."
+  ],
+  "ac20809c1f564343": "Remover apaga configurações, dados e credenciais salvos. As pastas de código registradas manualmente são mantidas.",
+  "8dc7cd9d0b18dfda": "Limite de tentativas de reinício",
+  "89b900d5ca14b19b": "Salvar limite",
+  "00d06fd5d3c1d5f2": "Copiar chave",
+  "efcdc60134ea4bdc": "Não foi possível carregar os plugins.",
+  "59371671219a20de": "Esta página de extensão está indisponível. Ative ou reinstale seu plugin nas configurações de Plugins.",
+  "103dcfa02f5619d0": "Várias extensões ou ambientes reivindicam as notificações do cliente. Mantenha o roteamento de notificações ativo em apenas um local; a apresentação integrada mantém o controle.",
+  "5a38f6e7bbe5d24a": "Não foi possível carregar a configuração do plugin. Verifique plugins.json neste ambiente.",
+  "21bf86292b61a814": "Oculta novamente após 30 segundos. Copie apenas para um destino confiável.",
+  "4726ae698b34dbcd": "Ocultar chave",
+  "b77572e2f722ba4b": "Não foi possível carregar esta visualização do plugin.",
+  "8fd76fb760f07d7b": "Ações",
+  "f46ecacebab6bfd5": "Selecionar…",
+  "191507060fd7ad3e": "Preencha os campos obrigatórios com valores válidos.",
+  "73c069ec896b5f3d": "Extensões",
+  "3ee00b25e193ba8a": "Extensões",
+  "1a0fa5450cf484ed": [
+    "Nenhum outro ambiente conectado tem ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " instalado."
+  ],
+  "8316aabd0f7efe88": "{value0} não pode executar esta etapa nesse ambiente.",
+  "298863d82706d076": "Cancelado.",
+  "4e6ca6dd604f59d6": "extensões",
+  "6d6bc081a119be50": "github",
+  "4e0a97750503d3b7": "gitlab",
+  "ccfc51915b213f0e": "instalar",
+  "a5b6a6a68d78abdc": "atualizar",
+  "d13e8d51c8e3627c": "remover",
+  "3c1e19e9f1d6c33c": "reiniciar",
+  "574cb3631c2a2860": "falha"
 }

@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react";
 import { Switch } from "../ui/switch";
 import { PluginAssociationsView } from "./PluginAssociationsView";
 import {
@@ -71,7 +72,11 @@ export function PluginPanels({
   const result = useAtomValue(query);
   const catalog = Option.getOrNull(AsyncResult.value(result));
   if (!catalog)
-    return result._tag === "Failure" ? <p role="status">Plugins could not be loaded.</p> : null;
+    return result._tag === "Failure" ? (
+      <p role="status">
+        <T>Plugins could not be loaded.</T>
+      </p>
+    ) : null;
   const available = catalog.plugins.some(
     (plugin) =>
       plugin.status === "active" &&
@@ -81,20 +86,24 @@ export function PluginPanels({
   if ((location === "settings-page" || location === "environment-launcher") && !available)
     return (
       <p role="status">
-        This extension page is unavailable. Enable or reinstall its plugin in Plugins settings.
+        <T>
+          This extension page is unavailable. Enable or reinstall its plugin in Plugins settings.
+        </T>
       </p>
     );
   return (
     <div className="space-y-4">
       {location === "settings-page" && routingConflict && (
         <p role="status">
-          Multiple extensions or environments claim client notices. Keep notice routing enabled in
-          one place; builtin presentation remains in control.
+          <T>
+            Multiple extensions or environments claim client notices. Keep notice routing enabled in
+            one place; builtin presentation remains in control.
+          </T>
         </p>
       )}
       {catalog.configurationError && (
         <p role="status">
-          Plugin configuration could not be loaded. Check plugins.json on this environment.
+          <T>Plugin configuration could not be loaded. Check plugins.json on this environment.</T>
         </p>
       )}
       {location === "settings" && (
@@ -137,6 +146,7 @@ function PluginPanel({
   onCommandResult?: (result: unknown) => void;
   context?: PluginInput;
 }) {
+  const gt = useGT();
   const [selection, setSelection] = useState<PluginInput>({});
   const query = serverEnvironment.pluginView({
     environmentId,
@@ -206,7 +216,9 @@ function PluginPanel({
         if (outcome._tag === "Failure" && !isAtomCommandInterrupted(outcome)) {
           const failure = squashAtomCommandFailure(outcome);
           setError(
-            failure instanceof Error ? failure.message : "The plugin command failed. Try again.",
+            failure instanceof Error
+              ? failure.message
+              : gt("The plugin command failed. Try again."),
           );
         }
         registry.refresh(query);
@@ -246,7 +258,7 @@ function PluginPanel({
             registry.refresh(query);
           }}
         >
-          {page ? "Back" : "Refresh"}
+          {page ? gt("Back") : gt("Refresh")}
         </Button>
       </div>
       {notice && <p role={notice.tone === "danger" ? "alert" : "status"}>{notice.text}</p>}
@@ -262,7 +274,7 @@ function PluginPanel({
             <Input type="password" readOnly value={secret.value} autoComplete="off" />
           </label>
           <p className="text-xs text-muted-foreground">
-            Hidden again after 30 seconds. Copy only to a destination you trust.
+            <T>Hidden again after 30 seconds. Copy only to a destination you trust.</T>
           </p>
           <div className="flex gap-2">
             <Button
@@ -275,15 +287,19 @@ function PluginPanel({
                   .catch(() => setCopied(false))
               }
             >
-              {copied ? "Copied" : "Copy key"}
+              {copied ? gt("Copied") : gt("Copy key")}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setSecret(null)}>
-              Dismiss key
+              <T>Dismiss key</T>
             </Button>
           </div>
         </div>
       )}
-      {result._tag === "Failure" && <p role="alert">This plugin view could not be loaded.</p>}
+      {result._tag === "Failure" && (
+        <p role="alert">
+          <T>This plugin view could not be loaded.</T>
+        </p>
+      )}
       {content?.blocks.map((block) => {
         if (block.kind === "toggle")
           return (
@@ -411,7 +427,9 @@ function PluginPanel({
                     </th>
                   ))}
                   <th>
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">
+                      <T>Actions</T>
+                    </span>
                   </th>
                 </tr>
               </thead>
@@ -557,7 +575,9 @@ function PluginFormView({
                 setValues({ ...values, [field.name]: e.target.value });
               }}
             >
-              <option value="">Select…</option>
+              <option value="">
+                <T>Select…</T>
+              </option>
               {field.options?.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -609,7 +629,11 @@ function PluginFormView({
           )}
         </label>
       ))}
-      {invalid && <p role="alert">Complete the required fields with valid values.</p>}
+      {invalid && (
+        <p role="alert">
+          <T>Complete the required fields with valid values.</T>
+        </p>
+      )}
       <Button size="sm" type="submit" disabled={!command || !allowed || busy}>
         {form.label}
       </Button>
@@ -624,12 +648,13 @@ function PluginCollection({
   block: Extract<import("@t3tools/contracts").PluginBlock, { kind: "collection" }>;
   select: (input: PluginInput) => void;
 }) {
+  const gt = useGT();
   const [search, setSearch] = useState("");
   return (
     <div className="space-y-2">
       <Input
-        aria-label={`Search ${block.label}`}
-        placeholder={`Search ${block.label}`}
+        aria-label={gt("Search {value0}", { value0: block.label })}
+        placeholder={gt("Search {value0}", { value0: block.label })}
         value={search}
         onChange={(e) => {
           setSearch(e.target.value);

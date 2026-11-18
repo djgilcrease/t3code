@@ -411,7 +411,7 @@ function ProjectOverviewContent(props: {
         </SettingsSection>
       ) : null}
 
-      <SettingsSection title="New threads">
+      <SettingsSection title={gt("New threads")}>
         {props.members.map((member) => (
           <PluginPanels
             key={`${member.environmentId}:${member.id}`}

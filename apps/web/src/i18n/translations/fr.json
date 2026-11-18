@@ -3238,7 +3238,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "sur l’ordinateur qui a ouvert cette page"]
+      "c": [
+        " ",
+        "sur l’ordinateur qui a ouvert cette page"
+      ]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3250,7 +3253,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "· quiconque l’exécute obtient cet accès"]
+      "c": [
+        " ",
+        "· quiconque l’exécute obtient cet accès"
+      ]
     }
   ],
   "c54cc9c75db9dc58": "N’approuvez qu’une connexion que vous venez de lancer.",
@@ -13068,5 +13074,84 @@
   "eb1fd384ad5919dd": "Note interne",
   "b45f0b467e9406d0": "Répondre au client",
   "d454bfdeea6f1129": "Ouvrir l’aperçu",
-  "c1b7649ac731ed07": "Modules complémentaires"
+  "c1b7649ac731ed07": "Modules complémentaires",
+  "76834f5b4867367a": "La commande du module a échoué. Réessayez.",
+  "2137cace496ae66b": "Le module n’a pas terminé. Réessayez.",
+  "24184df32e50ef31": "Installer un module",
+  "078816e3a6d3ac8d": "Installer sur Toutes",
+  "f1fef6061b0c99b6": "Installer sur cette machine",
+  "ee7e03a905d24a95": "Installer les modules sur",
+  "fe20254a15a882b3": "« Toutes » installe sur les machines connectées au moment où vous appuyez sur Installer. Pour les nouvelles connexions, relancez une installation sur Toutes. Reconnectez les machines en échec et réessayez ci-dessous. Les installations existantes, versions et réglages compris, sont conservées.",
+  "0c02187c53cf3592": "Les modules exécutent du code de confiance. Chaque machine vérifie et installe la dernière version stable du dépôt avec ses propres identifiants Git. Les versions peuvent différer. Les données, secrets, réglages et chemins locaux des modules ne sont jamais copiés.",
+  "9f9460b68c84c88b": "URL du dépôt",
+  "4bc03c89ed2be0ce": "Réessayer sur cette machine",
+  "f92a03b2cdb9b634": "Aucune machine connectée.",
+  "98eb98dbb13e1361": "Hors ligne. Reconnectez-vous pour gérer les modules.",
+  "1862bb59eb706a6c": "Supprimer {value0}",
+  "40373579e50b95d0": "Afficher {value0} de plus",
+  "966b7afa24d469bd": "Rechercher dans {value0}",
+  "d05f56d2129e990b": "Rechercher",
+  "3e68352e1e1358e3": "Aucun élément correspondant.",
+  "d109f7bbda29eaab": "Page suivante",
+  "1f327b3c5c2d7b83": "Nouvel environnement",
+  "8456ce20857fc111": "L’opération du module a échoué. Réessayez.",
+  "d320c0dab8881b72": "La recherche de mises à jour a échoué. Réessayez lorsque le dépôt sera accessible.",
+  "5329ab53a6bf1e41": "Dernière vérification : {value0}",
+  "3c93930dc6359ab1": "Les actions ci-dessous concernent uniquement cette machine. Les mises à jour sont recherchées chaque jour et installées seulement si vous choisissez Mettre à jour.",
+  "cb7e37cc5c7f83de": "Rechercher des mises à jour",
+  "38323dafff7d21f9": "Aucun module installé.",
+  "14dcebb11d013b6c": "Enregistrement local. Installez depuis un dépôt ci-dessus pour utiliser un paquet portable ; les chemins et données locaux ne sont jamais synchronisés.",
+  "da5040a9be452676": [
+    "Mettre à jour vers ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "16dc92ac15b0d8d0": "Relancer le module",
+  "48dcbb3f7b3d787d": [
+    "Arrêté après ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " tentatives échouées. Relancez explicitement pour recommencer."
+  ],
+  "ac20809c1f564343": "Supprimer efface les réglages, données et identifiants enregistrés. Les dossiers sources enregistrés manuellement sont conservés.",
+  "8dc7cd9d0b18dfda": "Limite de tentatives de redémarrage",
+  "89b900d5ca14b19b": "Enregistrer la limite",
+  "00d06fd5d3c1d5f2": "Copier la clé",
+  "efcdc60134ea4bdc": "Impossible de charger les modules.",
+  "59371671219a20de": "Cette page d’extension est indisponible. Activez ou réinstallez son module dans les réglages des modules.",
+  "103dcfa02f5619d0": "Plusieurs extensions ou environnements revendiquent les notifications du client. Activez leur routage à un seul endroit ; la présentation intégrée garde le contrôle.",
+  "5a38f6e7bbe5d24a": "Impossible de charger la configuration du module. Vérifiez plugins.json dans cet environnement.",
+  "21bf86292b61a814": "Masquée à nouveau après 30 secondes. Copiez-la uniquement vers une destination de confiance.",
+  "4726ae698b34dbcd": "Masquer la clé",
+  "b77572e2f722ba4b": "Impossible de charger cette vue du module.",
+  "8fd76fb760f07d7b": "Actions",
+  "f46ecacebab6bfd5": "Sélectionner…",
+  "191507060fd7ad3e": "Renseignez les champs obligatoires avec des valeurs valides.",
+  "73c069ec896b5f3d": "Extensions",
+  "3ee00b25e193ba8a": "Extensions",
+  "1a0fa5450cf484ed": [
+    "Aucun autre environnement connecté n’a ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " installé."
+  ],
+  "8316aabd0f7efe88": "{value0} ne peut pas exécuter cette étape dans cet environnement.",
+  "298863d82706d076": "Annulé.",
+  "4e6ca6dd604f59d6": "extensions",
+  "6d6bc081a119be50": "github",
+  "4e0a97750503d3b7": "gitlab",
+  "ccfc51915b213f0e": "installer",
+  "a5b6a6a68d78abdc": "mettre à jour",
+  "d13e8d51c8e3627c": "supprimer",
+  "3c1e19e9f1d6c33c": "redémarrer",
+  "574cb3631c2a2860": "plantage"
 }
