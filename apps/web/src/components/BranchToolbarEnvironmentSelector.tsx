@@ -124,10 +124,10 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
 
   return (
     <>
-    <Select
-      modal={false}
-      value={autoEnvironmentLabel ? AUTO_VALUE : environmentValue(environmentId)}
-      onValueChange={(value) => {
+      <Select
+        modal={false}
+        value={autoEnvironmentLabel ? AUTO_VALUE : environmentValue(environmentId)}
+        onValueChange={(value) => {
           const launcher = launchers.find((item) => item.value === value);
           if (launcher && launchContext) {
             setLaunch({
@@ -135,91 +135,91 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
               context: { ...launchContext(), requestId: randomUUID() },
             });
           } else if (value === ADD_MACHINE_VALUE) {
-          onAddToMachine?.();
-        } else if (value === AUTO_VALUE) {
-          onAutoEnvironment?.();
-        } else if (value?.startsWith("env:")) {
-          onEnvironmentChange?.(value.slice(4) as EnvironmentId);
-        }
-      }}
-      items={environmentItems}
-    >
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <ComposerSelectControl
-              size="xs"
-              className="min-w-0 max-w-full"
-              aria-label={gt("Run on")}
-              data-composer-shortcut="composer.host"
-              data-composer-context-control
-            />
+            onAddToMachine?.();
+          } else if (value === AUTO_VALUE) {
+            onAutoEnvironment?.();
+          } else if (value?.startsWith("env:")) {
+            onEnvironmentChange?.(value.slice(4) as EnvironmentId);
           }
-        >
-          {autoEnvironmentLabel ? (
-            <ScaleIcon className="size-3 shrink-0" aria-hidden="true" />
-          ) : (
-            <EnvironmentMachineIcon
-              kind={activeEnvironment?.machine ?? "server"}
-              className="size-3 shrink-0"
-            />
-          )}
-          <ComposerContextLabel>
-            <SelectValue />
-          </ComposerContextLabel>
-        </TooltipTrigger>
-        <TooltipPopup>
-          {autoEnvironmentLabel ?? activeEnvironment?.label ?? gt("Run on")}
-          {shortcutLabel ? ` · ${shortcutLabel}` : null}
-        </TooltipPopup>
-      </Tooltip>
-      <SelectPopup alignItemWithTrigger={false} {...composerFloatingLayerProps}>
-        <SelectGroup>
-          <SelectGroupLabel>
-            <T>Run on</T>
-          </SelectGroupLabel>
-          {onAutoEnvironment && (
-            <SelectItem
-              value={AUTO_VALUE}
-              onClick={() => {
-                if (autoEnvironmentLabel) onAutoEnvironment?.();
-              }}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <ScaleIcon className="size-3" aria-hidden="true" />
-                {autoEnvironmentLabel ?? gt("Auto balance")}
-              </span>
-            </SelectItem>
-          )}
-          {availableEnvironments.map((env) => (
-            <SelectItem
-              key={env.environmentId}
-              value={environmentValue(env.environmentId)}
-              disabled={onEnvironmentChange === undefined && env.environmentId !== environmentId}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <EnvironmentMachineIcon kind={env.machine} className="size-3" />
-                {env.label}
-              </span>
-            </SelectItem>
-          ))}
+        }}
+        items={environmentItems}
+      >
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <ComposerSelectControl
+                size="xs"
+                className="min-w-0 max-w-full"
+                aria-label={gt("Run on")}
+                data-composer-shortcut="composer.host"
+                data-composer-context-control
+              />
+            }
+          >
+            {autoEnvironmentLabel ? (
+              <ScaleIcon className="size-3 shrink-0" aria-hidden="true" />
+            ) : (
+              <EnvironmentMachineIcon
+                kind={activeEnvironment?.machine ?? "server"}
+                className="size-3 shrink-0"
+              />
+            )}
+            <ComposerContextLabel>
+              <SelectValue />
+            </ComposerContextLabel>
+          </TooltipTrigger>
+          <TooltipPopup>
+            {autoEnvironmentLabel ?? activeEnvironment?.label ?? gt("Run on")}
+            {shortcutLabel ? ` · ${shortcutLabel}` : null}
+          </TooltipPopup>
+        </Tooltip>
+        <SelectPopup alignItemWithTrigger={false} {...composerFloatingLayerProps}>
+          <SelectGroup>
+            <SelectGroupLabel>
+              <T>Run on</T>
+            </SelectGroupLabel>
+            {onAutoEnvironment && (
+              <SelectItem
+                value={AUTO_VALUE}
+                onClick={() => {
+                  if (autoEnvironmentLabel) onAutoEnvironment?.();
+                }}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <ScaleIcon className="size-3" aria-hidden="true" />
+                  {autoEnvironmentLabel ?? gt("Auto balance")}
+                </span>
+              </SelectItem>
+            )}
+            {availableEnvironments.map((env) => (
+              <SelectItem
+                key={env.environmentId}
+                value={environmentValue(env.environmentId)}
+                disabled={onEnvironmentChange === undefined && env.environmentId !== environmentId}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <EnvironmentMachineIcon kind={env.machine} className="size-3" />
+                  {env.label}
+                </span>
+              </SelectItem>
+            ))}
             {launchers.map((launcher) => (
               <SelectItem key={launcher.value} value={launcher.value}>
                 <PlusIcon aria-hidden="true" className="size-3" />
                 {launcher.title}
               </SelectItem>
             ))}
-          {onAddToMachine ? (
-            <SelectItem value={ADD_MACHINE_VALUE}>
-              <span className={ADD_TO_MACHINE_LABEL_CLASS}>
-                <PlusIcon aria-hidden="true" className="size-3" />
-                <T>Add to another machine</T>
-              </span>
-            </SelectItem>
-          ) : null}
-        </SelectGroup>
-      </SelectPopup>
-    </Select>
+            {onAddToMachine ? (
+              <SelectItem value={ADD_MACHINE_VALUE}>
+                <span className={ADD_TO_MACHINE_LABEL_CLASS}>
+                  <PlusIcon aria-hidden="true" className="size-3" />
+                  <T>Add to another machine</T>
+                </span>
+              </SelectItem>
+            ) : null}
+          </SelectGroup>
+        </SelectPopup>
+      </Select>
       {launch && (
         <PluginEnvironmentLaunchDialog
           environmentId={environmentId}
