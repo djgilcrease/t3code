@@ -2205,6 +2205,23 @@ it.effect("starts, finishes and follows up a task without reading the parent's h
     addHistory("messages", "message_id");
     addHistory("provider_turns", "provider_turn_id", ["run_attempt_id"]);
     assert.isAtMost(readSteps(), shortSteps * 1.1);
+    const followUpChild = yield* projections.getThreadRecords(childThreadId, ["runs"]);
+    const followUpRun = followUpChild.runs.find((run) => run.id !== child.runs[0]!.id);
+    assert.isDefined(followUpRun);
+    yield* eventSink.write({
+      commandId: CommandId.make("command:runtime-reconcile:long-parent-follow-up"),
+      events: [
+        {
+          id: EventId.make("event:long-parent:follow-up-completed"),
+          type: "run.updated",
+          threadId: childThreadId,
+          runId: followUpRun!.id,
+          occurredAt: now,
+          payload: { ...followUpRun!, status: "completed", completedAt: now },
+        },
+      ],
+    });
+    yield* orchestrator.recoverDelegatedTasks;
     const completedParent = yield* projections.getRun(parentThreadId, parentRun.id);
     assert.isDefined(completedParent);
     yield* eventSink.write({
