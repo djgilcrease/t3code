@@ -80,31 +80,33 @@ describe("runMigrations", () => {
   );
 
   it.effect("upgrades published fork grouping without losing project identity", () =>
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      yield* runMigrations({ toMigrationInclusive: 96 });
-      yield* sql`ALTER TABLE projection_projects ADD COLUMN grouping_identity TEXT`;
-      yield* sql`INSERT INTO effect_sql_migrations (migration_id, name) VALUES (97, 'ProjectGroupingIdentity')`;
-      yield* sql`INSERT INTO projection_projects
+    Effect.forEach([81, 95, 96, 97], (groupingId) =>
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* runMigrations({ toMigrationInclusive: groupingId - 1 });
+        yield* sql`ALTER TABLE projection_projects ADD COLUMN grouping_identity TEXT`;
+        yield* sql`INSERT INTO effect_sql_migrations (migration_id, name) VALUES (${groupingId}, 'ProjectGroupingIdentity')`;
+        yield* sql`INSERT INTO projection_projects
         (project_id, title, workspace_root, scripts_json, created_at, updated_at, grouping_identity)
         VALUES ('existing-copy', 'SDK', '/work/sdk', '[]', '2026-10-27', '2026-10-28', 'shared-sdk')`;
-      assert.deepStrictEqual(
-        yield* runMigrations(),
-        migrationManifest.filter(([id]) => id > 96),
-      );
-      assert.deepStrictEqual(yield* history, migrationManifest);
-      assert.deepStrictEqual(
-        yield* sql`SELECT project_id, workspace_root, grouping_identity FROM projection_projects`,
-        [
-          {
-            project_id: "existing-copy",
-            workspace_root: "/work/sdk",
-            grouping_identity: "shared-sdk",
-          },
-        ],
-      );
-      assert.deepStrictEqual(yield* runMigrations(), []);
-    }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
+        assert.deepStrictEqual(
+          yield* runMigrations(),
+          migrationManifest.filter(([id]) => id >= groupingId),
+        );
+        assert.deepStrictEqual(yield* history, migrationManifest);
+        assert.deepStrictEqual(
+          yield* sql`SELECT project_id, workspace_root, grouping_identity FROM projection_projects`,
+          [
+            {
+              project_id: "existing-copy",
+              workspace_root: "/work/sdk",
+              grouping_identity: "shared-sdk",
+            },
+          ],
+        );
+        assert.deepStrictEqual(yield* runMigrations(), []);
+      }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
+    ),
   );
 
   it.effect("does not reconcile fork grouping over divergent earlier history", () =>
@@ -119,6 +121,10 @@ describe("runMigrations", () => {
       assert.isTrue(Exit.isFailure(exit));
       assert.include(String(exit), "UnexpectedMigration");
       assert.deepStrictEqual(yield* history, before);
+      yield* sql`DELETE FROM effect_sql_migrations WHERE migration_id = 96`;
+      const missingPredecessor = yield* history;
+      assert.isTrue(Exit.isFailure(yield* Effect.exit(runMigrations())));
+      assert.deepStrictEqual(yield* history, missingPredecessor);
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
 

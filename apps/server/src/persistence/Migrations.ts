@@ -300,13 +300,17 @@ const assertV2MigrationsCanRun = Effect.fn("assertV2MigrationsCanRun")(function*
     readonly migration_id: number;
     readonly name: string;
   }>`SELECT migration_id, name FROM effect_sql_migrations`;
-  // Published fork builds used 97 before main assigned that id to IssueTrackerBindings.
+  // Published fork builds appended grouping at ids main later consumed.
   const forkGrouping = recorded.find(
-    (row) => row.migration_id === 97 && row.name === "ProjectGroupingIdentity",
+    (row) =>
+      row.migration_id > FIRST_V2_MIGRATION_ID &&
+      row.migration_id < 101 &&
+      row.name === "ProjectGroupingIdentity",
   );
   const canReconcileGrouping =
     forkGrouping !== undefined &&
-    recorded.every((row) => row.migration_id <= 97) &&
+    recorded.every((row) => row.migration_id <= forkGrouping.migration_id) &&
+    recorded.some((row) => row.migration_id === forkGrouping.migration_id - 1) &&
     (throughId === undefined || throughId >= 101);
   const compatible = canReconcileGrouping
     ? recorded.filter((row) => row !== forkGrouping)
@@ -322,11 +326,10 @@ const assertV2MigrationsCanRun = Effect.fn("assertV2MigrationsCanRun")(function*
       if (!columns.some((column) => column.name === "grouping_identity")) {
         return yield* new Migrator.MigrationError({
           kind: "BadState",
-          message:
-            "Cannot reconcile fork grouping migration 97: grouping_identity column is missing.",
+          message: "Cannot reconcile fork grouping migration: grouping_identity column is missing.",
         });
       }
-      yield* sql`DELETE FROM effect_sql_migrations WHERE migration_id = 97 AND name = 'ProjectGroupingIdentity'`;
+      yield* sql`DELETE FROM effect_sql_migrations WHERE migration_id = ${forkGrouping.migration_id} AND name = 'ProjectGroupingIdentity'`;
       return;
     } else return;
   }
