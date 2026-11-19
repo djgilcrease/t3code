@@ -8,7 +8,7 @@ import * as Path from "effect/Path";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import { migrationManifest, runMigrations } from "./Migrations.ts";
-import notificationJournal from "./Migrations/099_NotificationJournal.ts";
+import notificationJournal from "./Migrations/101_NotificationJournal.ts";
 
 const v2Migrations = migrationManifest.filter(([id]) => id >= 55);
 const newerMigrationId = Math.max(...migrationManifest.map(([id]) => id)) + 1;
@@ -70,7 +70,7 @@ describe("runMigrations", () => {
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
 
-  it.effect.each([81, 82, 86, 90, 92, 96, 97])(
+  it.effect.each([81, 82, 86, 90, 92, 96, 97, 99])(
     "upgrades the published notification journal at id %s without losing events",
     (id) =>
       Effect.gen(function* () {
@@ -92,6 +92,19 @@ describe("runMigrations", () => {
           columns.map((column) => column.name),
           "search_text",
         );
+        const indexes = yield* sql<{
+          readonly name: string;
+        }>`SELECT name FROM sqlite_master WHERE type = 'index'`;
+        for (const name of [
+          "orchestration_v2_projection_turn_items_usage_limit_idx",
+          "orchestration_v2_projection_messages_deferred_command_idx",
+          "orchestration_v2_projection_subagents_routable_idx",
+          "orchestration_v2_projection_context_transfers_fork_idx",
+        ])
+          assert.include(
+            indexes.map((index) => index.name),
+            name,
+          );
         const events = yield* sql`SELECT event_id, payload_json FROM notification_journal`;
         assert.deepStrictEqual(events, [{ event_id: "retained", payload_json: "{}" }]);
         assert.deepStrictEqual(yield* runMigrations(), []);
