@@ -3,5 +3,8 @@ import * as SqlClient from "effect/sql/SqlClient";
 
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
-  yield* sql`ALTER TABLE projection_projects ADD COLUMN grouping_identity TEXT`;
+  const columns = yield* sql<{ readonly name: string }>`PRAGMA table_info(projection_projects)`;
+  if (!columns.some((column) => column.name === "grouping_identity")) {
+    yield* sql`ALTER TABLE projection_projects ADD COLUMN grouping_identity TEXT`;
+  }
 });

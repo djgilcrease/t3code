@@ -269,12 +269,36 @@ const assertV2MigrationsCanRun = Effect.fn("assertV2MigrationsCanRun")(function*
     readonly migration_id: number;
     readonly name: string;
   }>`SELECT migration_id, name FROM effect_sql_migrations`;
+  // Published fork builds used 97 before main assigned that id to IssueTrackerBindings.
+  const forkGrouping = recorded.find(
+    (row) => row.migration_id === 97 && row.name === "ProjectGroupingIdentity",
+  );
+  const canReconcileGrouping =
+    forkGrouping !== undefined &&
+    recorded.every((row) => row.migration_id <= 97) &&
+    (throughId === undefined || throughId >= 101);
+  const compatible = canReconcileGrouping
+    ? recorded.filter((row) => row !== forkGrouping)
+    : recorded;
   const skipped = skippedV2Migrations(
-    recorded.map((row) => ({ id: row.migration_id, name: row.name })),
+    compatible.map((row) => ({ id: row.migration_id, name: row.name })),
     throughId,
   );
   const latestRecordedId = Math.max(0, ...recorded.map((row) => row.migration_id));
-  if (skipped.length === 0) return;
+  if (skipped.length === 0) {
+    if (canReconcileGrouping) {
+      const columns = yield* sql<{ readonly name: string }>`PRAGMA table_info(projection_projects)`;
+      if (!columns.some((column) => column.name === "grouping_identity")) {
+        return yield* new Migrator.MigrationError({
+          kind: "BadState",
+          message:
+            "Cannot reconcile fork grouping migration 97: grouping_identity column is missing.",
+        });
+      }
+      yield* sql`DELETE FROM effect_sql_migrations WHERE migration_id = 97 AND name = 'ProjectGroupingIdentity'`;
+      return;
+    } else return;
+  }
   return yield* new Migrator.MigrationError({
     kind: "BadState",
     message: `This database's migration history would skip required schema migrations: ${skipped.join(", ")}. The migrator skips every id up to the highest recorded id (${latestRecordedId}), regardless of name. It was probably written by a different build. Start the build that wrote it, or report this migration history so an upgrade path can be added.`,
