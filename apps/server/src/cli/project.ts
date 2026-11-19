@@ -344,8 +344,7 @@ const runProjectMutation = Effect.fn("runProjectMutation")(function* (
             const projects = yield* ProjectService.ProjectService;
             return yield* run({
               snapshot: yield* projects.snapshot,
-              dispatch: (command) =>
-                projectMutationOperation(projects, command),
+              dispatch: (command) => projectMutationOperation(projects, command),
             });
           }).pipe(
             Effect.provide(
