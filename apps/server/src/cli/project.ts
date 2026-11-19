@@ -321,10 +321,7 @@ const runProjectMutation = Effect.fn("runProjectMutation")(function* (
       viaServer: Effect.fn("project.viaServer")(function* (client) {
         return yield* run({
           snapshot: yield* client.projects.snapshot({ headers: {} }),
-          dispatch: (command) =>
-            client.projects.mutate({ headers: {}, payload: command } as Parameters<
-              typeof client.projects.mutate
-            >[0]),
+          dispatch: (command) => client.projects.mutate({ headers: {}, payload: command }),
         });
       }, Effect.mapError(projectCommandErrorFromServerAnswer)),
       locally: Effect.promise(() => import("../orchestration-v2/runtimeLayer.ts")).pipe(
