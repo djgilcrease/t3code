@@ -15,6 +15,7 @@ import {
   type ProjectId,
   ThreadId,
 } from "@t3tools/contracts";
+import { turnItemCanChangeUserWait } from "@t3tools/shared/agentAwareness";
 import { shouldRefreshNotificationPresentation } from "./notificationEvents.ts";
 import { notificationTransition } from "../plugins/notificationTransition.ts";
 import * as ProviderCommitBatch from "./ProviderCommitBatch.ts";
@@ -477,6 +478,42 @@ const layerBase: Layer.Layer<
         );
         const activityOnly = new Set<ThreadId>();
         for (const [threadId, stored] of candidates) {
+          const threadChanges = changes.filter(({ event }) => event.threadId === threadId);
+          if (
+            threadChanges.some(
+              ({ event }) => event.type === "run.created" || event.type === "run.updated",
+            ) &&
+            threadChanges.every(
+              ({ event }) =>
+                (event.type === "run.created" && event.payload.status === "queued") ||
+                (event.type === "run.updated" &&
+                  ["queued", "cancelled"].includes(event.payload.status)) ||
+                (event.type === "turn-item.updated" && !turnItemCanChangeUserWait(event.payload)),
+            )
+          ) {
+            const { runs } = yield* projectionStore.getThreadRecords(threadId, ["runs"], {
+              runStatuses: ["preparing", "starting", "running", "waiting"],
+            });
+            if (runs.length > 0) {
+              const priorRuns = yield* Effect.forEach(threadChanges, ({ event }) =>
+                event.type === "run.updated"
+                  ? projectionStore.getRun(threadId, event.payload.id)
+                  : Effect.succeed(null),
+              );
+              // Queue changes cannot alter alerts while another run remains active.
+              if (
+                threadChanges.every(
+                  ({ event }, index) =>
+                    event.type === "run.created" ||
+                    event.type === "turn-item.updated" ||
+                    priorRuns[index]?.status === "queued",
+                )
+              ) {
+                activityOnly.add(threadId);
+                continue;
+              }
+            }
+          }
           const runId = subagentActivityRunId(stored.event);
           if (
             !changes.some(

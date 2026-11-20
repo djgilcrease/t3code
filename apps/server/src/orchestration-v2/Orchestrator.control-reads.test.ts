@@ -2976,6 +2976,9 @@ it.effect("queued-message commands read a long thread's history without walking 
     const observed = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       effect.pipe(Effect.provideService(Statement.CurrentTransformer, observe));
 
+    const [journalBefore] = yield* sql<{ readonly cursor: number }>`
+      SELECT COALESCE(MAX(sequence), 0) AS cursor FROM notification_journal
+    `;
     yield* observed(dispatch("queued"));
     const walks = yield* historyWalks("message.dispatch");
     const queuedRun = (yield* projections.getThreadProjection(threadId)).runs.at(-1)!;
@@ -3013,6 +3016,16 @@ it.effect("queued-message commands read a long thread's history without walking 
       }),
     );
     walks.push(...(yield* historyWalks("queued-run.cancel")));
+    const notifications = yield* sql<{ readonly kind: string }>`
+      SELECT json_extract(payload_json, '$.kind') AS kind FROM notification_journal
+      WHERE sequence > ${journalBefore!.cursor}
+        AND json_extract(payload_json, '$.sourceThreadId') = ${threadId}
+      ORDER BY sequence
+    `;
+    assert.deepEqual(
+      notifications.map((row) => row.kind),
+      ["activity", "activity", "activity", "activity"],
+    );
     yield* observed(
       orchestrator.dispatch({
         type: "run.interrupt",
