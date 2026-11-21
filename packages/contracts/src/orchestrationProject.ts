@@ -3,7 +3,12 @@ import * as Schema from "effect/Schema";
 import { IsoDateTime, ProjectId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { RepositoryIdentity, ThreadEnvMode } from "./environment.ts";
 import { ModelSelection } from "./modelSelection.ts";
-import { ProjectGroupingIdentity, ProjectScript, ProjectTrackedFolders, ReceivedProjectIcon } from "./project.ts";
+import {
+  ProjectGroupingIdentity,
+  ProjectScript,
+  ProjectTrackedFolders,
+  ReceivedProjectIcon,
+} from "./project.ts";
 
 export const OrchestrationProjectShell = Schema.Struct({
   id: ProjectId,

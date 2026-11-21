@@ -59,6 +59,7 @@ export const layerTaskFoldersWithGit = (state: TaskFoldersTestState) => {
     projectId: taskFoldersTestProjectId,
     title: "Shop",
     hasCustomTitle: false,
+    groupingIdentity: null,
     defaultModelSelection: null,
     defaultThreadEnvMode: null,
     autoPull: false,

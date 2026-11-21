@@ -14,7 +14,12 @@ import {
 import { RepositoryIdentity, ThreadEnvMode } from "./environment.ts";
 import { ModelSelection } from "./modelSelection.ts";
 import type { OrchestrationV2StoredEvent } from "./orchestrationV2.ts";
-import { ProjectGroupingIdentity, ProjectScript, ProjectTrackedFolders, StoredProjectIcon } from "./project.ts";
+import {
+  ProjectGroupingIdentity,
+  ProjectScript,
+  ProjectTrackedFolders,
+  StoredProjectIcon,
+} from "./project.ts";
 
 export const OrchestrationClientOrigin = Schema.Struct({
   surface: Schema.optional(ClientSurface),

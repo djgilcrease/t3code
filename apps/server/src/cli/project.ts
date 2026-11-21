@@ -2,7 +2,6 @@ import {
   AuthStandardClientScopes,
   CommandId,
   EnvironmentHttpCommonError,
-  PROJECT_TRACKED_FOLDERS_MAX,
   Project,
   ProjectGroupingIdentity,
   type ProjectMutation,
@@ -37,7 +36,6 @@ import { projectMutationOperation } from "../project/ProjectMutation.ts";
 import * as T3ProjectFileLoader from "../project/T3ProjectFileLoader.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
-import { discoverFolders, mergeProjectFolders } from "../workspace/WorkspaceFolders.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import { type CliAuthLocationFlags, projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
 import * as RunningServer from "./runningServer.ts";
@@ -390,9 +388,22 @@ const projectAddCommand = Command.make("add", {
           const workspaceRoot = path.resolve(
             expandHomePath(flags.workspaceRoot.trim(), yield* HostProcess.HomeDirectory),
           );
+          const trackedFolders = flags.track
+            .map((folder) => {
+              const resolved = path.resolve(folder);
+              return {
+                path: resolved,
+                name: (path.basename(resolved) || resolved).slice(0, 128).trim(),
+              };
+            })
+            .filter(
+              (folder, index, all) =>
+                all.findIndex((other) => other.path === folder.path) === index,
+            );
           const projectId = ProjectId.make(yield* projectCommandUuid);
           const project = yield* dispatch({
             type: "project.register",
+            ...(trackedFolders.length === 0 ? {} : { trackedFolders }),
             commandId: CommandId.make(yield* projectCommandUuid),
             projectId,
             workspaceRoot,
