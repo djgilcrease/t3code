@@ -255,6 +255,7 @@ export const ProjectMutation = Schema.Union([
     workspaceRoot: Schema.String,
     title: Schema.optional(Schema.String),
     groupingIdentity: Schema.optional(ProjectGroupingIdentity),
+    trackedFolders: Schema.optional(ProjectTrackedFolders),
   }),
   Schema.Struct({
     type: Schema.Literal("project.grouping"),

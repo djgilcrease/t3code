@@ -28,6 +28,7 @@ const layerFor = (project?: {
                 projectId,
                 title: "Project",
                 hasCustomTitle: false,
+                groupingIdentity: null,
                 defaultModelSelection: null,
                 defaultThreadEnvMode: null,
                 autoPull: false,

@@ -74,6 +74,7 @@ export interface ProjectRegisterInput {
   readonly projectId: ProjectId;
   readonly workspaceRoot: string;
   readonly title?: string | undefined;
+  readonly trackedFolders?: ReadonlyArray<ProjectTrackedFolder> | undefined;
   readonly groupingIdentity?: NonNullable<ProjectCreatePayload["groupingIdentity"]> | undefined;
 }
 
@@ -225,7 +226,6 @@ export const make = Effect.gen(function* () {
   const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const fileSystem = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
   const isManagedWorktreePath = yield* makeIsManagedWorktreePath;
   const isWorktreeContainer = yield* makeIsWorktreeContainer.pipe(
     Effect.provide(ProcessRunner.layer),
@@ -775,6 +775,11 @@ export const make = Effect.gen(function* () {
             commandId: input.commandId,
             projectId: existing.value.id,
             archived: false,
+            ...(input.trackedFolders === undefined
+              ? {}
+              : {
+                  trackFolders: input.trackedFolders,
+                }),
             ...(title === undefined ? {} : { title }),
             ...(input.groupingIdentity === undefined
               ? {}
@@ -792,6 +797,7 @@ export const make = Effect.gen(function* () {
           commandId: input.commandId,
           projectId: existing.value.id,
           groupingIdentity: input.groupingIdentity,
+          ...(input.trackedFolders === undefined ? {} : { trackFolders: input.trackedFolders }),
         });
       }
       const title =
