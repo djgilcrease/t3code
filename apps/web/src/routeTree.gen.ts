@@ -55,8 +55,8 @@ import { Route as ChatSettingsAccessRouteImport } from './routes/_chat.settings.
 import { Route as ChatSettingsAboutRouteImport } from './routes/_chat.settings.about'
 import { Route as ChatDraftDraftIdRouteImport } from './routes/_chat.draft.$draftId'
 import { Route as ChatEnvironmentIdThreadIdRouteImport } from './routes/_chat.$environmentId.$threadId'
-import { Route as ChatLinkedViaEnvironmentIdLinkedEnvironmentIdLinkedThreadIdRouteImport } from './routes/_chat.linked.$viaEnvironmentId.$linkedEnvironmentId.$linkedThreadId'
 import { Route as ChatSettingsExtensionsPluginIdViewIdRouteImport } from './routes/_chat.settings.extensions.$pluginId.$viewId'
+import { Route as ChatLinkedViaEnvironmentIdLinkedEnvironmentIdLinkedThreadIdRouteImport } from './routes/_chat.linked.$viaEnvironmentId.$linkedEnvironmentId.$linkedThreadId'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -293,6 +293,12 @@ const ChatEnvironmentIdThreadIdRoute =
     path: '/$environmentId/$threadId',
     getParentRoute: () => ChatRoute,
   } as any)
+const ChatSettingsExtensionsPluginIdViewIdRoute =
+  ChatSettingsExtensionsPluginIdViewIdRouteImport.update({
+    id: '/extensions/$pluginId/$viewId',
+    path: '/extensions/$pluginId/$viewId',
+    getParentRoute: () => ChatSettingsRoute,
+  } as any)
 const ChatLinkedViaEnvironmentIdLinkedEnvironmentIdLinkedThreadIdRoute =
   ChatLinkedViaEnvironmentIdLinkedEnvironmentIdLinkedThreadIdRouteImport.update(
     {
@@ -301,12 +307,6 @@ const ChatLinkedViaEnvironmentIdLinkedEnvironmentIdLinkedThreadIdRoute =
       getParentRoute: () => ChatRoute,
     } as any,
   )
-const ChatSettingsExtensionsPluginIdViewIdRoute =
-  ChatSettingsExtensionsPluginIdViewIdRouteImport.update({
-    id: '/extensions/$pluginId/$viewId',
-    path: '/extensions/$pluginId/$viewId',
-    getParentRoute: () => ChatSettingsRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
@@ -944,18 +944,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatEnvironmentIdThreadIdRouteImport
       parentRoute: typeof ChatRoute
     }
-    '/_chat/linked/$viaEnvironmentId/$linkedEnvironmentId/$linkedThreadId': {
-      id: '/_chat/linked/$viaEnvironmentId/$linkedEnvironmentId/$linkedThreadId'
-      path: '/linked/$viaEnvironmentId/$linkedEnvironmentId/$linkedThreadId'
-      fullPath: '/linked/$viaEnvironmentId/$linkedEnvironmentId/$linkedThreadId'
-      preLoaderRoute: typeof ChatLinkedViaEnvironmentIdLinkedEnvironmentIdLinkedThreadIdRouteImport
-      parentRoute: typeof ChatRoute
     '/_chat/settings/extensions/$pluginId/$viewId': {
       id: '/_chat/settings/extensions/$pluginId/$viewId'
       path: '/extensions/$pluginId/$viewId'
       fullPath: '/settings/extensions/$pluginId/$viewId'
       preLoaderRoute: typeof ChatSettingsExtensionsPluginIdViewIdRouteImport
       parentRoute: typeof ChatSettingsRoute
+    }
+    '/_chat/linked/$viaEnvironmentId/$linkedEnvironmentId/$linkedThreadId': {
+      id: '/_chat/linked/$viaEnvironmentId/$linkedEnvironmentId/$linkedThreadId'
+      path: '/linked/$viaEnvironmentId/$linkedEnvironmentId/$linkedThreadId'
+      fullPath: '/linked/$viaEnvironmentId/$linkedEnvironmentId/$linkedThreadId'
+      preLoaderRoute: typeof ChatLinkedViaEnvironmentIdLinkedEnvironmentIdLinkedThreadIdRouteImport
+      parentRoute: typeof ChatRoute
     }
   }
 }
