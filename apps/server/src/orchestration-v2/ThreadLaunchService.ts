@@ -1229,8 +1229,7 @@ const make = Effect.gen(function* () {
             const remove = Effect.suspend(
               (): Effect.Effect<void, GitCommandError | TaskFolderError> =>
                 removedTaskFolder === null
-                  ? removal
-                      .removeWorktree({
+                  ? removal.remove({
                         cwd: project.workspaceRoot,
                         path: removedPath,
                         force: true,

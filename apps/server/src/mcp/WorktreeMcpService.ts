@@ -330,8 +330,7 @@ const make = Effect.gen(function* () {
         const removeCreatedWorktree = Effect.suspend(
           (): Effect.Effect<unknown, GitCommandError | TaskFolderError> =>
             createdTaskFolder === null
-              ? removal
-                  .removeWorktree({ cwd: projectCwd, path: worktreePath, force: true })
+              ? removal.remove({ cwd: projectCwd, path: worktreePath, force: true })
                   .pipe(
                     Effect.andThen(
                       Effect.suspend(() =>

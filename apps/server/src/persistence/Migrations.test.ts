@@ -18,7 +18,7 @@ import {
 import * as DatabaseMigrationProgress from "./DatabaseMigrationProgress.ts";
 
 import { migrationManifest, runMigrations } from "./Migrations.ts";
-import notificationJournal from "./Migrations/103_NotificationJournal.ts";
+import notificationJournal from "./Migrations/108_NotificationJournal.ts";
 
 const v2Migrations = migrationManifest.filter(([id]) => id >= 55);
 const newerMigrationId = Math.max(...migrationManifest.map(([id]) => id)) + 1;
@@ -80,7 +80,7 @@ describe("runMigrations", () => {
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
 
-  it.effect.each([81, 82, 86, 90, 92, 96, 97, 99, 101])(
+  it.effect.each([81, 82, 86, 90, 92, 96, 97, 99, 101, 103])(
     "upgrades the published notification journal at id %s without losing events",
     (id) =>
       Effect.gen(function* () {

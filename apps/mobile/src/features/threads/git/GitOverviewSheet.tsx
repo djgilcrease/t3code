@@ -473,7 +473,13 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
         </ListSection>
       ) : null}
 
-      {repository === undefined ? <PluginThreadRows environmentId={environmentId} threadId={threadId} hasRepository={gitStatus.data?.isRepo === true} /> : null}
+      {repository === undefined ? (
+        <PluginThreadRows
+          environmentId={environmentId}
+          threadId={threadId}
+          hasRepository={gitStatus.data?.isRepo === true}
+        />
+      ) : null}
       {selectedThreadProject && (
         <PluginPanels
           environmentId={environmentId}
