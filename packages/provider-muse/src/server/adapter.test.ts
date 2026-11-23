@@ -399,7 +399,7 @@ describe("MuseAdapterV2", () => {
         browserToolsAvailable: true,
         additionalServers: {
           "mcp-manager-database": {
-            transport: "stdio",
+            transport: "stdio" as const,
             command: "db-server",
             args: [],
             environment: { TOKEN: "private-db-token" },
