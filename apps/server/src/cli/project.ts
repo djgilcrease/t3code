@@ -12,8 +12,6 @@ import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import { splitsSurrogatePair } from "@t3tools/shared/assistantCitations";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Console from "effect/Console";
-import * as HostProcess from "@t3tools/shared/HostProcess";
-import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -399,9 +397,10 @@ const projectAddCommand = Command.make("add", {
           const workspaceRoot = path.resolve(
             expandHomePath(flags.workspaceRoot.trim(), yield* HostProcess.HomeDirectory),
           );
+          const homeDirectory = yield* HostProcess.HomeDirectory;
           const trackedFolders = flags.track
             .map((folder) => {
-              const resolved = path.resolve(folder);
+              const resolved = path.resolve(expandHomePath(folder, homeDirectory));
               return {
                 path: resolved,
                 name: (path.basename(resolved) || resolved).slice(0, 128).trim(),
