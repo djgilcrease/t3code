@@ -634,7 +634,9 @@ export const make = Effect.gen(function* () {
           projectId: input.projectId,
           title: input.title,
           workspaceRoot,
-          ...(input.groupingIdentity === undefined ? {} : { groupingIdentity: input.groupingIdentity }),
+          ...(input.groupingIdentity === undefined
+            ? {}
+            : { groupingIdentity: input.groupingIdentity }),
           ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
           trackedFolders,
         },

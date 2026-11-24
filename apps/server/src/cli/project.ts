@@ -401,9 +401,10 @@ const projectAddCommand = Command.make("add", {
           const trackedFolders = flags.track
             .map((folder) => {
               const resolved = path.resolve(expandHomePath(folder, homeDirectory));
+              const name = (path.basename(resolved) || resolved).trimStart();
               return {
                 path: resolved,
-                name: (path.basename(resolved) || resolved).slice(0, 128).trim(),
+                name: name.slice(0, splitsSurrogatePair(name, 128) ? 127 : 128).trim(),
               };
             })
             .filter(
