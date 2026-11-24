@@ -640,7 +640,11 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
       env: pluginLaunch.environment,
       shared: true,
     });
-    const spawnCommand = yield* resolveCommand(launch.command, launch.args, pluginLaunch.environment);
+    const spawnCommand = yield* resolveCommand(
+      launch.command,
+      launch.args,
+      pluginLaunch.environment,
+    );
     // A server T3 starts always has a password; without a configured one it is generated and
     // kept in memory.
     const serverPassword =
