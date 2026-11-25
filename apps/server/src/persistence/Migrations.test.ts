@@ -39,10 +39,10 @@ const v2TableCount = Effect.gen(function* () {
 });
 
 describe("runMigrations", () => {
-  it.effect("adds explicit grouping after superseded run-attempt indexes", () =>
+  it.effect("adds explicit grouping after workflow pools", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-      yield* runMigrations({ toMigrationInclusive: 111 });
+      yield* runMigrations({ toMigrationInclusive: 118 });
       const before = yield* history;
       yield* sql`
         INSERT INTO projection_projects
@@ -50,8 +50,8 @@ describe("runMigrations", () => {
         VALUES ('sdk-project', 'SDK', 1, '/work/sdk', '[]', '2026-10-27', '2026-10-28', '2026-10-27', '2026-10-28')
       `;
 
-      assert.deepStrictEqual(yield* runMigrations(), [[112, "ProjectGroupingIdentity"]]);
-      assert.deepStrictEqual(yield* history, [...before, [112, "ProjectGroupingIdentity"]]);
+      assert.deepStrictEqual(yield* runMigrations(), [[119, "ProjectGroupingIdentity"]]);
+      assert.deepStrictEqual(yield* history, [...before, [119, "ProjectGroupingIdentity"]]);
       assert.deepStrictEqual(
         yield* sql`SELECT project_id, title, has_custom_title, workspace_root, pinned_at, archived_at, grouping_identity FROM projection_projects`,
         [
@@ -80,7 +80,7 @@ describe("runMigrations", () => {
   );
 
   it.effect("upgrades published fork grouping without losing project identity", () =>
-    Effect.forEach([81, 95, 96, 97, 101, 106, 108, 111], (groupingId) =>
+    Effect.forEach([81, 95, 96, 97, 101, 106, 108, 111, 112], (groupingId) =>
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         yield* runMigrations({ toMigrationInclusive: groupingId - 1 });

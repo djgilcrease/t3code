@@ -304,14 +304,14 @@ const assertV2MigrationsCanRun = Effect.fn("assertV2MigrationsCanRun")(function*
   const forkGrouping = recorded.find(
     (row) =>
       row.migration_id > FIRST_V2_MIGRATION_ID &&
-      row.migration_id < 112 &&
+      row.migration_id < 119 &&
       row.name === "ProjectGroupingIdentity",
   );
   const canReconcileGrouping =
     forkGrouping !== undefined &&
     recorded.every((row) => row.migration_id <= forkGrouping.migration_id) &&
     recorded.some((row) => row.migration_id === forkGrouping.migration_id - 1) &&
-    (throughId === undefined || throughId >= 112);
+    (throughId === undefined || throughId >= 119);
   const compatible = canReconcileGrouping
     ? recorded.filter((row) => row !== forkGrouping)
     : recorded;
