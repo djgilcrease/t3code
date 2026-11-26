@@ -164,7 +164,7 @@ function harness(
         }),
         Layer.mock(CheckpointStore.CheckpointStore)({
           isGitRepository: () => Effect.succeed(true),
-          captureCheckpoint: () => Effect.void,
+          captureCheckpoint: () => Effect.succeed(null),
         }),
         Layer.mock(GitVcsDriver.GitVcsDriver)({
           resolveCommit: ({ revision }) =>

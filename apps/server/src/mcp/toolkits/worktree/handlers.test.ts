@@ -1,3 +1,4 @@
+import * as WorktreeRemovalService from "../../../workspace/WorktreeRemovalService.ts";
 // `t3_worktree_handoff` through its real access declaration, the real WorktreeMcpService and the
 // real TaskFolders over real Git; only the orchestrator, the project record and the setup-script
 // runner are stand-ins.
@@ -137,6 +138,7 @@ const handoffFrom = <A, E>(
             });
           }),
         ),
+        Layer.mock(WorktreeRemovalService.WorktreeRemovalService)({}),
         Layer.mock(ProjectSetupScriptRunner.ProjectSetupScriptRunner)({
           runForThread: (input) =>
             Effect.sync(() => {
