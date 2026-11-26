@@ -21,7 +21,6 @@ import {
   type RunId,
   type RuntimeMode,
   type ScheduledTaskId,
-  type GitCommandError,
   type GitManagerServiceError,
   TaskFolderError,
   TextGenerationError,
@@ -1229,7 +1228,8 @@ const make = Effect.gen(function* () {
             const remove = Effect.suspend(
               (): Effect.Effect<void, GitCommandError | TaskFolderError> =>
                 removedTaskFolder === null
-                  ? removal.remove({
+                  ? git
+                      .removeWorktree({
                         cwd: project.workspaceRoot,
                         path: removedPath,
                         force: true,
@@ -1287,19 +1287,21 @@ const make = Effect.gen(function* () {
               Effect.catchCause((removeCause) =>
                 Effect.gen(function* () {
                   const failure = Cause.squash(removeCause);
-                  yield* threads.dispatch({
-                    type: "thread.worktree-cleanup.fail",
-                    commandId: CommandId.make(`${input.commandId}:cleanup-failed`),
-                    threadId,
-                    worktreePath: removedPath,
-                    message: `Worktree removal failed. The checkout was kept.\n\n${isGitCommandError(failure) ? failure.detail.slice(0, 4000) : "The cleanup handler could not complete."}\n\nFix the cleanup command, then retry removal.`,
-                  }).pipe(Effect.ignoreCause({ log: true }));
+                  yield* threads
+                    .dispatch({
+                      type: "thread.worktree-cleanup.fail",
+                      commandId: CommandId.make(`${input.commandId}:cleanup-failed`),
+                      threadId,
+                      worktreePath: removedPath,
+                      message: `Worktree removal failed. The checkout was kept.\n\n${isGitCommandError(failure) ? failure.detail.slice(0, 4000) : "The cleanup handler could not complete."}\n\nFix the cleanup command, then retry removal.`,
+                    })
+                    .pipe(Effect.ignoreCause({ log: true }));
                   yield* Effect.logWarning("Failed to remove an abandoned thread worktree", {
-                  commandId: input.commandId,
-                  threadId,
-                  path: removedPath,
-                  cause: removeCause,
-                });
+                    commandId: input.commandId,
+                    threadId,
+                    path: removedPath,
+                    cause: removeCause,
+                  });
                 }),
               ),
             );

@@ -18,7 +18,7 @@ import {
 import * as DatabaseMigrationProgress from "./DatabaseMigrationProgress.ts";
 
 import { migrationManifest, runMigrations } from "./Migrations.ts";
-import notificationJournal from "./Migrations/112_NotificationJournal.ts";
+import notificationJournal from "./Migrations/120_NotificationJournal.ts";
 
 const v2Migrations = migrationManifest.filter(([id]) => id >= 55);
 const newerMigrationId = Math.max(...migrationManifest.map(([id]) => id)) + 1;
@@ -80,7 +80,7 @@ describe("runMigrations", () => {
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
 
-  it.effect.each([81, 82, 86, 90, 92, 96, 97, 99, 101, 103, 108, 111])(
+  it.effect.each([81, 82, 86, 90, 92, 96, 97, 99, 101, 103, 108, 111, 112])(
     "upgrades the published notification journal at id %s without losing events",
     (id) =>
       Effect.gen(function* () {
@@ -126,6 +126,10 @@ describe("runMigrations", () => {
         assert.deepStrictEqual(
           countColumns.map((column) => column.name),
           ["thread_id", "item_count"],
+        );
+        assert.isTrue(
+          (yield* sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'layout_command_approvals'`)
+            .length === 1,
         );
         const events = yield* sql`SELECT event_id, payload_json FROM notification_journal`;
         assert.deepStrictEqual(events, [{ event_id: "retained", payload_json: "{}" }]);

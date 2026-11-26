@@ -132,74 +132,74 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
               context: { ...launchContext(), requestId: randomUUID() },
             });
           } else if (value === ADD_MACHINE_VALUE) {
-          onAddToMachine?.();
-        } else if (value === AUTO_VALUE) {
-          onAutoEnvironment?.();
-        } else if (value?.startsWith("env:")) {
-          onEnvironmentChange?.(value.slice(4) as EnvironmentId);
-        }
-      }}
-      items={environmentItems}
-    >
-      <SharedTooltipTrigger
-        render={
-          <ComposerSelectControl
-            size="xs"
-            className="min-w-0 max-w-full"
-            aria-label={gt("Run on")}
-            data-composer-shortcut="composer.host"
-            data-composer-context-control
-          />
-        }
-        label={
-          <>
-            {autoEnvironmentLabel ?? activeEnvironment?.label ?? gt("Run on")}
-            {shortcutLabel ? ` · ${shortcutLabel}` : null}
-          </>
-        }
+            onAddToMachine?.();
+          } else if (value === AUTO_VALUE) {
+            onAutoEnvironment?.();
+          } else if (value?.startsWith("env:")) {
+            onEnvironmentChange?.(value.slice(4) as EnvironmentId);
+          }
+        }}
+        items={environmentItems}
       >
-        {autoEnvironmentLabel ? (
-          <ScaleIcon className="size-3 shrink-0" aria-hidden="true" />
-        ) : (
-          <EnvironmentMachineIcon
-            kind={activeEnvironment?.machine ?? "server"}
-            className="size-3 shrink-0"
-          />
-        )}
-        <ComposerContextLabel>
-          <SelectValue />
-        </ComposerContextLabel>
-      </SharedTooltipTrigger>
-      <SelectPopup alignItemWithTrigger={false} {...composerFloatingLayerProps}>
-        <SelectGroup>
-          <SelectGroupLabel>
-            <T>Run on</T>
-          </SelectGroupLabel>
-          {onAutoEnvironment && (
-            <SelectItem
-              value={AUTO_VALUE}
-              onClick={() => {
-                if (autoEnvironmentLabel) onAutoEnvironment?.();
-              }}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <ScaleIcon className="size-3" aria-hidden="true" />
-                {autoEnvironmentLabel ?? gt("Auto balance")}
-              </span>
-            </SelectItem>
+        <SharedTooltipTrigger
+          render={
+            <ComposerSelectControl
+              size="xs"
+              className="min-w-0 max-w-full"
+              aria-label={gt("Run on")}
+              data-composer-shortcut="composer.host"
+              data-composer-context-control
+            />
+          }
+          label={
+            <>
+              {autoEnvironmentLabel ?? activeEnvironment?.label ?? gt("Run on")}
+              {shortcutLabel ? ` · ${shortcutLabel}` : null}
+            </>
+          }
+        >
+          {autoEnvironmentLabel ? (
+            <ScaleIcon className="size-3 shrink-0" aria-hidden="true" />
+          ) : (
+            <EnvironmentMachineIcon
+              kind={activeEnvironment?.machine ?? "server"}
+              className="size-3 shrink-0"
+            />
           )}
-          {availableEnvironments.map((env) => (
-            <SelectItem
-              key={env.environmentId}
-              value={environmentValue(env.environmentId)}
-              disabled={onEnvironmentChange === undefined && env.environmentId !== environmentId}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <EnvironmentMachineIcon kind={env.machine} className="size-3" />
-                {env.label}
-              </span>
-            </SelectItem>
-          ))}
+          <ComposerContextLabel>
+            <SelectValue />
+          </ComposerContextLabel>
+        </SharedTooltipTrigger>
+        <SelectPopup alignItemWithTrigger={false} {...composerFloatingLayerProps}>
+          <SelectGroup>
+            <SelectGroupLabel>
+              <T>Run on</T>
+            </SelectGroupLabel>
+            {onAutoEnvironment && (
+              <SelectItem
+                value={AUTO_VALUE}
+                onClick={() => {
+                  if (autoEnvironmentLabel) onAutoEnvironment?.();
+                }}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <ScaleIcon className="size-3" aria-hidden="true" />
+                  {autoEnvironmentLabel ?? gt("Auto balance")}
+                </span>
+              </SelectItem>
+            )}
+            {availableEnvironments.map((env) => (
+              <SelectItem
+                key={env.environmentId}
+                value={environmentValue(env.environmentId)}
+                disabled={onEnvironmentChange === undefined && env.environmentId !== environmentId}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <EnvironmentMachineIcon kind={env.machine} className="size-3" />
+                  {env.label}
+                </span>
+              </SelectItem>
+            ))}
             {launchers.map((launcher) => (
               <SelectItem key={launcher.value} value={launcher.value}>
                 <PlusIcon aria-hidden="true" className="size-3" />

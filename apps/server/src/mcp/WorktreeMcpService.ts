@@ -330,18 +330,17 @@ const make = Effect.gen(function* () {
         const removeCreatedWorktree = Effect.suspend(
           (): Effect.Effect<unknown, GitCommandError | TaskFolderError> =>
             createdTaskFolder === null
-              ? removal.remove({ cwd: projectCwd, path: worktreePath, force: true })
-                  .pipe(
-                    Effect.andThen(
-                      Effect.suspend(() =>
-                        gitWorkflow.deleteLocalBranch({
-                          cwd: projectCwd,
-                          refName: worktree.refName,
-                          force: true,
-                        }),
-                      ),
+              ? removal.remove({ cwd: projectCwd, path: worktreePath, force: true }).pipe(
+                  Effect.andThen(
+                    Effect.suspend(() =>
+                      gitWorkflow.deleteLocalBranch({
+                        cwd: projectCwd,
+                        refName: worktree.refName,
+                        force: true,
+                      }),
                     ),
-                  )
+                  ),
+                )
               : taskFolders.remove({
                   root: createdTaskFolder,
                   force: true,

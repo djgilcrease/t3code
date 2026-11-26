@@ -306,7 +306,8 @@ export function reconciledPluginMigrationHistory(
         row.id === 101 ||
         row.id === 103 ||
         row.id === 108 ||
-        row.id === 111),
+        row.id === 111 ||
+        row.id === 112),
   );
   if (!journal || journal.id !== latestId) return recorded;
   const replacement = migrationManifest.find(([id]) => id === journal.id);
@@ -370,7 +371,8 @@ const reconcileNotificationJournal = Effect.fn("reconcileNotificationJournal")(f
             row.id === 101 ||
             row.id === 103 ||
             row.id === 108 ||
-            row.id === 111),
+            row.id === 111 ||
+            row.id === 112),
       );
       if (
         !journal ||
@@ -405,7 +407,9 @@ const reconcileNotificationJournal = Effect.fn("reconcileNotificationJournal")(f
                           ? Migration0103
                           : journal.id === 108
                             ? Migration0108
-                            : Migration0111;
+                            : journal.id === 111
+                              ? Migration0111
+                              : Migration0112;
       yield* sql`UPDATE effect_sql_migrations SET name = ${replacement} WHERE migration_id = ${journal.id}`;
       return [[journal.id, replacement] as const];
     }),
@@ -470,7 +474,10 @@ export const runMigrations = Effect.fn("runMigrations")(function* ({
   );
   // One transaction per migration: an index build on a large database can take minutes, and a
   // restart then resumes after the last finished migration instead of rolling all of them back.
-  const executedMigrations: Array<readonly [id: number, name: string]> = [...previewMigrations, ...journalMigrations];
+  const executedMigrations: Array<readonly [id: number, name: string]> = [
+    ...previewMigrations,
+    ...journalMigrations,
+  ];
   yield* Effect.gen(function* () {
     for (const [index, [id, name]] of pending.entries()) {
       if (Option.isSome(progress)) {
