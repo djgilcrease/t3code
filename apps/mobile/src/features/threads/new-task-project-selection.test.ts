@@ -170,9 +170,15 @@ describe("resolveEnvironmentProjectMatch", () => {
 
   it("requires explicit identity for non-Git copies and respects separate mode", () => {
     const groupingIdentity = "39c61a1b-8a64-43a6-9da5-65c15da93d52";
-    const selected = { ...makeProject("sdk", "mac"), groupingIdentity };
-    const unrelated = makeProject("sdk", "server");
-    const target = { ...makeProject("copy", "server"), groupingIdentity };
+    const selected = {
+      ...makeProject("sdk", "mac", { workspaceRoot: "/Users/me/sdk/" }),
+      groupingIdentity,
+    };
+    const unrelated = makeProject("sdk", "server", { workspaceRoot: "C:\\Users\\me\\sdk" });
+    const target = {
+      ...makeProject("copy", "server", { workspaceRoot: "D:/work/sdk" }),
+      groupingIdentity,
+    };
     expect(resolveEnvironmentProjectMatch([unrelated], selected)).toBeNull();
     expect(resolveEnvironmentProjectMatch([unrelated, target], selected)).toBe(target);
     expect(isSameRepository(target, selected)).toBe(false);

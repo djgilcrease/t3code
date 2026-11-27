@@ -394,9 +394,7 @@ const projectAddCommand = Command.make("add", {
         flags,
         Effect.fn("projectAddMutation")(function* ({ dispatch }) {
           const path = yield* Path.Path;
-          const workspaceRoot = path.resolve(
-            expandHomePath(flags.workspaceRoot.trim(), yield* HostProcess.HomeDirectory),
-          );
+          const workspaceRoot = yield* normalizeWorkspaceRootForProjectCommand(flags.workspaceRoot);
           const homeDirectory = yield* HostProcess.HomeDirectory;
           const trackedFolders = flags.track
             .map((folder) => {

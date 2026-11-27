@@ -828,7 +828,7 @@ export const make = Effect.gen(function* () {
       }
       let project = yield* getById(projectId);
       if (Option.isNone(project)) {
-        const candidate = path.resolve(input.cwd, expandHomePath(identifier, homeDirectory));
+        const candidate = path.resolve(input.cwd, expandHomePath(input.identifier, homeDirectory));
         const normalized = yield* Effect.result(workspacePaths.normalizeWorkspaceRoot(candidate));
         const workspaceRoot =
           normalized._tag === "Success"

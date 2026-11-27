@@ -142,6 +142,7 @@ it.live("uses the literal folder when a relative project path starts with a spac
 
     yield* runProject(["add", " notes", "--title", "Literal"]);
     yield* runProject(["rename", " notes", "Renamed"]);
+    yield* runProject(["grouping", " notes"]);
     assert.deepEqual(
       (yield* readProjects(baseDir)).projects.map(({ title, workspaceRoot }) => ({
         title,
