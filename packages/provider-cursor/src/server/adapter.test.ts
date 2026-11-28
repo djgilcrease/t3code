@@ -3303,7 +3303,9 @@ describe("CursorAdapterV2", () => {
       "secret-cursor-mcp-token",
     );
     assert.notInclude(
-      JSON.stringify(CursorAgentSdk.loggedCursorSendOptions({ mcpServers: cursorMcpServers(mcpSession)! })),
+      JSON.stringify(
+        CursorAgentSdk.loggedCursorSendOptions({ mcpServers: cursorMcpServers(mcpSession)! }),
+      ),
       "private-db-token",
     );
   });

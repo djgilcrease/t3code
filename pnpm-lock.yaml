@@ -1546,8 +1546,8 @@ importers:
         specifier: 'catalog:'
         version: 19.3.0
       '@effect/atom-react':
-        specifier: 4.1.5
-        version: 4.1.5(effect@4.1.5(patch_hash=14a7acd734809d8dddbf2c19c4ec01fdd2ffae60a612de42b5ed29860216052a))(react@19.3.0)(scheduler@0.28.0)
+        specifier: 4.1.6
+        version: 4.1.6(effect@4.1.6(patch_hash=c13237f64561426c002130285a9832acc5bb6ab42fd81e020b306429757ddda1))(react@19.3.0)(scheduler@0.28.0)
       '@pierre/diffs':
         specifier: 1.7.0-beta.4
         version: 1.7.0-beta.4(patch_hash=7edcdd484a99c7ec0b2667499c4cb21d113ec9bea1f8570c0b0a030d33bbf1cd)(@shikijs/themes@4.2.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -1759,8 +1759,8 @@ importers:
   packages/plugin-sdk:
     dependencies:
       effect:
-        specifier: 4.1.5
-        version: 4.1.5(patch_hash=14a7acd734809d8dddbf2c19c4ec01fdd2ffae60a612de42b5ed29860216052a)
+        specifier: 4.1.6
+        version: 4.1.6(patch_hash=c13237f64561426c002130285a9832acc5bb6ab42fd81e020b306429757ddda1)
     devDependencies:
       vite-plus:
         specifier: 1.8.0

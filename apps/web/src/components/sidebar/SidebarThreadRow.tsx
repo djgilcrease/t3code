@@ -1323,7 +1323,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         className="pointer-events-none ml-auto inline-flex shrink-0 items-center gap-1"
       >
         <PluginStatusDots environmentId={thread.environmentId} />
-                <SidebarProviderIcon
+        <SidebarProviderIcon
           thread={thread}
           providerEntryByInstanceId={props.providerEntryByInstanceId}
         />
@@ -1333,7 +1333,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const titleLineIcons = metaLineEmpty ? (
     <span aria-hidden className="inline-flex shrink-0 items-center gap-1">
       <PluginStatusDots environmentId={thread.environmentId} />
-            <SidebarProviderIcon
+      <SidebarProviderIcon
         thread={thread}
         providerEntryByInstanceId={props.providerEntryByInstanceId}
       />
