@@ -89,7 +89,10 @@ it.effect.each([
             removeWorktree: () => Effect.fail(failure),
           }),
           Layer.mock(PluginRegistry.PluginRegistry)({}),
-          ProjectionStore.layer.pipe(Layer.provide(database)),
+          ProjectionStore.layer.pipe(
+            Layer.provide(NodeCrypto.layerDigest),
+            Layer.provide(database),
+          ),
           Layer.mock(Orchestrator.OrchestratorV2)({
             dispatch: (command) =>
               Effect.sync(() => {
